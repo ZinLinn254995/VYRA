@@ -3905,7 +3905,7 @@ Deno.serve(async (request: Request) => {
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
         .neq('processing_status', 'archived').order('updated_at', { ascending: false }).limit(30),
       context.supabaseAdmin.from('vyral_dna_records')
-        .select('asset_id,revision_number,dna_status,verification_status,source_kind')
+        .select('id,asset_id,schema_version,revision_number,dna_status,verification_status,source_kind,record_id:payload->dna_record->>record_id,schema_id:payload->dna_record->>schema_id,source:payload->dna_record->source,extractor:payload->dna_record->extractor,decoded_image:payload->dna_record->decoded_image,file:payload->dna_record->file,structure:payload->dna_record->structure')
         .eq('vyral_id', activeVyralId).eq('user_id', userId).eq('scope', 'asset')
         .order('revision_number', { ascending: false }).limit(120),
       context.supabaseAdmin.from('vyral_asset_relationships')
@@ -3913,7 +3913,7 @@ Deno.serve(async (request: Request) => {
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
         .order('created_at', { ascending: false }).limit(30),
       context.supabaseAdmin.from('vyral_master_dna_revisions')
-        .select('revision,vyral_fingerprint')
+        .select('revision,manifest_sha256,vyral_fingerprint,snapshot')
         .eq('vyral_id', activeVyralId).eq('user_id', userId)
         .order('revision', { ascending: false }).limit(1).maybeSingle(),
     ]);
@@ -3922,16 +3922,29 @@ Deno.serve(async (request: Request) => {
     }
 
     const assets = assetResult.data ?? [];
-    const latestDnaByAsset = new Map<string, Record<string, unknown>>();
-    for (const record of dnaResult.data ?? []) {
-      if (!latestDnaByAsset.has(String(record.asset_id))) {
-        latestDnaByAsset.set(String(record.asset_id), {
-          revision: record.revision_number,
-          status: record.dna_status,
-          verification: record.verification_status,
-          source: record.source_kind,
-        });
+    const rawMasterSnapshot = masterResult.data?.snapshot && typeof masterResult.data.snapshot === 'object' && !Array.isArray(masterResult.data.snapshot)
+      ? masterResult.data.snapshot as Record<string, unknown> : null;
+    const masterSnapshotIsCurrent = Boolean(
+      activeVyral.master_dna_status === 'ready' &&
+      masterResult.data &&
+      Number(masterResult.data.revision) === Number(activeVyral.master_dna_revision) &&
+      rawMasterSnapshot &&
+      rawMasterSnapshot.schema_id === 'vyra.vyral-master-dna' &&
+      rawMasterSnapshot.schema_version === 1
+    );
+    const masterSnapshot = masterSnapshotIsCurrent ? rawMasterSnapshot : null;
+    const snapshotAssets = Array.isArray(masterSnapshot?.assets) ? masterSnapshot.assets : [];
+    const snapshotAssetById = new Map<string, Record<string, unknown>>();
+    for (const raw of snapshotAssets) {
+      if (raw && typeof raw === 'object' && !Array.isArray(raw) && typeof (raw as Record<string, unknown>).asset_id === 'string') {
+        snapshotAssetById.set(String((raw as Record<string, unknown>).asset_id), raw as Record<string, unknown>);
       }
+    }
+
+    const dnaRowsByAsset = new Map<string, Record<string, unknown>>();
+    for (const record of dnaResult.data ?? []) {
+      const assetId = String(record.asset_id);
+      if (!dnaRowsByAsset.has(assetId)) dnaRowsByAsset.set(assetId, record as Record<string, unknown>);
     }
     const assetNames = new Map<string, string>();
     for (const asset of assets) assetNames.set(String(asset.id), String(asset.name));
@@ -3941,6 +3954,52 @@ Deno.serve(async (request: Request) => {
       const tags = Array.isArray(metadata.tags)
         ? metadata.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 8).map((tag) => tag.slice(0, 60))
         : [];
+      const dnaRow = dnaRowsByAsset.get(String(asset.id));
+      const snapshotAsset = snapshotAssetById.get(String(asset.id));
+      const dnaRef = snapshotAsset?.dna_ref && typeof snapshotAsset.dna_ref === 'object' && !Array.isArray(snapshotAsset.dna_ref)
+        ? snapshotAsset.dna_ref as Record<string, unknown> : null;
+      const isPinnedDna = Boolean(dnaRow && dnaRef &&
+        (dnaRef.record_id === dnaRow.record_id || dnaRef.record_id === dnaRow.id) &&
+        Number(dnaRef.schema_version) === Number(dnaRow.schema_version) &&
+        dnaRef.schema_id === dnaRow.schema_id);
+      let deterministicDna: Record<string, unknown> | null = null;
+      if (isPinnedDna && dnaRow) {
+        if (dnaRow.schema_id === 'vyra.asset-dna' && Number(dnaRow.schema_version) === 3 &&
+            dnaRow.decoded_image && typeof dnaRow.decoded_image === 'object' && !Array.isArray(dnaRow.decoded_image)) {
+          const decoded = dnaRow.decoded_image as Record<string, unknown>;
+          const source = dnaRow.source && typeof dnaRow.source === 'object' && !Array.isArray(dnaRow.source)
+            ? dnaRow.source as Record<string, unknown> : {};
+          const extractor = dnaRow.extractor && typeof dnaRow.extractor === 'object' && !Array.isArray(dnaRow.extractor)
+            ? dnaRow.extractor as Record<string, unknown> : {};
+          deterministicDna = {
+            kind: 'deterministic_image_integrity',
+            schema: dnaRow.schema_id,
+            source: { assetVersionId: source.asset_version_id, sha256: source.sha256, mimeType: source.mime_type },
+            extractor: { name: extractor.name, version: extractor.version },
+            decodedImage: {
+              width: decoded.width, height: decoded.height, channelLayout: decoded.channel_layout,
+              colorSpace: decoded.color_space, alphaMode: decoded.alpha_mode,
+              decodedSamplesSha256: decoded.decoded_samples_sha256,
+            },
+            note: 'This DNA verifies source and decoded-pixel identity; it does not contain semantic visual descriptions.',
+          };
+        } else if (dnaRow.schema_id === 'vyra.asset-file-dna' && Number(dnaRow.schema_version) === 1) {
+          const file = dnaRow.file && typeof dnaRow.file === 'object' && !Array.isArray(dnaRow.file)
+            ? dnaRow.file as Record<string, unknown> : {};
+          const structure = dnaRow.structure && typeof dnaRow.structure === 'object' && !Array.isArray(dnaRow.structure)
+            ? dnaRow.structure as Record<string, unknown> : {};
+          const facts = Array.isArray(structure.facts) ? structure.facts.slice(0, 40) : [];
+          const notes = Array.isArray(structure.notes)
+            ? structure.notes.filter((note): note is string => typeof note === 'string').slice(0, 8).map((note) => note.slice(0, 240))
+            : [];
+          deterministicDna = {
+            kind: 'deterministic_file_structure',
+            schema: dnaRow.schema_id,
+            file: { sizeBytes: file.size_bytes, mimeType: file.mime_type, extension: file.extension, formatSignature: file.format_signature, sha256: file.sha256 },
+            structure: { profile: structure.profile, status: structure.status, facts, notes },
+          };
+        }
+      }
       return {
         id: asset.id,
         name: String(asset.name ?? '').slice(0, 180),
@@ -3949,26 +4008,56 @@ Deno.serve(async (request: Request) => {
         status: asset.processing_status,
         description: String(asset.description ?? '').slice(0, 360),
         tags,
-        latestDna: latestDnaByAsset.get(String(asset.id)) ?? null,
+        latestDna: dnaRow ? {
+          revision: dnaRow.revision_number,
+          status: dnaRow.dna_status,
+          verification: dnaRow.verification_status,
+          source: dnaRow.source_kind,
+          pinnedToMasterSnapshot: isPinnedDna,
+          deterministic: deterministicDna,
+        } : null,
       };
     });
     const relationships = (relationshipResult.data ?? []).map((item) => ({
       type: item.relationship_type,
-      from: item.from_kind === 'vyral' ? 'this Vyral' : assetNames.get(String(item.from_asset_id)) ?? 'unknown Asset',
-      to: item.to_kind === 'vyral' ? 'this Vyral' : assetNames.get(String(item.to_asset_id)) ?? 'unknown Asset',
+      from: item.from_kind === 'vyral' ? 'this Universe' : assetNames.get(String(item.from_asset_id)) ?? 'unknown Asset',
+      to: item.to_kind === 'vyral' ? 'this Universe' : assetNames.get(String(item.to_asset_id)) ?? 'unknown Asset',
       rationale: String(item.rationale ?? '').slice(0, 240),
     }));
+    const snapshotPurpose = masterSnapshot?.purpose && typeof masterSnapshot.purpose === 'object' && !Array.isArray(masterSnapshot.purpose)
+      ? masterSnapshot.purpose as Record<string, unknown> : {};
+    const snapshotProfile = masterSnapshot?.reconstruction_profile && typeof masterSnapshot.reconstruction_profile === 'object' && !Array.isArray(masterSnapshot.reconstruction_profile)
+      ? masterSnapshot.reconstruction_profile as Record<string, unknown> : {};
+    const snapshotRelationships = Array.isArray(masterSnapshot?.relationships) ? masterSnapshot.relationships.slice(0, 30) : [];
     const activeContext = {
       name: String(activeVyral.name ?? '').slice(0, 100),
       description: String(activeVyral.description ?? '').slice(0, 1000),
       masterDna: {
         status: activeVyral.master_dna_status,
         revision: activeVyral.master_dna_revision,
-        purpose: typeof activeVyral.master_dna_purpose === 'string' ? activeVyral.master_dna_purpose.slice(0, 1000) : null,
-        intendedUses: Array.isArray(activeVyral.master_dna_intended_uses)
-          ? activeVyral.master_dna_intended_uses.filter((item: unknown): item is string => typeof item === 'string').slice(0, 12)
-          : [],
+        snapshotCurrent: masterSnapshotIsCurrent,
+        purpose: typeof snapshotPurpose.summary === 'string'
+          ? snapshotPurpose.summary.slice(0, 1000)
+          : typeof activeVyral.master_dna_purpose === 'string' ? activeVyral.master_dna_purpose.slice(0, 1000) : null,
+        intendedUses: Array.isArray(snapshotPurpose.intended_uses)
+          ? snapshotPurpose.intended_uses.filter((item): item is string => typeof item === 'string').slice(0, 12)
+          : Array.isArray(activeVyral.master_dna_intended_uses)
+            ? activeVyral.master_dna_intended_uses.filter((item: unknown): item is string => typeof item === 'string').slice(0, 12)
+            : [],
+        mainAssetIds: Array.isArray(masterSnapshot?.main_asset_ids) ? masterSnapshot.main_asset_ids.slice(0, 30) : [],
+        snapshotAssets: snapshotAssets.slice(0, 30),
+        snapshotRelationships,
+        reconstructionProfile: {
+          overallClaim: snapshotProfile.overall_claim ?? 'unavailable',
+          notes: Array.isArray(snapshotProfile.notes)
+            ? snapshotProfile.notes.filter((note): note is string => typeof note === 'string').slice(0, 8).map((note) => note.slice(0, 240))
+            : [],
+          crossAssetConstraints: Array.isArray(snapshotProfile.cross_asset_constraints)
+            ? snapshotProfile.cross_asset_constraints.slice(0, 20)
+            : [],
+        },
         latestSnapshotRevision: masterResult.data?.revision ?? null,
+        manifestSha256: masterResult.data?.manifest_sha256 ?? null,
         fingerprint: masterResult.data?.vyral_fingerprint ?? null,
       },
       assets: assetContext,
