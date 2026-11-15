@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, setCreatorApprovedSceneStartingState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
+import { approveSceneContinuityState, evaluateAndRecordSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
 
 test('initializes an empty versioned ledger without inventing Scene state', () => {
   const ledger = hydrateSceneContinuityLedger(undefined, [{ id: 's1' }, { id: 's2' }]);
@@ -470,4 +470,16 @@ test('rejects a starting state on any Scene other than the first', () => {
     () => setCreatorApprovedSceneStartingState(undefined, [{ id: 's1' }, { id: 's2' }], 's2', { world: { location: 'room' } }),
     /Only the first Scene/,
   );
+});
+
+test('accepts a Scene proposal only when its evaluated continuity snapshot is still current', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  const baseline = setCreatorApprovedSceneStartingState(undefined, scenes, 's1', {
+    story: { startingContext: 'At dawn in the old city.' },
+  });
+  assert.equal(isSceneContinuityLedgerSnapshotCurrent(baseline, baseline, scenes), true);
+  const changed = setCreatorApprovedSceneStartingState(baseline, scenes, 's1', {
+    story: { startingContext: 'At night in the old city.' },
+  });
+  assert.equal(isSceneContinuityLedgerSnapshotCurrent(changed, baseline, scenes), false);
 });
