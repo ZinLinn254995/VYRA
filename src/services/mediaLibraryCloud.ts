@@ -230,20 +230,20 @@ async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId
         onConflict: 'user_id,universe_id,source_asset_id',
       });
       if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
-    } else {
-      const currentRows = rows.filter((row: { source_asset_id: string }) => indexedByAsset.has(row.source_asset_id));
-      if (currentRows.length) {
-        for (const row of currentRows) {
-          const existing = indexedByAsset.get(row.source_asset_id) as { id: string } | undefined;
-          if (existing?.id) {
-            const { error } = await db.from('media_library_items').update({
-              folder_id: row.folder_id, file_name: row.file_name, mime_type: row.mime_type,
-              size_bytes: row.size_bytes, bucket_id: row.bucket_id, storage_path: row.storage_path,
-              source_kind: row.source_kind, metadata: row.metadata,
-            }).eq('id', existing.id).eq('user_id', userId).eq('universe_id', universeId);
-            if (error) throw new Error('Could not refresh a Universe Asset index row: ' + error.message);
-          }
-        }
+    }
+    const currentRows = rows.filter((row: { source_asset_id: string }) => {
+      const existing = indexedByAsset.get(row.source_asset_id) as { universe_id: string | null } | undefined;
+      return existing?.universe_id === universeId;
+    });
+    for (const row of currentRows) {
+      const existing = indexedByAsset.get(row.source_asset_id) as { id: string } | undefined;
+      if (existing?.id) {
+        const { error } = await db.from('media_library_items').update({
+          folder_id: row.folder_id, file_name: row.file_name, mime_type: row.mime_type,
+          size_bytes: row.size_bytes, bucket_id: row.bucket_id, storage_path: row.storage_path,
+          source_kind: row.source_kind, metadata: row.metadata,
+        }).eq('id', existing.id).eq('user_id', userId).eq('universe_id', universeId);
+        if (error) throw new Error('Could not refresh a Universe Asset index row: ' + error.message);
       }
     }
     const { data: universeState } = await db.from('vyrals').select('master_dna_status')
