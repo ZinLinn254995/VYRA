@@ -7,6 +7,7 @@ import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { MyUniverseHome } from './components/universe/MyUniverseHome';
 
 type WalletResponse = { availableBalance?: string };
 type MainSection = 'workspace';
@@ -197,7 +198,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && <main aria-label="VYRA" className="min-h-0 flex-1" />}
+        {!profileOpen && <MyUniverseHome />
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
