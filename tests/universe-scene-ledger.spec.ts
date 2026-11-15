@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hydrateSceneContinuityLedger } from '../src/services/universeSceneLedger.ts';
+import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, recordSceneContinuityEvaluation } from '../src/services/universeSceneLedger.ts';
 
 test('initializes an empty versioned ledger without inventing Scene state', () => {
   const ledger = hydrateSceneContinuityLedger(undefined, [{ id: 's1' }, { id: 's2' }]);
@@ -59,4 +59,49 @@ test('ignores malformed prior ledger containers and duplicate scene ids safely',
   const ledger = hydrateSceneContinuityLedger({ scenes: 'invalid' }, [{ id: 'x' }, { id: 'x' }, { id: '' }]);
   assert.deepEqual(ledger.sceneOrder, ['x']);
   assert.deepEqual(Object.keys(ledger.scenes), ['x']);
+});
+
+test('Scene evaluation remains proposed until the creator explicitly approves it', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  const initial = hydrateSceneContinuityLedger(undefined, scenes);
+  const proposed = recordSceneContinuityEvaluation(initial, scenes, {
+    sceneId: 's1',
+    entryState: { hero: { outfit: 'blue coat' } },
+    intendedChanges: [{ path: 'hero.outfit', value: 'torn coat', reason: 'A fight occurs.' }],
+    expectedExitState: { hero: { outfit: 'torn coat' } },
+    status: 'consistent',
+    violations: [],
+    updatedAt: '2026-11-15T00:00:00.000Z',
+  });
+  assert.equal(proposed.scenes.s1.validationStatus, 'consistent');
+  assert.equal(proposed.scenes.s1.exitState, null);
+  assert.deepEqual(proposed.scenes.s1.proposedExitState, { hero: { outfit: 'torn coat' } });
+  const approved = approveSceneContinuityState(proposed, scenes, 's1', '2026-11-15T00:01:00.000Z');
+  assert.equal(approved.scenes.s1.validationStatus, 'creator_approved');
+  assert.deepEqual(approved.scenes.s1.exitState, { hero: { outfit: 'torn coat' } });
+});
+
+test('a failed Scene evaluation cannot be promoted into canonical state', () => {
+  const scenes = [{ id: 's1' }];
+  const proposed = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: {}, intendedChanges: [],
+    expectedExitState: { hero: 'present' }, status: 'needs_review',
+    violations: [{ path: 'hero', kind: 'missing_state' }],
+  });
+  assert.throws(() => approveSceneContinuityState(proposed, scenes, 's1'), /must pass continuity evaluation/);
+});
+
+test('next Scene receives only the immediately preceding creator-approved handoff', () => {
+  const scenes = [{ id: 's1' }, { id: 's2' }];
+  const proposed = recordSceneContinuityEvaluation(undefined, scenes, {
+    sceneId: 's1', entryState: {}, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+  });
+  const blocked = getSceneContinuityContext(proposed, scenes, 's2');
+  assert.equal(blocked?.contextComplete, false);
+  assert.equal(blocked?.previousExitState, null);
+  const approved = approveSceneContinuityState(proposed, scenes, 's1');
+  const ready = getSceneContinuityContext(approved, scenes, 's2');
+  assert.equal(ready?.contextComplete, true);
+  assert.deepEqual(ready?.previousExitState, { hero: { location: 'hall' } });
 });
