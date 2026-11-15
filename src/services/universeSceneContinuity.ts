@@ -86,7 +86,7 @@ export function deriveTrackedSceneStatePaths(
     if (isRecord(value) && Object.keys(value).length > 0) {
       // Track object membership separately from leaf values. Without this,
       // newly introduced nested details could bypass continuity checks.
-      paths.add('@keys:' + prefix);
+      paths.add('@keys:' + (prefix || '$root'));
       if (paths.size > maxPaths) throw new Error('Scene state exceeds the maximum tracked continuity paths.');
       for (const key of Object.keys(value)) {
         if (!key || key === '__proto__' || key === 'prototype' || key === 'constructor') {
@@ -138,8 +138,8 @@ export function evaluateSceneStateTransition(input: {
   for (const path of [...new Set(input.trackedPaths)].sort()) {
     const isObjectShapePath = path.startsWith('@keys:');
     const valuePath = isObjectShapePath ? path.slice('@keys:'.length) : path;
-    const expected = readPath(expectedState, valuePath);
-    const actual = readPath(input.observedState, valuePath);
+    const expected = valuePath === '$root' ? { exists: true, value: expectedState } : readPath(expectedState, valuePath);
+    const actual = valuePath === '$root' ? { exists: true, value: input.observedState } : readPath(input.observedState, valuePath);
     if (!expected.exists) continue;
     if (!actual.exists) {
       violations.push({
@@ -152,13 +152,13 @@ export function evaluateSceneStateTransition(input: {
     }
     if (isObjectShapePath) {
       if (!isRecord(expected.value) || !isRecord(actual.value)) {
-        violations.push({ path: valuePath, kind: 'unexpected_change', expectedValue: expected.value, actualValue: actual.value, reason: 'A tracked object changed shape.' });
+        violations.push({ path: valuePath === '$root' ? '$root' : valuePath, kind: 'unexpected_change', expectedValue: expected.value, actualValue: actual.value, reason: 'A tracked object changed shape.' });
         continue;
       }
       const expectedKeys = Object.keys(expected.value).sort();
       const actualKeys = Object.keys(actual.value).sort();
       if (canonical(expectedKeys) === canonical(actualKeys)) continue;
-      violations.push({ path: valuePath, kind: 'unexpected_change', expectedValue: expectedKeys, actualValue: actualKeys, reason: 'Object details were added or removed without an explicit approved Scene event.' });
+      violations.push({ path: valuePath === '$root' ? '$root' : valuePath, kind: 'unexpected_change', expectedValue: expectedKeys, actualValue: actualKeys, reason: 'Object details were added or removed without an explicit approved Scene event.' });
       continue;
     }
     if (canonical(expected.value) === canonical(actual.value)) continue;
