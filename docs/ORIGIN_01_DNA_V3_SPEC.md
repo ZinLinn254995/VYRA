@@ -1,3 +1,5 @@
+> **HISTORICAL ORIGIN-01 RECONSTRUCTION SPECIFICATION (2026-11-15):** Preserve ORIGIN-01 and its original data. This spec is not the current product acceptance target; retain useful exact integrity checks and redesign future tests around Universe consistency. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # ORIGIN-01 DNA v3 — Lossless Reconstruction Specification
 
 Status: implementation specification. No v3 reconstruction success is claimed.
