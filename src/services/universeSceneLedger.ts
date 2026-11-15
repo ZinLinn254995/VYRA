@@ -91,6 +91,23 @@ export function hydrateSceneContinuityLedger(
 }
 
 /**
+ * Rejects AI handoffs evaluated against a stale continuity snapshot. Both
+ * sides are hydrated against the same ordered Scene list before comparison.
+ */
+export function isSceneContinuityLedgerSnapshotCurrent(
+  currentInput: unknown,
+  evaluatedAgainstInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+): boolean {
+  try {
+    return JSON.stringify(hydrateSceneContinuityLedger(currentInput, scenes))
+      === JSON.stringify(hydrateSceneContinuityLedger(evaluatedAgainstInput, scenes));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Stores an explicitly creator-authored starting snapshot for the first Scene.
  * This is an entry baseline only; it does not approve any generated Scene exit.
  * Replacing it invalidates all downstream approvals because their continuity
