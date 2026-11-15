@@ -173,3 +173,13 @@ test('nested temporal metadata is recognized while event IDs never split a confl
   assert.equal(result.conflicts.length, 1);
   assert.equal(result.resolved.length, 0);
 });
+
+
+test('additional effective and start/end aliases are normalized into the same temporal scope', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', effective_at: '2026-05-01T00:00:00Z' }, 'a', '2026-05-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', period: { start_at: '2026-04-30T19:00:00-05:00' } }, 'b', '2026-05-01T00:01:00Z'),
+  ]);
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.resolved.length, 0);
+});
