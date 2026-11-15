@@ -23,6 +23,7 @@ export function buildSceneStateProposalInstruction(
     'Use concise dot-separated paths with only letters, numbers, underscore, dollar sign, and hyphen. Do not use prototype-related path segments.',
     'Every evidence value must be an exact, contiguous excerpt copied from the narrative text before the block. Never cite the JSON block itself or invent evidence.',
     'Include only facts directly depicted or explicitly stated in the generated narrative. Do not infer unseen events, off-screen changes, motives, or permanent canon.',
+    'When creator-approved entry state is supplied in Workspace context, carry every unchanged persistent fact into the observed exit snapshot using the same path and value. Do not silently omit or rewrite entry facts; represent only narrative-supported changes as proposals.',
     'Use persistent scope only for durable facts explicitly established by the narrative; use scene_state for temporary positions, poses, lighting, camera framing, and other momentary conditions.',
     'List proposed story changes in intendedChanges, but they remain unverified suggestions. Never describe them as approved, canonical, or committed.',
     'Do not include markdown fences around the block. Do not add prose after the closing tag.',
