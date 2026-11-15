@@ -44,7 +44,7 @@ type ReconstructionRow = { id: string; asset_id: string; asset_version_id?: stri
 type AssetVersionRow = { id: string; asset_id: string; storage_path: string; version_number: number; mime_type: string; size_bytes: number; sha256: string | null; source_kind?: string; parent_version_id?: string | null; metadata?: Record<string, unknown>; created_at: string };
 type CollectionReferenceRow = { id: string; source_vyral_id: string; source_revision: number; source_visibility: 'public' | 'private' | 'unlisted'; resolver_uri: string | null; projection_sha256: string; compact_snapshot: Record<string, unknown>; imported_at: string };
 type Tab = 'overview' | 'assets' | 'license';
-type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void };
+type Props = { vyral: Vyral; searchQuery: string; onVyralUpdated: (patch: Partial<Vyral>) => void; onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void; fileManagerOnly?: boolean };
 
 const isProtectedVyral = (item: Vyral) => item.id === 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d' || item.metadata?.protected === true;
 
@@ -168,9 +168,9 @@ const formatRgb = (value: unknown) =>
     ? value.slice(0, 3).map((channel) => Number(channel).toFixed(0)).join(', ')
     : '—';
 
-export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated, onSendAssetsToChat }) => {
+export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyralUpdated, onSendAssetsToChat, fileManagerOnly = false }) => {
   const auth = useAuth();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(fileManagerOnly ? 'assets' : 'overview');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [backgroundJob, setBackgroundJob] = useState<{ assetName: string; stage: string; detail: string } | null>(null);
@@ -2883,7 +2883,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       {(packageBusy || busy) && <p className={'text-xs ' + muted} role="status">Please wait…</p>}
       {backgroundJob && <section role="status" aria-live="polite" className="flex items-start gap-3 rounded-xl border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/5 px-3 py-3"><LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-[var(--vyra-accent-primary)]"/><div className="min-w-0"><p className={'text-xs font-semibold '+primary}>{backgroundJob.stage}</p><p className={'mt-0.5 truncate text-[11px] '+subtle}>{backgroundJob.assetName}</p><p className={'mt-1 text-[10px] leading-4 '+muted}>{backgroundJob.detail}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--vyra-border)]"><div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--vyra-accent-primary)]"/></div></div></section>}
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-500"><AlertCircle size={15} className="mt-0.5 shrink-0"/><span className="min-w-0 flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
-      {collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
+      {!fileManagerOnly && collectionReferences.length > 0 && <section className={surface + ' space-y-3 p-3'}>
         <div className="flex items-center justify-between gap-3">
           <div><h3 className={'text-sm font-semibold ' + primary}>Universe references</h3><p className={'mt-1 text-[11px] ' + muted}>References are kept separate from this Universe’s own Assets.</p></div>
           <span className={'text-[10px] ' + muted}>{collectionReferences.length}</span>
@@ -2930,6 +2930,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           })}
         </div>
       </section>}
+      {!fileManagerOnly && <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className={'text-base font-semibold ' + primary}>Assets</h2>
@@ -2967,10 +2968,11 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
           </button>
         ))}
       </nav>
+      </>}
 
 
 
-      {tab === 'overview' && (
+      {!fileManagerOnly && tab === 'overview' && (
         <div className="space-y-4">
           <section className={surface+' p-4'}>
             <div className="flex items-start justify-between gap-3">
@@ -3060,7 +3062,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         </div>
       )}
 
-      {tab === 'license' && (
+      {!fileManagerOnly && tab === 'license' && (
         <section className={surface+' p-4'}>
           <div className="flex items-start gap-3"><LockKeyhole size={19} className="mt-0.5 text-[var(--vyra-accent-primary)]"/><div><h3 className={'text-sm font-semibold '+primary}>Usage permissions</h3><p className={'mt-1 text-xs leading-5 '+subtle}>These creator-defined rules are stored with this Universe. They are policy metadata for the VYRA workflows; public distribution and enforcement need their own release checks.</p></div></div>
           <form onSubmit={(event)=>void saveLicense(event)} className="mt-4 space-y-3">
