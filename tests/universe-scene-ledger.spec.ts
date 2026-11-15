@@ -104,4 +104,5 @@ test('next Scene receives only the immediately preceding creator-approved handof
   const ready = getSceneContinuityContext(approved, scenes, 's2');
   assert.equal(ready?.contextComplete, true);
   assert.deepEqual(ready?.previousExitState, { hero: { location: 'hall' } });
+  assert.deepEqual(ready?.currentEntryState, { hero: { location: 'hall' } });
 });
