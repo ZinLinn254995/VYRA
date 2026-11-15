@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, LoaderCircle, RefreshCw } from 'lucide-react';
 import { supabase, useAuth } from '../../context/AuthContext';
-import { VyralDetailsContent } from '../profile/VyralDetailsContent';
+import { MyMediaLibraryPage } from '../profile/MyMediaLibraryPage';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type UniverseRecord = {
@@ -125,12 +125,11 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
           <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Universe for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
           <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Storyboard-only</span>
         </div>
-        <VyralDetailsContent
-          vyral={universe}
-          searchQuery=""
-          fileManagerOnly
-          onVyralUpdated={(patch) => setUniverse((current) => current ? { ...current, ...patch } : current)}
-          onSendAssetsToChat={onSendAssetsToChat}
+        <MyMediaLibraryPage
+          key={universe.id}
+          isActive={isActive}
+          universeId={universe.id}
+          storyboardId={storyboardId}
         />
       </div>
     </div>
