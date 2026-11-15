@@ -51,7 +51,7 @@ test('generated Project media is previewed in chat while only stable Asset refer
   assert.ok(!chat.includes('mediaAssets: message.mediaAssets.map((asset) => ({ ...asset, url: asset.url }))'));
 });
 
-test('Project editor has no redundant Scenes tab; scene operations stay inside Master Editor', () => {
+test('Project Editor navigation stays above its video preview and Scene management remains in Editor', () => {
   assert.ok(!workspace.includes("storyboardEditorView === 'scenes'"));
   assert.ok(!workspace.includes(">Scenes</button>"));
   assert.ok(workspace.includes("<MasterTimelineEditor"));
@@ -59,4 +59,10 @@ test('Project editor has no redundant Scenes tab; scene operations stay inside M
   assert.ok(workspace.includes("onSceneDuplicate="));
   assert.ok(workspace.includes("onSceneDelete="));
   assert.ok(workspace.includes("useState<'master' | 'chat' | 'universe'>('chat')"));
+  assert.ok(workspace.includes(">Editor</button>"));
+  assert.ok(!workspace.includes(">Master Editor</button>"));
+  assert.ok(workspace.includes('aria-label="Project navigation"'));
+  assert.ok(workspace.includes("{storyboardEditorView === 'master' && ("));
+  assert.ok(workspace.indexOf('aria-label="Project navigation"') < workspace.indexOf('className="profile-storyboard-preview"'));
+  assert.ok(workspace.includes("storyboardEditorView === 'universe' ? 'flex min-h-0"));
 });
