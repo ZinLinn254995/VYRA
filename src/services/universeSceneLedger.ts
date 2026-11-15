@@ -83,3 +83,103 @@ export function hydrateSceneContinuityLedger(
     scenes: records,
   } as SceneContinuityLedger;
 }
+
+export interface SceneContinuityContext {
+  sceneId: string;
+  sequence: number;
+  previousSceneId: string | null;
+  previousExitState: Record<string, unknown> | null;
+  previousSceneApproved: boolean;
+  currentEntryState: Record<string, unknown> | null;
+  intendedChanges: SceneContinuityRecord['intendedChanges'];
+  contextComplete: boolean;
+}
+
+/** Returns only the selected Scene and its immediate predecessor's approved handoff. */
+export function getSceneContinuityContext(
+  ledgerInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+  sceneId: string,
+): SceneContinuityContext | null {
+  const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
+  const current = ledger.scenes[sceneId];
+  if (!current) return null;
+  const previous = current.previousSceneId ? ledger.scenes[current.previousSceneId] : null;
+  const previousSceneApproved = !previous || (
+    previous.validationStatus === 'creator_approved' && previous.exitState !== null
+  );
+  return {
+    sceneId,
+    sequence: current.sequence,
+    previousSceneId: current.previousSceneId,
+    previousExitState: previousSceneApproved ? previous?.exitState ?? null : null,
+    previousSceneApproved,
+    currentEntryState: current.entryState,
+    intendedChanges: current.intendedChanges,
+    contextComplete: previousSceneApproved && (current.sequence === 0 || Boolean(previous?.exitState)),
+  };
+}
+
+/** Records an evaluation as a proposal; generated state is never canon by itself. */
+export function recordSceneContinuityEvaluation(
+  ledgerInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+  input: {
+    sceneId: string;
+    entryState: Record<string, unknown>;
+    intendedChanges: SceneContinuityRecord['intendedChanges'];
+    expectedExitState: Record<string, unknown>;
+    status: 'consistent' | 'needs_review';
+    violations: unknown[];
+    updatedAt?: string;
+  },
+): SceneContinuityLedger {
+  const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
+  const current = ledger.scenes[input.sceneId];
+  if (!current) throw new Error('Cannot record continuity for an unknown Scene.');
+  const updatedAt = input.updatedAt ?? new Date().toISOString();
+  return {
+    ...ledger,
+    scenes: {
+      ...ledger.scenes,
+      [input.sceneId]: {
+        ...current,
+        entryState: structuredClone(input.entryState),
+        intendedChanges: structuredClone(input.intendedChanges),
+        proposedExitState: structuredClone(input.expectedExitState),
+        validationStatus: input.status,
+        violations: structuredClone(input.violations),
+        updatedAt,
+        // Keep any previously approved exit state intact until a new result
+        // has been explicitly approved by the creator.
+      },
+    },
+  };
+}
+
+/** Only an explicit creator action can promote a proposed exit state to canon. */
+export function approveSceneContinuityState(
+  ledgerInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+  sceneId: string,
+  updatedAt = new Date().toISOString(),
+): SceneContinuityLedger {
+  const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
+  const current = ledger.scenes[sceneId];
+  if (!current) throw new Error('Cannot approve continuity for an unknown Scene.');
+  if (current.validationStatus !== 'consistent' || !isRecord(current.proposedExitState)) {
+    throw new Error('A Scene must pass continuity evaluation before its state can be approved.');
+  }
+  return {
+    ...ledger,
+    scenes: {
+      ...ledger.scenes,
+      [sceneId]: {
+        ...current,
+        exitState: structuredClone(current.proposedExitState),
+        validationStatus: 'creator_approved',
+        updatedAt,
+      },
+    },
+  };
+}
