@@ -283,12 +283,12 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
       } else {
         await refresh();
       }
-      if (!mounted || universeId || thumbnailBackfillStartedRef.current) return;
+      if (!mounted || thumbnailBackfillStartedRef.current) return;
       thumbnailBackfillStartedRef.current = true;
       try {
         // Backfill only once per page visit: repair a small batch only after the
         // user opens the Library, never while another profile subpage is active.
-        const generated = await backfillMediaLibraryThumbnails(4);
+        const generated = await backfillMediaLibraryThumbnails(4, universeId);
         if (mounted && generated > 0) await refresh(true);
       } catch {
         // The Library remains usable even if background thumbnail repair is unavailable.
