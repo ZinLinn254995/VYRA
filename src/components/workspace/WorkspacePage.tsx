@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AIChatPage } from '../ai/AIChatPage';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
@@ -24,7 +25,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -69,6 +70,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
+  const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
   const [storyboardEditorView, setStoryboardEditorView] = useState<'scenes' | 'master'>('scenes');
@@ -501,7 +503,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   ]);
 
   useEffect(() => {
-    if (!onAiContextChange) return;
     const scenes = activeStoryboard?.details?.scenes ?? [];
     const context: WorkspaceAiContext = {
       page: activeSceneId ? 'scene-editor' : activeStoryboard ? 'storyboard-editor' : 'storyboards',
@@ -560,7 +561,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
-    onAiContextChange(context);
+    setLocalWorkspaceAiContext(context);
+    onAiContextChange?.(context);
   }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
   useLayoutEffect(() => {
@@ -1295,8 +1297,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setStoryboardAiMessage('');
     };
     return (
-      <main className="profile-page-main h-full min-h-0 w-full min-w-0 overflow-hidden p-0">
-        <div className="profile-subpage-scroll profile-subpage-viewport !h-full !min-h-0 !overflow-hidden">
+      <main className="profile-page-main flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden p-0 lg:flex-row">
+        <div className="profile-subpage-scroll profile-subpage-viewport !h-1/2 !min-h-0 !w-full !overflow-hidden lg:!h-full lg:!w-[62%]">
           <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
           <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
