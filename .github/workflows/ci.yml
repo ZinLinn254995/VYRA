@@ -101,6 +101,8 @@ jobs:
         run: npm run test:universe-consistency
       - name: Asset DNA to Universe Knowledge projection tests
         run: npm run test:universe-knowledge
+      - name: Composed Universe consistency context tests
+        run: npm run test:universe-context
       - name: Audio export validation and runtime tests
         run: npm run test:audio-export
       - name: VYRAL package archive tests
