@@ -506,7 +506,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           if (!value) return null;
           try {
             const serialized = JSON.stringify(value);
-            return serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
+            return typeof serialized === 'string' && serialized.length <= 6000 ? JSON.parse(serialized) as Record<string, unknown> : null;
           } catch { return null; }
         };
         return {
