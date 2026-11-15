@@ -6,7 +6,7 @@ import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
-import type { WorkspaceAiContext } from './types/workspaceAiContext';
+import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -35,6 +35,7 @@ function MarketplaceApp() {
   }, [profileOpen, user]);
   const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
+  const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -187,7 +188,7 @@ function MarketplaceApp() {
         )}
         <div hidden={profileOpen || activeSection !== 'ai-chat'} aria-hidden={profileOpen || activeSection !== 'ai-chat'} style={profileOpen || activeSection !== 'ai-chat' ? { display: "none" } : undefined} className="min-w-0">
           <ErrorBoundary>
-            <AIChatPage isActive={activeSection === 'ai-chat' && !profileOpen} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} />
+            <AIChatPage isActive={activeSection === 'ai-chat' && !profileOpen} isAuthenticated={hasPermanentAccount} onLoginRequired={() => requestAuth('login')} initialSelectedAssets={pendingChatAssets} onSelectedAssetsChange={setPendingChatAssets} workspaceContext={workspaceAiContext} onSceneStateProposal={setPendingSceneStateProposal} />
           </ErrorBoundary>
         </div>
         <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
@@ -197,6 +198,8 @@ function MarketplaceApp() {
               isAuthenticated={hasPermanentAccount} isActive={activeSection === 'workspace' && !profileOpen} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Universes' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
+              pendingSceneStateProposal={pendingSceneStateProposal}
+              onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
             />
           </ErrorBoundary>
         </div>
