@@ -3939,7 +3939,7 @@ Deno.serve(async (request: Request) => {
         mimeType: item.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
         data: item.data,
         ...(typeof item.assetId === 'string' ? { assetId: item.assetId } : {}),
-        ...(typeof item.assetName === 'string' ? { assetName: item.assetName.replace(/[\\u0000-\\u001f\\u007f]/g, ' ').trim() } : {}),
+        ...(typeof item.assetName === 'string' ? { assetName: item.assetName.slice(0, 180).trim() } : {}),
       });
     }
   }
