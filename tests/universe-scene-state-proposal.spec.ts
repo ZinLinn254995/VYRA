@@ -80,3 +80,29 @@ test('rejects duplicate structured blocks and oversized responses', () => {
   assert.equal(parseSceneStateProposal(valid + valid.slice(valid.indexOf('<vyra-scene-state>')), 'scene-1').ok, false);
   assert.equal(parseSceneStateProposal('x'.repeat(40_001), 'scene-1').ok, false);
 });
+
+test('rejects evidence that appears only after the proposal block', () => {
+  const payload = JSON.stringify({
+    schemaVersion: 1, sceneId: 'scene-1',
+    facts: [{ path: 'hero.location', value: 'hall', scope: 'scene_state', evidence: 'Mira enters the hall' }],
+    intendedChanges: [],
+  });
+  const response = '<vyra-scene-state>' + payload + '</vyra-scene-state> Mira enters the hall.';
+  assert.equal(parseSceneStateProposal(response, 'scene-1').ok, false);
+});
+
+test('rejects trailing model prose after the structured state block', () => {
+  const response = makeResponse([
+    { path: 'hero.location', value: 'hall', scope: 'scene_state', evidence: 'enters the hall' },
+  ]) + '\\nI have also changed the canon.';
+  assert.equal(parseSceneStateProposal(response, 'scene-1').ok, false);
+});
+
+test('rejects a state block without a narrative to ground its evidence', () => {
+  const payload = JSON.stringify({
+    schemaVersion: 1, sceneId: 'scene-1',
+    facts: [{ path: 'hero.location', value: 'hall', scope: 'scene_state', evidence: 'hall' }],
+    intendedChanges: [],
+  });
+  assert.equal(parseSceneStateProposal('<vyra-scene-state>' + payload + '</vyra-scene-state>', 'scene-1').ok, false);
+});
