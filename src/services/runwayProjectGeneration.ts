@@ -173,8 +173,14 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
       throw error;
     });
     if (request.signal?.aborted) return { status: 'submitted_pending' as const, quote, jobId };
-    const pollData = requireRecord(await invoke(db, 'poll-runway-media-job', { jobId }, request.signal),
-      'The task polling response is invalid.');
+    let pollResponse: unknown;
+    try {
+      pollResponse = await invoke(db, 'poll-runway-media-job', { jobId }, request.signal);
+    } catch (error) {
+      if (error instanceof RunwayWorkflowRequestError && [429, 502, 503].includes(error.status ?? 0)) continue;
+      throw error;
+    }
+    const pollData = requireRecord(pollResponse, 'The task polling response is invalid.');
     if (pollData.throttled === true) continue;
     const polledJob = requireRecord(pollData.job, 'The task polling response has no job status.');
     const status = String(polledJob.status ?? '');
