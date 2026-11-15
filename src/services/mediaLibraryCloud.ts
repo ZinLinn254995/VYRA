@@ -571,12 +571,18 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     const { error: deleteError } = await db.from('vyral_assets').delete().in('id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
     if (deleteError) throw new Error('Stored media was removed, but the Asset records could not be deleted: ' + deleteError.message);
     let masterDnaStatus: 'ready' | 'pending' | 'empty' = 'pending';
-    try {
-      const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
-      if (!error && data?.status === 'ready') masterDnaStatus = 'ready';
-      else if (data?.status === 'empty_vyral') masterDnaStatus = 'empty';
-    } catch {
-      masterDnaStatus = 'pending';
+    const { count: remainingAssetCount, error: remainingAssetError } = await db.from('vyral_assets')
+      .select('id', { count: 'exact', head: true }).eq('id', '00000000-0000-0000-0000-000000000000')
+      .eq('vyral_id', universeId).eq('user_id', userId);
+    if (!remainingAssetError && (remainingAssetCount ?? 0) === 0) {
+      masterDnaStatus = 'empty';
+    } else {
+      try {
+        const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
+        if (!error && data?.status === 'ready') masterDnaStatus = 'ready';
+      } catch {
+        masterDnaStatus = 'pending';
+      }
     }
     window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
     return { deletedCount: assetIds.length, cleanupPending: false, masterDnaStatus };
