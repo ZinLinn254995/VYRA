@@ -21,6 +21,8 @@ function VyraApp() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [universeEditorOpen, setUniverseEditorOpen] = useState(false);
   const [createUniverseRequest, setCreateUniverseRequest] = useState(0);
+  const [openUniverseRequest, setOpenUniverseRequest] = useState<{ storyboardId: string; requestId: number } | null>(null);
+  const universeOpenRequestId = useRef(0);
   const [activeSection, setActiveSection] = useState<MainSection>('workspace');
   const navigationKey = profileOpen && user ? 'profile' : activeSection;
   const previousNavigationKeyRef = useRef<string>('workspace');
@@ -189,7 +191,7 @@ function VyraApp() {
           <ErrorBoundary>
             <WorkspacePage
               storageKey={workspaceStorageKey}
-              isAuthenticated={hasPermanentAccount} isActive={universeEditorOpen} createUniverseRequest={createUniverseRequest} onEditorExit={() => setUniverseEditorOpen(false)} onLoginRequired={() => requestAuth('login')}
+              isAuthenticated={hasPermanentAccount} isActive={universeEditorOpen} createUniverseRequest={createUniverseRequest} openUniverseRequest={openUniverseRequest} onEditorExit={() => setUniverseEditorOpen(false)} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Universes' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
               pendingSceneStateProposal={pendingSceneStateProposal}
@@ -200,7 +202,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && !universeEditorOpen && <MyUniverseHome onCreateUniverse={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} />}
+        {!profileOpen && !universeEditorOpen && <MyUniverseHome onCreateUniverse={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} onOpenUniverse={(storyboardId) => { setOpenUniverseRequest({ storyboardId, requestId: ++universeOpenRequestId.current }); setUniverseEditorOpen(true); }} />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
