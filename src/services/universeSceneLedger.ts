@@ -100,8 +100,8 @@ export function isSceneContinuityLedgerSnapshotCurrent(
   scenes: ReadonlyArray<{ id: string }>,
 ): boolean {
   try {
-    return JSON.stringify(hydrateSceneContinuityLedger(currentInput, scenes))
-      === JSON.stringify(hydrateSceneContinuityLedger(evaluatedAgainstInput, scenes));
+    return stableStateValue(hydrateSceneContinuityLedger(currentInput, scenes))
+      === stableStateValue(hydrateSceneContinuityLedger(evaluatedAgainstInput, scenes));
   } catch {
     return false;
   }
