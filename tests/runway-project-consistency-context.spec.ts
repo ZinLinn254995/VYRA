@@ -147,3 +147,71 @@ test('non-Scene media generation does not receive unrelated Scene continuity', (
   assert.equal(result.mode, 'not_applicable');
   assert.equal(result.promptText, 'Create a logo.');
 });
+
+test('media generation receives chronological approved Scene exit states only', () => {
+  const scenes = ['scene-1', 'scene-2', 'scene-3'];
+  const ledger = {
+    schemaVersion: 1,
+    sceneOrder: scenes,
+    scenes: {
+      'scene-1': {
+        sceneId: 'scene-1', sequence: 0, previousSceneId: null, nextSceneId: 'scene-2',
+        entryState: { character: { wardrobe: 'green coat' } }, entryFromSceneId: null, entryFromSceneUpdatedAt: null,
+        intendedChanges: [], exitState: { character: { wardrobe: 'green coat', injury: 'paw bandaged' } },
+        validationStatus: 'creator_approved', stateAuthority: 'creator_approved_only', updatedAt: '2026-11-16T10:00:00.000Z',
+      },
+      'scene-2': {
+        sceneId: 'scene-2', sequence: 1, previousSceneId: 'scene-1', nextSceneId: 'scene-3',
+        entryState: { character: { wardrobe: 'green coat', injury: 'paw bandaged' } },
+        entryFromSceneId: 'scene-1', entryFromSceneUpdatedAt: '2026-11-16T10:00:00.000Z',
+        intendedChanges: [], exitState: { character: { wardrobe: 'green coat', injury: 'paw healed' }, location: 'harbor' },
+        validationStatus: 'creator_approved', stateAuthority: 'creator_approved_only', updatedAt: '2026-11-16T11:00:00.000Z',
+      },
+      'scene-3': {
+        sceneId: 'scene-3', sequence: 2, previousSceneId: 'scene-2', nextSceneId: null,
+        entryState: { character: { wardrobe: 'green coat', injury: 'paw healed' }, location: 'harbor' },
+        entryFromSceneId: 'scene-2', entryFromSceneUpdatedAt: '2026-11-16T11:00:00.000Z',
+        intendedChanges: [], exitState: null,
+        validationStatus: 'not_evaluated', stateAuthority: 'creator_approved_only', updatedAt: null,
+      },
+    },
+  };
+  const result = buildRunwaySceneContinuityPrompt('Create the next shot.', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-3',
+    continuityRuntime: { sceneIds: scenes, ledger },
+    sceneContinuity: {
+      previousSceneId: 'scene-2', previousSceneApproved: true, entrySnapshotStale: false,
+      previousExitState: { character: { wardrobe: 'green coat', injury: 'paw healed' }, location: 'harbor' },
+      currentEntryState: { character: { wardrobe: 'green coat', injury: 'paw healed' }, location: 'harbor' },
+      intendedChanges: [], contextComplete: true, validationStatus: 'not_evaluated',
+    },
+  });
+  assert.match(result.promptText, /APPROVED PROJECT SCENE TIMELINE/);
+  assert.ok(result.promptText.indexOf('Scene 1') < result.promptText.indexOf('Scene 2'));
+  assert.match(result.promptText, /paw bandaged/);
+  assert.match(result.promptText, /paw healed/);
+  assert.match(result.promptText, /Later approved states supersede earlier values/);
+});
+
+test('timeline history is withheld if any predecessor handoff is stale', () => {
+  const scenes = ['scene-1', 'scene-2', 'scene-3'];
+  const ledger = {
+    scenes: {
+      'scene-1': { sceneId: 'scene-1', sequence: 0, previousSceneId: null, nextSceneId: 'scene-2', entryState: { x: 1 }, exitState: { x: 2 }, validationStatus: 'creator_approved', updatedAt: 'v1' },
+      'scene-2': { sceneId: 'scene-2', sequence: 1, previousSceneId: 'scene-1', nextSceneId: 'scene-3', entryState: { x: 99 }, entryFromSceneId: 'scene-1', entryFromSceneUpdatedAt: 'stale', exitState: { x: 3 }, validationStatus: 'creator_approved', updatedAt: 'v2' },
+      'scene-3': { sceneId: 'scene-3', sequence: 2, previousSceneId: 'scene-2', nextSceneId: null, entryState: { x: 3 }, entryFromSceneId: 'scene-2', entryFromSceneUpdatedAt: 'v2', exitState: null, validationStatus: 'not_evaluated', updatedAt: null },
+    },
+  };
+  const result = buildRunwaySceneContinuityPrompt('Make a shot.', {
+    page: 'scene-editor', activeSceneId: 'scene-3',
+    continuityRuntime: { sceneIds: scenes, ledger },
+    sceneContinuity: {
+      previousSceneId: 'scene-2', previousSceneApproved: false, entrySnapshotStale: true,
+      previousExitState: null, currentEntryState: { x: 3 }, intendedChanges: [],
+      contextComplete: false, validationStatus: 'needs_review',
+    },
+  });
+  assert.doesNotMatch(result.promptText, /APPROVED PROJECT SCENE TIMELINE/);
+  assert.match(result.promptText, /No complete creator-approved predecessor chain/);
+});
