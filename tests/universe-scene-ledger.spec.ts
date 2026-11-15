@@ -228,6 +228,12 @@ test('runtime caps repair attempts at two and escalates unresolved continuity to
 test('reordering Scenes invalidates an entry snapshot tied to the former predecessor', () => {
   const originalOrder = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
   let ledger = recordSceneContinuityEvaluation(undefined, originalOrder, {
+    sceneId: 'a', entryState: { hero: { location: 'start' } }, intendedChanges: [],
+    expectedExitState: { hero: { location: 'hall' } }, status: 'consistent', violations: [],
+    updatedAt: '2026-11-15T01:59:00.000Z',
+  });
+  ledger = approveSceneContinuityState(ledger, originalOrder, 'a', '2026-11-15T01:59:30.000Z');
+  ledger = recordSceneContinuityEvaluation(ledger, originalOrder, {
     sceneId: 'b', entryState: { hero: { location: 'hall' } }, intendedChanges: [],
     expectedExitState: { hero: { location: 'garden' } }, status: 'consistent', violations: [],
     updatedAt: '2026-11-15T02:00:00.000Z',
