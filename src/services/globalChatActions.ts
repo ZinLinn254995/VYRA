@@ -158,7 +158,7 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
 };
 
 
-export type GlobalChatNavigationTarget = 'workspace' | 'marketplace' | 'my-vyrals' | 'my-media-library';
+export type GlobalChatNavigationTarget = 'workspace' | 'my-vyrals' | 'my-media-library';
 
 export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
   const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
@@ -166,7 +166,6 @@ export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavi
     ['my-vyrals', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?(?:universes?|vyrals?)|(?:my\s+)?(?:universes?|vyrals?)\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
     ['my-media-library', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?media\s+library|(?:my\s+)?media\s+library\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး)|media\s+library)$/i],
     ['workspace', /^(?:(?:go(?:\s+to)?|open|take me to)\s+(?:the\s+)?workspace|workspace\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
-    ['marketplace', /^(?:(?:go(?:\s+to)?|open|take me to)\s+(?:the\s+)?marketplace|marketplace\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
   ];
   for (const [target, pattern] of patterns) if (pattern.test(value)) return target;
   return null;
