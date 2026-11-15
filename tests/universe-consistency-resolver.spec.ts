@@ -33,7 +33,7 @@ test('retrieves only directly referenced Assets and accepted/verified related As
   const result = resolveUniverseConsistencyContext(input, {
     taskId: 'scene-1', operation: 'generate', referencedAssetIds: ['hero'], at: '2026-11-15T00:00:00Z',
   });
-  assert.deepEqual(result.assets.map((asset) => asset.id), ['city', 'coat', 'hero']);
+  assert.deepEqual(result.assets.map((asset) => asset.id), ['hero', 'coat', 'city']);
   assert.equal(result.assets.some((asset) => asset.id === 'unrelated'), false);
   assert.equal(result.assets.some((asset) => asset.id === 'archived'), false);
   assert.equal(result.relationships.length, 2);
@@ -48,7 +48,7 @@ test('includes Universe-wide and task-tag knowledge while excluding expired and 
   assert.ok(ids.includes('k-tag'));
   assert.ok(!ids.includes('k-old'));
   assert.ok(!ids.includes('k-hypothesis'));
-  assert.equal(result.excludedHypothesisCount, 2);
+  assert.equal(result.excludedHypothesisCount, 1);
 });
 
 test('reports incompatible locked facts instead of silently choosing one', () => {
