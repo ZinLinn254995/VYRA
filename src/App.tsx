@@ -2,8 +2,6 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AIChatPage } from './components/ai/AIChatPage';
-import { MarketplaceHeader } from './components/marketplace/MarketplaceHeader';
-import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
@@ -11,7 +9,7 @@ import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 type WalletResponse = { availableBalance?: string };
-type MainSection = 'marketplace' | 'workspace' | 'ai-chat';
+type MainSection = 'workspace' | 'ai-chat';
 
 function MarketplaceApp() {
   const { user, session, signOut } = useAuth();
@@ -20,12 +18,12 @@ function MarketplaceApp() {
   const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<MainSection>('marketplace');
+  const [activeSection, setActiveSection] = useState<MainSection>('workspace');
   const navigationKey = profileOpen && user ? 'profile' : activeSection;
-  const previousNavigationKeyRef = useRef<string>('marketplace');
+  const previousNavigationKeyRef = useRef<string>('workspace');
   const sectionScrollPositionsRef = useRef(new Map<string, number>());
   // Keep previously visited top-level pages mounted so their local UI state and loaded data survive navigation.
-  const [visitedSections, setVisitedSections] = useState<Set<MainSection>>(() => new Set(['marketplace']));
+  const [visitedSections, setVisitedSections] = useState<Set<MainSection>>(() => new Set(['workspace']));
   const [hasVisitedProfile, setHasVisitedProfile] = useState(false);
   useEffect(() => {
     setVisitedSections((current) => current.has(activeSection) ? current : new Set([...current, activeSection]));
@@ -37,7 +35,7 @@ function MarketplaceApp() {
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
   useEffect(() => { setPendingSceneStateProposal(null); }, [user?.id]);
-  const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('marketplace');
+  const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('workspace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
@@ -122,7 +120,7 @@ function MarketplaceApp() {
   useEffect(() => {
     const handleGlobalChatNavigation = (event: Event) => {
       const target = (event as CustomEvent<{ target?: string }>).detail?.target;
-      if (target === 'workspace' || target === 'marketplace') {
+      if (target === 'workspace') {
         resetMainHeaderVisibility();
         setProfileOpen(false);
         setProfileInitialPage(null);
@@ -161,11 +159,10 @@ function MarketplaceApp() {
 
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
-      <MarketplaceHeader
+      <AppHeader
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         activeSection={profileOpen ? 'profile' : activeSection}
-        onMarketplaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('marketplace'); }}
-        onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
+                onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
         onAIChatRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
@@ -179,7 +176,7 @@ function MarketplaceApp() {
                 userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
                 themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode}
                 onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
-                backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : profileReturnSection === 'ai-chat' ? 'Back to AI Chat' : 'Back to Marketplace'}
+                backLabel={profileReturnSection === 'workspace' ? 'Back to Workspace' : 'Back to AI Chat'}
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
                 onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
                 onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('ai-chat'); }}
@@ -202,11 +199,6 @@ function MarketplaceApp() {
               pendingSceneStateProposal={pendingSceneStateProposal}
               onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
             />
-          </ErrorBoundary>
-        </div>
-        <div hidden={profileOpen || activeSection !== 'marketplace'} aria-hidden={profileOpen || activeSection !== 'marketplace'} style={profileOpen || activeSection !== 'marketplace' ? { display: "none" } : undefined} className="min-w-0">
-          <ErrorBoundary>
-            <MarketplaceHome onLoginRequired={() => requestAuth('login')} />
           </ErrorBoundary>
         </div>
       </div>
