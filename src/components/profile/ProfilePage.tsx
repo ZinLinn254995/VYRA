@@ -47,7 +47,7 @@ const groups: { title: string; items: NavItem[] }[] = [
 ];
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
-  'my-vyrals': { title: 'My Vyrals', description: 'Manage your reusable Creative Universes.', icon: VyralIdentityIcon, note: 'Your Creative Universes appear here.' },
+  'my-vyrals': { title: 'My Universes', description: 'Manage your reusable Creative Universes.', icon: VyralIdentityIcon, note: 'Your Creative Universes appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded and generated media.', icon: Images, note: 'Your media appears here.' },
   settings: { title: 'Settings', description: 'Control your VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Choose how VYRA looks on this device.' },
