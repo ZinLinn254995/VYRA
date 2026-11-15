@@ -25,7 +25,7 @@ test('submission results are owner-scoped, validated and idempotent', () => {
   assert.match(migration, /provider_submission_outcome = 'accepted'/i);
   assert.match(migration, /provider_submission_outcome = 'rejected'/i);
   assert.match(migration, /provider_submission_outcome = 'unknown'/i);
-  assert.match(migration, /grant execute on function public\.record_runway_media_submission\(uuid,uuid,text,text,text,integer,text\) to service_role/i);
+  assert.match(migration, /grant execute on function public\\.record_runway_media_submission\\(uuid,uuid,text,text,text,integer,text\\)\\s+to service_role/i);
 });
 
 test('provider task IDs and submitted lifecycle events are unique per job', () => {
