@@ -237,3 +237,81 @@ export async function resumeRunwayProjectMediaIngestion(db: Db, jobId: string, s
   }
   return { status: 'ready' as const, jobId, assets };
 }
+
+
+export type RunwayProjectRecoveryJob = {
+  id: string;
+  status: string;
+  providerTaskStatus: string | null;
+  outputCount: number | null;
+  assetIngestionStatus: string;
+  createdAt: string;
+};
+
+/** List only unfinished jobs owned by the signed-in user and bound to this Project. */
+export async function listRunwayProjectMediaRecovery(
+  db: Db,
+  targetVyralId: string,
+  limit = 6,
+): Promise<RunwayProjectRecoveryJob[]> {
+  if (!UUID.test(targetVyralId)) throw new Error('A valid Project Assets destination is required.');
+  const { data: auth, error: authError } = await db.auth.getUser();
+  if (authError || !auth.user?.id) throw new Error('Sign in to view Project generation history.');
+  const { data, error } = await db.from('generation_jobs')
+    .select('id,status,provider_task_status,provider_output_count,asset_ingestion_status,created_at,target_vyral_id')
+    .eq('user_id', auth.user.id).eq('target_vyral_id', targetVyralId)
+    .in('status', ['submitted', 'processing', 'unknown', 'succeeded'])
+    .neq('asset_ingestion_status', 'ready')
+    .order('created_at', { ascending: false }).limit(Math.max(1, Math.min(12, limit)));
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []).flatMap((row: Record<string, unknown>) => {
+    if (!UUID.test(String(row.id ?? '')) || row.target_vyral_id !== targetVyralId ||
+        typeof row.status !== 'string' || typeof row.asset_ingestion_status !== 'string') return [];
+    return [{
+      id: String(row.id),
+      status: row.status,
+      providerTaskStatus: typeof row.provider_task_status === 'string' ? row.provider_task_status : null,
+      outputCount: Number.isInteger(Number(row.provider_output_count)) ? Number(row.provider_output_count) : null,
+      assetIngestionStatus: row.asset_ingestion_status,
+      createdAt: typeof row.created_at === 'string' ? row.created_at : '',
+    }];
+  });
+}
+
+/**
+ * Reconcile one existing Project job. This never submits a provider task.
+ * A safe status poll may discover provider success, after which canonical
+ * Asset/DNA/Fingerprint ingestion is resumed idempotently.
+ */
+export async function recoverRunwayProjectMediaJob(
+  db: Db,
+  targetVyralId: string,
+  jobId: string,
+  signal?: AbortSignal,
+) {
+  if (!UUID.test(targetVyralId) || !UUID.test(jobId)) throw new Error('A valid Project and generation job are required.');
+  const { data: auth, error: authError } = await db.auth.getUser();
+  if (authError || !auth.user?.id) throw new Error('Sign in before recovering Project media.');
+  const { data: job, error: jobError } = await db.from('generation_jobs')
+    .select('id,status,asset_ingestion_status,target_vyral_id')
+    .eq('id', jobId).eq('user_id', auth.user.id).eq('target_vyral_id', targetVyralId).maybeSingle();
+  if (jobError || !job) throw jobError ?? new Error('This generation job does not belong to the selected Project.');
+  assertActive(signal);
+
+  if (job.status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+  if (job.status === 'submitted' || job.status === 'processing') {
+    const poll = requireRecord(await invoke(db, 'poll-runway-media-job', { jobId }, signal),
+      'The generation status response is invalid.');
+    if (poll.throttled === true) return { status: 'submitted_pending' as const, jobId };
+    const polledJob = requireRecord(poll.job, 'The generation status response has no job.');
+    const status = String(polledJob.status ?? '');
+    if (status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+    if (status === 'failed' || status === 'cancelled') return { status, jobId };
+    if (status !== 'succeeded') return { status: 'submitted_pending' as const, jobId };
+  } else if (job.status !== 'succeeded') {
+    return { status: 'not_recoverable' as const, jobId };
+  }
+
+  const recovered = await resumeRunwayProjectMediaIngestion(db, jobId, signal);
+  return { ...recovered, status: 'ready' as const };
+}
