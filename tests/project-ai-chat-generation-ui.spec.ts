@@ -5,7 +5,9 @@ import { readFileSync } from 'node:fs';
 const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
 
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
-  assert.ok(chat.includes("import { generateRunwayProjectMedia } from '../../services/runwayProjectGeneration'"));
+  assert.ok(chat.includes('generateRunwayProjectMedia'));
+  assert.ok(chat.includes('listRunwayProjectMediaRecovery'));
+  assert.ok(chat.includes('recoverRunwayProjectMediaJob'));
   assert.ok(chat.includes('{storyboardId && ('));
   assert.ok(chat.includes('Create media'));
   assert.ok(chat.includes('Generate in this Project'));
