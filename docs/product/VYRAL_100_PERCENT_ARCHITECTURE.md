@@ -1,3 +1,5 @@
+> **HISTORICAL GOAL — NOT CURRENT PRODUCT ACCEPTANCE (2026-11-15):** The former requirement to prove 100% model-generated asset reconstruction is superseded. Preserve exact byte/sample integrity verification for source assets, but evaluate creative consistency as identity/canon/state continuity rather than byte-identical model output. See [current Product Direction](../VYRA_PRODUCT_DIRECTION_2026-11-15.md).
+
 # Vyral 100% — Product and Technical Architecture
 
 **Status:** Authoritative direction for the `feat/vyral-100-percent-acceptance` workstream  
