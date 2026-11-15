@@ -738,12 +738,12 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     }).filter((group) => group.distinctValueCount > 1).sort((a, b) => b.records[0].created_at.localeCompare(a.records[0].created_at));
   }, [dnaRecords]);
   const exportVyralPackage = async () => {
-    setError('Custom .vyral package export is retired. Standard-format Universe export will be added when ready.');
+    setError('Custom package export is retired. Standard-format Universe export will be added when ready.');
   };
 
   const importVyralPackage = async (file: File, containerAssetId?: string) => {
     if (!file || !supabase || packageBusy) return;
-    if (file.size > 256 * 1024 * 1024) { setError('VYRAL package exceeds the 256 MB import limit.'); return; }
+    if (file.size > 256 * 1024 * 1024) { setError('Legacy package exceeds the 256 MB import limit.'); return; }
 
     setPackageBusy(true);
     setPackageStatus('Reading package…');
@@ -821,9 +821,9 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
       const manifestAssetIds = new Set(manifest.assets.map((asset) => String(asset.id)));
       if (!importAssets.length) {
         if (manifest.exportMode === 'compact-only' || (!manifest.exportComponents?.assets && manifest.exportComponents?.compactDna)) {
-          throw new Error('This is a collection-reference-only package. It contains no original Assets or full per-Asset rebuild data, so it cannot be imported as a restorable Vyral yet. To restore the collection here, export it with Assets or full rebuild data included.');
+          throw new Error('This is a collection-reference-only package. It contains no original Assets or full per-Asset rebuild data, so it cannot be imported as a restorable Universe yet. To restore the collection here, export it with Assets or full rebuild data included.');
         }
-        throw new Error('This package contains no restorable Assets. The .vyral file used to open it was not duplicated.');
+        throw new Error('This package contains no restorable Assets. The legacy archive used to open it was not duplicated.');
       }
       const importedMasterDna = manifest.masterDna ? await validateVyralMasterDnaV1(manifest.masterDna) : null;
       if (importedMasterDna) {
@@ -841,14 +841,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         const dnaAssetIds = new Set(dnaEntries.map((entry) => String(entry.asset_id)));
         if (!dnaEntries.length || dnaEntries.length !== manifest.assets.length || dnaAssetIds.size !== manifest.assets.length ||
             manifest.assets.some((asset) => !dnaAssetIds.has(String(asset.id)))) {
-          throw new Error('Invalid whole-Vyral DNA-only package: every asset must have exactly one supported exact-reconstruction DNA record.');
+          throw new Error('Invalid legacy package: every Asset must have exactly one supported exact-reconstruction DNA record.');
         }
         if (manifest.blindReconstruction === true && dnaEntries.some((entry) =>
           entry.dna_schema_id === 'vyra.asset-file-dna' &&
           asRecord(entry.dna_record).reconstruction &&
           asRecord(asRecord(entry.dna_record).reconstruction).claim === 'unavailable'
         )) {
-          throw new Error('This Blind DNA package contains non-raster Assets with structural DNA only. It is suitable for external AI analysis, but cannot be imported as a restorable Vyral until modality-specific DNA reconstruction is available.');
+          throw new Error('This Blind DNA package contains non-raster Assets with structural DNA only. It is suitable for external AI analysis, but cannot be imported as a restorable Universe until modality-specific Asset reconstruction is available.');
         }
         if (manifest.masterDna) {
           const masterDna = await validateVyralMasterDnaV1(manifest.masterDna);
@@ -1546,7 +1546,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         if (cleanupError) cleanupFailures.push('Folder cleanup: ' + cleanupError.message);
       }
       await loadWorkspace();
-      const primaryError = cause instanceof Error ? cause.message : 'VYRAL package import failed.';
+      const primaryError = cause instanceof Error ? cause.message : 'Legacy package import failed.';
       setError(primaryError + (cleanupFailures.length ? ' Cleanup needs attention: ' + cleanupFailures.join(' · ') : ' Newly created package records were rolled back.'));
       setReconstructedPngDownload(null);
       setPackageStatus('');
@@ -1558,7 +1558,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const importVyralPackageFromAsset = async (asset: AssetRow) => {
     if (!supabase || packageBusy || busy) return;
     setError('');
-    setPackageStatus('Reading uploaded .vyral from Asset storage…');
+    setPackageStatus('Reading legacy package from Asset storage…');
     const sourceVersion = versions
       .filter((version) => version.asset_id === asset.id)
       .find((version) => version.storage_path === asset.storage_path)
@@ -1566,18 +1566,18 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         .sort((left, right) => right.version_number - left.version_number)[0];
     if (!sourceVersion?.sha256 || !sourceVersion.storage_path || sourceVersion.storage_path !== asset.storage_path) {
       setPackageStatus('');
-      setError('This .vyral upload has no matching, SHA-256-pinned source version. Verify or recover the upload before importing.');
+      setError('This legacy package upload has no matching, SHA-256-pinned source version. Verify or recover the upload before importing.');
       return;
     }
     const { data, error: downloadError } = await supabase.storage.from('vyral-assets').download(asset.storage_path);
     if (downloadError || !data) {
       setPackageStatus('');
-      setError('Could not read this uploaded package from Asset storage: ' + (downloadError?.message ?? 'file missing'));
+      setError('Could not read this legacy package from Asset storage: ' + (downloadError?.message ?? 'file missing'));
       return;
     }
     if (data.size !== Number(sourceVersion.size_bytes) || data.size > 100 * 1024 * 1024) {
       setPackageStatus('');
-      setError('The uploaded .vyral file size does not match its recorded source version or exceeds the 100 MB import limit.');
+      setError('The uploaded legacy package size does not match its recorded source version or exceeds the 100 MB import limit.');
       return;
     }
     const packageBuffer = await data.arrayBuffer();
@@ -1585,7 +1585,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const packageSha256 = Array.from(new Uint8Array(packageDigest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
     if (packageSha256 !== sourceVersion.sha256.toLowerCase()) {
       setPackageStatus('');
-      setError('The uploaded .vyral file failed its source-version SHA-256 check. Import was stopped to protect package integrity.');
+      setError('The uploaded legacy package failed its source-version SHA-256 check. Import was stopped to protect package integrity.');
       return;
     }
     const filename = asset.original_filename.toLowerCase().endsWith('.vyral')
