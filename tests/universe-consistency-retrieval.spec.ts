@@ -183,3 +183,23 @@ test('additional effective and start/end aliases are normalized into the same te
   assert.equal(result.conflicts.length, 1);
   assert.equal(result.resolved.length, 0);
 });
+
+
+test('overlapping creator-confirmed validity intervals cannot silently disagree', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', valid_from: '2026-01-01T00:00:00Z', valid_to: '2026-03-01T00:00:00Z' }, 'long', '2026-01-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', effective_from: '2026-02-01T00:00:00Z', effective_to: '2026-04-01T00:00:00Z' }, 'overlap', '2026-02-01T00:00:00Z'),
+  ]);
+  assert.equal(result.resolved.length, 0);
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].candidates.length, 2);
+});
+
+test('non-overlapping creator-confirmed validity intervals remain separate facts', () => {
+  const result = resolveCreatorConfirmedFieldEvidence([
+    creatorEvidence({ value: 'Workshop', valid_from: '2026-01-01T00:00:00Z', valid_to: '2026-02-01T00:00:00Z' }, 'past', '2026-01-01T00:00:00Z'),
+    creatorEvidence({ value: 'Harbor', valid_from: '2026-03-01T00:00:00Z', valid_to: '2026-04-01T00:00:00Z' }, 'future', '2026-03-01T00:00:00Z'),
+  ]);
+  assert.equal(result.conflicts.length, 0);
+  assert.equal(result.resolved.length, 2);
+});
