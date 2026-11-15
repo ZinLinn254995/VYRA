@@ -155,7 +155,7 @@ function MarketplaceApp() {
   }, []);
 
   const workspaceStorageKey = 'vyra_storyboards_v1:' + (user?.id ?? user?.email ?? 'local');
-  const seedDemoStoryboards = user?.email?.trim().toLowerCase() === 'zla264995@gmail.com';
+  // Real creator accounts must start with their own saved work, never seeded demo content.
 
   return (
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
@@ -193,7 +193,7 @@ function MarketplaceApp() {
         <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
           <ErrorBoundary>
             <WorkspacePage
-              storageKey={workspaceStorageKey} seedDemoStoryboards={seedDemoStoryboards}
+              storageKey={workspaceStorageKey}
               isAuthenticated={hasPermanentAccount} isActive={activeSection === 'workspace' && !profileOpen} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Vyrals' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
