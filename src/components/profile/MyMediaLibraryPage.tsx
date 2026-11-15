@@ -389,6 +389,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
     const failures: Array<{ file: File; message: string }> = [];
+    let masterDnaStatus: 'ready' | 'pending' | null = null;
     const controller = new AbortController();
     uploadAbortControllerRef.current = controller;
     setStopRequested(false);
@@ -436,15 +437,18 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
               // The upload remains saved; a later background refresh can reconcile its preview row.
             });
           },
-          universeId && storyboardId ? { universeId, storyboardId } : undefined,
+          universeId && storyboardId ? { universeId, storyboardId, onMasterDnaSync: (status) => { masterDnaStatus = status; } } : undefined,
         );
         setFailedUploads(failures);
         if (count > 0) setSelectedIds([]);
         const stopped = controller.signal.aborted;
+        const dnaMessage = universeId && count > 0
+          ? masterDnaStatus === 'ready' ? ' Universe Master DNA synchronized.' : ' Universe Master DNA synchronization is pending.'
+          : '';
         setNotice(
-          stopped
+          (stopped
             ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'
-            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.',
+            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.') + dnaMessage,
         );
       }, undefined, false);
       if (failures.length) {
