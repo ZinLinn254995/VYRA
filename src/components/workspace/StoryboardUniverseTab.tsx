@@ -21,13 +21,14 @@ type Props = {
   storyboardId: string;
   storyboardTitle: string;
   isActive: boolean;
+  renderLibrary?: boolean;
   isAuthenticated: boolean;
   onLoginRequired: () => void;
   onUniverseReady?: (universe: { id: string; name: string; description: string } | null) => void;
 };
 
 export const StoryboardUniverseTab: React.FC<Props> = ({
-  storyboardId, storyboardTitle, isActive, isAuthenticated, onLoginRequired,
+  storyboardId, storyboardTitle, isActive, renderLibrary = true, isAuthenticated, onLoginRequired,
   onUniverseReady,
 }) => {
   const { user } = useAuth();
@@ -123,12 +124,12 @@ export const StoryboardUniverseTab: React.FC<Props> = ({
           <div className="min-w-0"><h2 className="text-base font-semibold text-[var(--vyra-text-primary)]">{universe.name}</h2><p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">Private Universe for “{storyboardTitle}”. Organize characters, locations, props, references and every other creative Asset here.</p></div>
           <span className="rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-secondary)]">Private · Storyboard-only</span>
         </div>
-        <MyMediaLibraryPage
+        {renderLibrary && <MyMediaLibraryPage
           key={universe.id}
           isActive={isActive}
           universeId={universe.id}
           storyboardId={storyboardId}
-        />
+        />}
       </div>
     </div>
   );
