@@ -1,3 +1,8 @@
+> **Historical specification — superseded product direction (2026-11-15).**  
+> VYRA's current creator-facing concept is **Universe**, an in-app Creative Space containing folders, files, Assets, and automatically maintained creative knowledge. Do not treat this document's Vyral terminology, custom `.vyral` package/export workflows, or external DNA-reconstruction goals as current product requirements. Retain this document only as a record of existing implementation, migration history, and compatibility constraints. New product work must follow [the current VYRA Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md) and [the Universe terminology/compatibility policy](./UNIVERSE_TERMINOLOGY_MIGRATION_2026-11-15.md). Do not rename persisted schema or identifiers based solely on this terminology change.
+
+---
+
 > **HISTORICAL ORIGIN-01 RECONSTRUCTION SPECIFICATION (2026-11-15):** Preserve ORIGIN-01 and its original data. This spec is not the current product acceptance target; retain useful exact integrity checks and redesign future tests around Universe consistency. See [current Product Direction](./VYRA_PRODUCT_DIRECTION_2026-11-15.md).
 
 # ORIGIN-01 DNA v3 — Lossless Reconstruction Specification
