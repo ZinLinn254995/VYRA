@@ -197,6 +197,7 @@ function VyraApp() {
               onAiContextChange={setWorkspaceAiContext}
               pendingSceneStateProposal={pendingSceneStateProposal}
               onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
+              onSceneStateProposal={setPendingSceneStateProposal}
             />
           </ErrorBoundary>
         </div>
