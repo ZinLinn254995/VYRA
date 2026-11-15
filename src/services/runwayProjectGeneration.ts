@@ -44,7 +44,11 @@ export type RunwayProjectGenerationRequest = {
 
 type JobResponse = { job?: { id?: string; status?: string; providerTaskId?: string | null; outputCount?: number }; error?: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-class RunwayWorkflowRequestError extends Error {\n  readonly status: number | null;\n  constructor(message: string, status: number | null) { super(message); this.name = 'RunwayWorkflowRequestError'; this.status = status; }\n}\nconst sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+class RunwayWorkflowRequestError extends Error {
+  readonly status: number | null;
+  constructor(message: string, status: number | null) { super(message); this.name = 'RunwayWorkflowRequestError'; this.status = status; }
+}
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal?.aborted) return reject(new DOMException('Generation workflow cancelled.', 'AbortError'));
   const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
   const abort = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); reject(new DOMException('Generation workflow cancelled.', 'AbortError')); };
@@ -59,7 +63,11 @@ function requireRecord(value: unknown, message: string): Record<string, any> {
 }
 async function invoke(db: Db, name: string, body: Record<string, unknown>, signal?: AbortSignal) {
   const { data, error } = await db.functions.invoke(name, { body, signal });
-  if (error) {\n    const status = typeof error.context?.status === 'number' ? error.context.status :\n      typeof error.status === 'number' ? error.status : null;\n    throw new RunwayWorkflowRequestError(error.message || 'VYRA generation request failed.', status);\n  }
+  if (error) {
+    const status = typeof error.context?.status === 'number' ? error.context.status :
+      typeof error.status === 'number' ? error.status : null;
+    throw new RunwayWorkflowRequestError(error.message || 'VYRA generation request failed.', status);
+  }
   return data;
 }
 
