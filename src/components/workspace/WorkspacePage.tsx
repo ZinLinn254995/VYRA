@@ -900,6 +900,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const cancelStoryboardDraft = () => {
     setActiveStoryboard(null);
+    setStoryboardUniverse(null);
     setActiveStoryboardConfirmed(false);
     setStoryboardDetailsExpanded(true);
     setStoryboardEditorView('scenes');
