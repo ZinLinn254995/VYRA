@@ -27,7 +27,8 @@ import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryClo
 import { generateRunwayProjectMedia, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob } from '../../services/runwayProjectGeneration';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction };
+type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
 type ChatSession = {
   id: string;
   title: string;
@@ -586,6 +587,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
+            ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
+              if (!entry || typeof entry !== 'object') return [];
+              const asset = entry as Record<string, unknown>;
+              return typeof asset.assetId === 'string' && typeof asset.name === 'string' && typeof asset.mimeType === 'string'
+                ? [{ assetId: asset.assetId, name: asset.name, mimeType: asset.mimeType }] : [];
+            }) } : {}),
             ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete', 'vyral-create-draft', 'vyral-create-complete', 'vyral-asset-upload-draft', 'vyral-asset-upload-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatAction } : {}),
           } as ChatMessage];
         });
@@ -599,6 +606,29 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           locked: Boolean(row.locked),
         } as ChatSession;
       }).filter((session) => session.messages.length > 0);
+      if (storyboardId && supabaseClient) {
+        const previewIds = [...new Set(loaded.flatMap((session) => session.messages.flatMap((message) => message.mediaAssets?.map((asset) => asset.assetId) ?? [])))];
+        if (previewIds.length) {
+          const { data: previewRows, error: previewError } = await supabaseClient.from('vyral_assets')
+            .select('id,name,mime_type,storage_path').eq('user_id', ownerId).eq('vyral_id', storyboardUniverseId)
+            .eq('processing_status', 'ready').in('id', previewIds);
+          if (!previewError && Array.isArray(previewRows)) {
+            const urls = new Map<string, string>();
+            for (const asset of previewRows) {
+              if (typeof asset.storage_path !== 'string' || typeof asset.id !== 'string') continue;
+              const { data: signed } = await supabaseClient.storage.from('vyral-assets').createSignedUrl(asset.storage_path, 300);
+              if (signed?.signedUrl) urls.set(asset.id, signed.signedUrl);
+            }
+            for (const session of loaded) session.messages = session.messages.map((message) => ({
+              ...message,
+              ...(message.mediaAssets ? { mediaAssets: message.mediaAssets.flatMap((asset) => {
+                const url = urls.get(asset.assetId);
+                return url ? [{ ...asset, url }] : [];
+              }) } : {}),
+            }));
+          }
+        }
+      }
       if (!active) return;
       historyOwnerRef.current = ownerId;
       setHistoryOwnerId(ownerId);
@@ -659,6 +689,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         content: message.content,
         ...(message.status ? { status: message.status } : {}),
         ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
+        ...(message.mediaAssets?.length ? { mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType })) } : {}),
         ...(message.action ? { action: message.action } : {}),
       }));
       const { error } = await client.from('vyra_ai_chat_conversations').upsert({
@@ -2270,8 +2301,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       } else if (result.status === 'ready') {
         const generatedAssets = result.assets ?? [];
         if (!generatedAssets.length) throw new Error('The generation job completed without verified Project Assets.');
+        const previews: ProjectMediaPreview[] = [];
+        for (let index = 0; index < generatedAssets.length; index++) {
+          const asset = generatedAssets[index];
+          const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 300);
+          previews.push({ assetId: asset.assetId, name: 'Generated ' + mediaTask + ' ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
+        }
         const summary = generatedAssets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
-        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success',
+        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: 'Media generation completed. ' + generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\n\n' + summary }]);
         setDraft('');
         setMediaGenerationStatus('Completed. Your new media is available in Project Assets.');
@@ -2501,6 +2538,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`min-w-0 break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'max-w-[88%]' : 'w-full max-w-full sm:max-w-[94%]'} ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
                   <AIChatMessageContent content={message.content} />
+                  {message.role === 'assistant' && message.mediaAssets?.length ? (
+                    <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+                      {message.mediaAssets.map((asset) => (
+                        <div key={asset.assetId} className="min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg)]">
+                          {asset.url && asset.mimeType.startsWith('image/') ? <img src={asset.url} alt={asset.name} loading="lazy" className="max-h-[420px] w-full object-contain" />
+                            : asset.url && asset.mimeType.startsWith('video/') ? <video src={asset.url} controls playsInline preload="metadata" className="max-h-[420px] w-full bg-black" />
+                              : asset.url && asset.mimeType.startsWith('audio/') ? <div className="p-3"><p className="mb-2 truncate text-xs text-[var(--vyra-text-primary)]">{asset.name}</p><audio src={asset.url} controls preload="metadata" className="w-full" /></div>
+                                : <div className="p-3 text-xs text-[var(--vyra-text-muted)]">Preview unavailable · Asset remains saved in Project Assets</div>}
+                          <p className="truncate px-3 py-2 text-[10px] text-[var(--vyra-text-muted)]">{asset.name}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {message.role === 'assistant' && message.providerLabel && <p className="mt-2 text-[10px] text-[var(--vyra-text-muted)]">{message.providerLabel}</p>}
                   {message.role === 'assistant' && message.status === 'preview' && <p className="mt-1 text-[10px] text-[var(--vyra-text-muted)]">Preview response · no live model was confirmed</p>}
                   {message.role === 'assistant' && message.status === 'error' && (() => {
