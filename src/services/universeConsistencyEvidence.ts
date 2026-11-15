@@ -52,11 +52,20 @@ const canonicalJson = (value: unknown): string => {
 
 const temporalScope = (value: unknown): string => {
   if (!isRecord(value)) return '';
-  for (const key of ['effective_at', 'valid_from', 'at', 'timestamp', 'event_id']) {
-    const candidate = value[key];
-    if (typeof candidate === 'string' || typeof candidate === 'number') return key + ':' + String(candidate);
-  }
-  return '';
+  const readTemporalValue = (keys: string[]) => {
+    for (const key of keys) {
+      const candidate = value[key];
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim().normalize('NFC');
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+    }
+    return '';
+  };
+  // Equivalent start-time aliases share one scope. Event IDs are provenance,
+  // not time: using them as a scope would hide conflicting facts at the same time.
+  const start = readTemporalValue(['effective_at', 'valid_from', 'at', 'timestamp']);
+  const end = readTemporalValue(['valid_to', 'effective_until', 'expires_at']);
+  if (!start && !end) return '';
+  return 'start:' + start + '|end:' + end;
 };
 
 /**
