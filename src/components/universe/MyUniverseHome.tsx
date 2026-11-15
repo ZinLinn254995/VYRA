@@ -26,8 +26,6 @@ const initialUniverses: UniverseSample[] = [
   { id: 'u6', name: 'Creative Research Vault', category: 'Knowledge & Research', description: 'References, studies and ideas collected in one place.', updated: 'Edited 1 month ago', assets: 92, theme: 'from-slate-800 via-slate-900 to-indigo-950', icon: BookOpen },
 ];
 
-const categories = ['All', 'Story Worlds', 'Content & Media', 'Brand & Business', 'Games & Interactive', 'Design & Creative', 'Knowledge & Research'] as const;
-
 export function MyUniverseHome() {
   const [universes, setUniverses] = useState(initialUniverses);
   const [createOpen, setCreateOpen] = useState(false);
