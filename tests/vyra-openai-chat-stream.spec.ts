@@ -203,6 +203,14 @@ test('AI Chat indexes a bounded but broad Universe inventory before selecting a 
   assert.match(edge, /maxAssets: 12/);
 });
 
+test('AI Chat derives a task-specific continuity checklist before creative actions', () => {
+  const edge = read('supabase/functions/vyra-openai-chat/index.ts');
+  assert.match(edge, /Before any creation, editing, or generation task, derive a task-specific continuity checklist/);
+  assert.match(edge, /Check stable identity and canon separately from mutable timeline\/state/);
+  assert.match(edge, /Apply the checklist across appearance, style, voice, behavior, setting, props, relationships, and temporal state/);
+  assert.match(edge, /If a required fact is missing, conflicting, stale, or outside the retrieved evidence/);
+});
+
 test('AI Chat uses only current-version hash-pinned Vision observations as non-canonical retrieval hints', () => {
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   assert.match(edge, /from\('vyral_vision_observations'\)/);
