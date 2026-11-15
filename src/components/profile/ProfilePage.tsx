@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Bell, Bookmark, ChartNoAxesCombined, ChevronRight, CircleHelp, Images, Search,
-  CreditCard, FolderHeart, Globe2, Heart, KeyRound, Library, LockKeyhole,
-  LogOut, Monitor, Moon, Package, Settings2, ShieldCheck, ShoppingBag, Sun, UserRound,
-  Users, Wallet, type LucideIcon,
+  ChevronRight, Globe2, Images, KeyRound, Library, LogOut, Monitor, Moon,
+  Settings2, Sun, UserRound, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
@@ -30,79 +28,34 @@ type ProfilePageProps = {
   onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void;
 };
 
-type PageKey =
-  | 'home' | 'public-profile' | 'my-vyrals' | 'my-media-library' | 'saved' | 'purchased'
-  | 'collections' | 'following' | 'creator-dashboard' | 'notifications'
-  | 'settings' | 'setting-account' | 'setting-security' | 'setting-appearance'
-  | 'setting-notifications' | 'setting-billing' | 'setting-ai' | 'setting-legal'
-  | 'setting-about' | 'help';
+type PageKey = 'home' | 'my-vyrals' | 'my-media-library' | 'settings' | 'setting-appearance' | 'setting-ai';
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
 type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponent };
 
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
-    { key: 'public-profile', label: 'My Public Profile', detail: 'Your creator identity and public showcase', icon: UserRound },
-    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage drafts and published creative assets', icon: VyralIdentityIcon },
-    { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded images, videos, audio and files', icon: Images },
-  ] },
-  { title: 'My Library', items: [
-    { key: 'saved', label: 'Saved', detail: 'Vyrals you bookmarked for later', icon: Bookmark },
-    { key: 'purchased', label: 'Purchased', detail: 'Your purchases, licenses and usage rights', icon: ShoppingBag },
-    { key: 'collections', label: 'My Collections', detail: 'Organize Vyrals into personal collections', icon: FolderHeart },
-  ] },
-  { title: 'Community', items: [
-    { key: 'following', label: 'Following', detail: 'Creators you follow', icon: Users },
-    { key: 'notifications', label: 'Notifications', detail: 'Updates, activity and important alerts', icon: Bell },
-  ] },
-  { title: 'Creator Tools', items: [
-    { key: 'creator-dashboard', label: 'Creator Dashboard', detail: 'Views, uses, sales and earnings', icon: ChartNoAxesCombined },
+    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage your Creative Universes', icon: VyralIdentityIcon },
+    { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded and generated media', icon: Images },
   ] },
   { title: 'Platform', items: [
     { key: 'setting-ai', label: 'Admin Dashboard', detail: 'Manage VYRA platform API keys', icon: KeyRound },
   ] },
   { title: 'Account', items: [
-    { key: 'settings', label: 'Settings', detail: 'Account, security, preferences and privacy', icon: Settings2 },
-    { key: 'help', label: 'Help & Support', detail: 'Guides, FAQs and contact support', icon: CircleHelp },
+    { key: 'settings', label: 'Settings', detail: 'Manage your display preferences', icon: Settings2 },
   ] },
 ];
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
-  'public-profile': { title: 'My Public Profile', description: 'Manage the creator profile other people can visit.', icon: UserRound, note: 'Your public creator page and profile editor will appear here.' },
-  'my-vyrals': { title: 'My Vyrals', description: 'Manage the creative assets you have created.', icon: VyralIdentityIcon, note: 'Your drafts, published Vyrals and visibility controls will appear here.' },
-  'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded images, videos, audio and files.', icon: Images, note: 'Your uploaded images, videos, audio and documents will appear here.' },
-  saved: { title: 'Saved', description: 'Keep interesting Vyrals together for later.', icon: Bookmark, note: 'Vyrals you save from the Marketplace will appear here. Saved items are private by default.' },
-  purchased: { title: 'Purchased', description: 'Access your purchased Vyrals and their license details.', icon: ShoppingBag, note: 'Your purchases, receipts, license terms and available updates will appear here. A purchase does not automatically grant resale rights.' },
-  collections: { title: 'My Collections', description: 'Group Vyrals into collections that match your creative interests.', icon: FolderHeart, note: 'Create and manage private or public collections here.' },
-  following: { title: 'Following', description: 'Keep up with creators whose work you enjoy.', icon: Users, note: 'Creators you follow will appear here. Your following list can be made private in Settings.' },
-  'creator-dashboard': { title: 'Creator Dashboard', description: 'Understand how your published Vyrals are performing.', icon: ChartNoAxesCombined, note: 'Creator analytics for views, uses, sales and earnings will appear here.' },
-  notifications: { title: 'Notifications', description: 'Stay informed about activity on your VYRA account.', icon: Bell, note: 'Follow alerts, purchases, Vyral updates and system notifications will appear here.' },
-  settings: { title: 'Settings', description: 'Control your account and VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
-  'setting-account': { title: 'Account & Profile', description: 'Manage your email, personal details and public profile.', icon: UserRound, note: 'Account and profile controls are coming soon.' },
-  'setting-security': { title: 'Security & Privacy', description: 'Manage password, active sessions and privacy controls.', icon: ShieldCheck, note: 'Security and privacy controls are coming soon.' },
-  'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Language preferences are coming soon.' },
-  'setting-notifications': { title: 'Notifications', description: 'Choose which alerts and updates you receive.', icon: Bell, note: 'Notification preferences are coming soon.' },
-  'setting-billing': { title: 'Plans & Billing', description: 'Manage your subscription, credits, payments and invoices.', icon: CreditCard, note: 'Plans and billing controls are coming soon.' },
+  'my-vyrals': { title: 'My Vyrals', description: 'Manage your reusable Creative Universes.', icon: VyralIdentityIcon, note: 'Your Creative Universes appear here.' },
+  'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded and generated media.', icon: Images, note: 'Your media appears here.' },
+  settings: { title: 'Settings', description: 'Control your VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
+  'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Choose how VYRA looks on this device.' },
   'setting-ai': { title: 'Admin Dashboard', description: 'Manage VYRA platform API keys.', icon: KeyRound, note: 'Manage the API keys used by VYRA.' },
-  'setting-legal': { title: 'Terms & Legal', description: 'Review VYRA terms of service and privacy information.', icon: LockKeyhole, note: 'Legal documents are coming soon.' },
-  'setting-about': { title: 'About VYRA', description: 'Platform information, version and product details.', icon: Monitor, note: 'VYRA platform information is coming soon.' },
-  help: { title: 'Help & Support', description: 'Find guidance and get help using VYRA.', icon: CircleHelp, note: 'Help articles, frequently asked questions and support contact options will appear here.' },
 };
-
-const updateProfileHeaderCompact = (content: HTMLElement, scrollTop = content.scrollTop) => {
-  setCompactProgress(content, scrollTop > 0 ? 1 : 0);
-};
-
-const searchableProfilePages = new Set<PageKey>(['my-media-library', 'saved', 'purchased', 'collections', 'following', 'notifications', 'settings', 'help']);
 
 const settingsItems: { key: PageKey; label: string; detail: string; icon: LucideIcon }[] = [
-  { key: 'setting-account', label: 'Account & Profile', detail: 'Email, personal details and public profile', icon: UserRound },
-  { key: 'setting-security', label: 'Security & Privacy', detail: 'Password, sessions and visibility controls', icon: ShieldCheck },
   { key: 'setting-appearance', label: 'Language & Appearance', detail: 'Language, theme and display preferences', icon: Globe2 },
-  { key: 'setting-notifications', label: 'Notifications', detail: 'Choose which alerts you receive', icon: Bell },
-  { key: 'setting-billing', label: 'Plans & Billing', detail: 'Subscription, credits, payments and invoices', icon: CreditCard },
-  { key: 'setting-legal', label: 'Terms & Legal', detail: 'Terms of service and privacy policy', icon: LockKeyhole },
-  { key: 'setting-about', label: 'About VYRA', detail: 'Platform information and version', icon: Monitor },
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
@@ -110,12 +63,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
   const [visitedSubpages, setVisitedSubpages] = useState<Set<PageKey>>(() => new Set(initialPage ? [initialPage] : []));
-  const [pageSearch, setPageSearch] = useState('');
   React.useEffect(() => {
     setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
   }, [activePage]);
-  React.useEffect(() => { setActivePage(initialPage ?? 'home'); setPageSearch(''); }, [initialPage]);
-  React.useEffect(() => { setPageSearch(''); }, [activePage]);
+  React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: isActive ? 'profile:' + activePage : 'profile:inactive' } }));
@@ -161,7 +112,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">VYRA Account</h2>
                 <p className="mt-1 truncate text-sm text-[var(--vyra-text-secondary)]">{userEmail}</p>
-                <button type="button" onClick={() => setActivePage('public-profile')} className="mt-1 text-xs font-semibold text-[var(--vyra-accent-primary)] hover:underline">View my public profile</button>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--vyra-bg-subtle)] px-4 py-3 sm:min-w-40 sm:justify-start">
@@ -204,7 +154,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
-            search={searchableProfilePages.has(activePage) ? <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--vyra-text-muted)]" /><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder={`Search ${pageInfo[activePage].title}`} aria-label={`Search ${pageInfo[activePage].title}`} className="min-h-11 w-full rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] pl-9 pr-3 text-sm text-[var(--vyra-text-primary)] outline-none transition focus:border-[var(--vyra-accent-primary)] focus:outline-2 focus:outline-[var(--vyra-accent-primary)] placeholder:text-[var(--vyra-text-muted)]" /></div> : undefined}
           />
           <div className="profile-subpage-content p-5 sm:p-6" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
             {activePage === 'settings' ? (
