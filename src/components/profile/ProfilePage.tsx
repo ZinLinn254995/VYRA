@@ -9,7 +9,7 @@ import { MyVyralsPage } from './MyVyralsPage';
 import { MyMediaLibraryPage } from './MyMediaLibraryPage';
 import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
-import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
+import { setCompactProgress, updateProfileHeaderCompact, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type ProfilePageProps = {
@@ -149,8 +149,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : activePage === 'my-vyrals' || activePage === 'my-media-library' ? null : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
-            onBack={() => { if (initialPage) onBack(); else setActivePage(activePage.startsWith('setting-') ? 'settings' : 'home'); }}
-            backLabel={initialPage ? backLabel : activePage.startsWith('setting-') ? 'Back to Settings' : 'Back to Profile'}
+            onBack={() => { if (initialPage) onBack(); else setActivePage(activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'settings' : 'home'); }}
+            backLabel={initialPage ? backLabel : activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'Back to Settings' : 'Back to Profile'}
             icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
@@ -200,19 +200,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
             ) : activePage === 'setting-ai' ? (
               <ApiKeySettings />
-            ) : activePage.startsWith('setting-') ? (
-              <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
-                <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
-                <p className="mx-auto max-w-md text-sm text-[var(--vyra-text-secondary)]">{pageInfo[activePage].note}</p>
-                <span className="mt-3 inline-flex rounded-full border border-[var(--vyra-border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--vyra-text-muted)]">Coming soon</span>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-4 py-8 text-center">
-                <Library size={24} className="mx-auto mb-3 text-[var(--vyra-text-muted)]" />
-                <p className="mx-auto max-w-md text-sm text-[var(--vyra-text-secondary)]">{pageInfo[activePage].note}</p>
-                <p className="mt-2 text-xs text-[var(--vyra-text-muted)]">This section is part of the Profile navigation foundation; its data and actions are not connected yet.</p>
-              </div>
-            )}
+            ) : null}
           </div>
         </section></div>
       )}
