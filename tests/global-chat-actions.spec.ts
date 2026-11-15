@@ -53,7 +53,7 @@ test('storyboard detail lookup prefers exact title and formats scene data', asyn
 
 
 test('global AI Chat recognizes only explicit allowlisted navigation requests', async () => {
-  const { extractGlobalChatNavigationTarget } = await import('../src/services/globalChatActions.ts');
+  const { extractGlobalChatNavigationTarget, extractVyralAssetUploadTarget } = await import('../src/services/globalChatActions.ts');
   assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), 'marketplace');
   assert.equal(extractGlobalChatNavigationTarget('Take me to My Universes'), 'my-vyrals');
