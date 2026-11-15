@@ -134,11 +134,23 @@ export async function buildRunwayProjectConsistencyContext(
       dna.some((record) => record.verification_status === 'creator_confirmed') ? '  Knowledge authority: creator-confirmed for the recorded statements only' : '  Knowledge authority: observed / unconfirmed',
     ].filter(Boolean).join('\n');
   });
+  const relationshipLines = relationships
+    .filter((edge) => selected.has(edge.from_asset_id) && selected.has(edge.to_asset_id))
+    .slice(0, 24)
+    .map((edge) => {
+      const from = assets.find((asset) => asset.id === edge.from_asset_id);
+      const to = assets.find((asset) => asset.id === edge.to_asset_id);
+      const rationale = safeText(edge.rationale, 300);
+      return '- Creator-approved relationship: ' + safeText(from?.name ?? edge.from_asset_id, 120)
+        + ' --' + safeText(edge.relationship_type, 80) + '--> ' + safeText(to?.name ?? edge.to_asset_id, 120)
+        + (rationale ? ' (reason: ' + rationale + ')' : '');
+    });
   const context = [
     'PROJECT CONSISTENCY CONTEXT (retrieved from this Project only)',
-    'Use the following records as reference evidence when relevant to the requested output.',
-    'IMPORTANT: Recorded DNA observations are evidence, not automatically creator-approved canon. Do not invent missing facts or silently turn suggestions into canon. If a detail conflicts with the user prompt, follow the user prompt and flag the conflict in your response.',
+    'Creator-confirmed knowledge is authoritative only for the exact recorded statements. Unconfirmed observations are reference evidence only.',
+    'Use only creator-approved relationships as established connections. Do not invent missing facts or silently turn suggestions into canon. If a detail conflicts with the user prompt, follow the user prompt and flag the conflict.',
     ...lines,
+    ...(relationshipLines.length ? ['CREATOR-APPROVED RELATIONSHIPS', ...relationshipLines] : []),
   ].join('\n');
   const promptText = (input.promptText + '\n\n' + context).slice(0, 14_000);
   return { promptText, assetCount: assets.length, selectedAssetCount: lines.length, mode: retrieval.mode };
