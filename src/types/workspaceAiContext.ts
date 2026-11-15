@@ -17,6 +17,7 @@ export type WorkspaceAiContext = {
   sceneContinuity?: {
     previousSceneId: string | null;
     previousSceneApproved: boolean;
+    entrySnapshotStale: boolean;
     previousExitState: Record<string, unknown> | null;
     currentEntryState: Record<string, unknown> | null;
     intendedChanges: Array<{ path: string; value: unknown; reason: string }>;
