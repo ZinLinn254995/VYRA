@@ -20,7 +20,7 @@ test('OpenAI health checks verify the configured key server-side without returni
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   const route = read('src/server/ai.ts');
   const service = read('src/services/aiService.ts');
-  const studio = read('src/context/StudioContext.tsx');
+  const adminSettings = read('src/components/profile/ApiKeySettings.tsx');
   assert.match(edge, /body\.healthCheck === true/);
   assert.match(edge, /https:\/\/api\.openai\.com\/v1\/models/);
   assert.match(edge, /status: 'connected'/);
@@ -28,7 +28,8 @@ test('OpenAI health checks verify the configured key server-side without returni
   assert.match(edge, /status: 'error'/);
   assert.match(route, /callOpenAIChatFunction\(bearer\[1\], \{ healthCheck: true \}\)/);
   assert.match(service, /Authorization: 'Bearer ' \+ accessToken/);
-  assert.match(studio, /aiService\.checkStatus\(authSession\.access_token\)/);
+  assert.match(adminSettings, /\/api\/providers\/openai\/settings/);
+  assert.match(adminSettings, /Authorization: 'Bearer ' \+ token/);
 });
 
 test('Authenticated server route forwards SSE incrementally with backpressure', () => {
@@ -61,14 +62,14 @@ test('AI Chat preserves partial streamed text on errors and keeps retry in the e
 test('Active global Chat uses the authenticated platform-managed OpenAI service, not customer BYOK', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   const service = read('src/services/aiService.ts');
-  const legacyStudio = read('src/context/StudioContext.tsx');
+  const server = read('src/server/ai.ts');
   assert.match(page, /getCurrentAccessToken\(\)/);
   assert.match(page, /aiService\.generateResponse\(\{/);
   assert.doesNotMatch(page, /openrouter|gemini/i);
   assert.match(service, /Authorization:\s*'Bearer ' \+ request\.accessToken/);
   assert.match(service, /private endpoint = '\/api\/ai\/chat'/);
-  assert.doesNotMatch(legacyStudio, /Google Gemini|gemini-[0-9]|vyra_openrouter_key_session/i);
-  assert.match(legacyStudio, /providerName: 'OpenAI \(VYRA Platform\)'/);
+  assert.doesNotMatch(server, /openrouter|x-openrouter-api-key/i);
+  assert.match(server, /router\.post\('\/ai\/chat'/);
 });
 
 test('Vyral AI tools are read-only, bounded and scoped to the authenticated owner and active Vyral', () => {
