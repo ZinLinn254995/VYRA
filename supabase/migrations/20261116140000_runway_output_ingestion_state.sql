@@ -15,6 +15,7 @@ alter table public.media_generation_job_outputs
     check (transfer_attempts between 0 and 20),
   add column if not exists transfer_lease_expires_at timestamptz,
   add column if not exists storage_path text,
+  add column if not exists staging_storage_path text,
   add column if not exists asset_id uuid,
   add column if not exists asset_version_id uuid,
   add column if not exists sha256 text
@@ -168,6 +169,7 @@ begin
   update public.media_generation_job_outputs set
     transfer_status = p_status,
     storage_path = coalesce(p_storage_path, storage_path),
+    staging_storage_path = case when p_status = 'stored' then coalesce(p_storage_path, staging_storage_path) else staging_storage_path end,
     asset_id = coalesce(p_asset_id, asset_id),
     asset_version_id = coalesce(p_asset_version_id, asset_version_id),
     sha256 = coalesce(p_sha256, sha256),
