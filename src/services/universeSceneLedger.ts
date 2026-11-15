@@ -102,6 +102,30 @@ export interface SceneContinuityContext {
   contextComplete: boolean;
 }
 
+/**
+ * A handoff is valid only when every predecessor handoff in the chain is still
+ * current. Checking only the immediate predecessor would let Scene 3 consume
+ * Scene 2's stale approval after Scene 1 had been edited.
+ */
+function isSceneHandoffCurrent(
+  ledger: SceneContinuityLedger,
+  sceneId: string,
+  visiting = new Set<string>(),
+): boolean {
+  if (visiting.has(sceneId)) return false;
+  const current = ledger.scenes[sceneId];
+  if (!current || current.validationStatus !== 'creator_approved' || current.exitState === null) return false;
+  if (!current.previousSceneId) return current.entryState !== null;
+
+  const previous = ledger.scenes[current.previousSceneId];
+  if (!previous || !isSceneHandoffCurrent(ledger, previous.sceneId, new Set([...visiting, sceneId]))) return false;
+  const snapshotMatches = current.entryFromSceneId === previous.sceneId
+    && current.entryFromSceneUpdatedAt === previous.updatedAt
+    && current.entryState !== null
+    && JSON.stringify(current.entryState) === JSON.stringify(previous.exitState);
+  return snapshotMatches;
+}
+
 /** Returns only the selected Scene and its immediate predecessor's approved handoff. */
 export function getSceneContinuityContext(
   ledgerInput: unknown,
@@ -112,9 +136,7 @@ export function getSceneContinuityContext(
   const current = ledger.scenes[sceneId];
   if (!current) return null;
   const previous = current.previousSceneId ? ledger.scenes[current.previousSceneId] : null;
-  const previousSceneApproved = !previous || (
-    previous.validationStatus === 'creator_approved' && previous.exitState !== null
-  );
+  const previousSceneApproved = !previous || isSceneHandoffCurrent(ledger, previous.sceneId);
   const previousExitState = previousSceneApproved ? previous?.exitState ?? null : null;
   // An entry snapshot is valid only for the exact predecessor version it was
   // evaluated against. Reordering or re-approving an earlier Scene invalidates
