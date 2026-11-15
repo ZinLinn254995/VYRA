@@ -42,7 +42,7 @@ test('Vyral image previews are prepared locally and routed through OpenAI Vision
   assert.doesNotMatch(service, /Google Gemini|gemini-[0-9]/i);
   assert.match(server, /DOCUMENT_AUDIO_CONTEXT_NOT_ENABLED/);
   assert.ok(server.includes('visionImages.length ? { visionImages }'));
-  assert.ok(server.includes('visionImages.length > 4'));
+  assert.ok(server.includes('rawVisionImages.length > 4'));
   assert.doesNotMatch(server, /gemini|Google Gemini/i);
   assert.ok(entry.includes("express.json({ limit: '8mb' })"));
 });
