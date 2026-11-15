@@ -2465,7 +2465,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         {isLocked && (
           <p className="mb-2 text-center text-[11px] text-[var(--vyra-text-muted)]">ဒီ Chat ကို Lock လုပ်ထားပါတယ်။ စာပို့ရန် Unlock လုပ်ပါ။</p>
         )}
-        <form onSubmit={(event) =>
+        <form onSubmit={(event) => { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
           {storyboardId && (
             <div className="mb-2 px-1">
               <button type="button" onClick={() => { setMediaComposerOpen((open) => !open); setMediaGenerationStatus(null); }} disabled={isSending || isGeneratingMedia} className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50">
@@ -2498,7 +2498,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               )}
             </div>
           )}
- { event.preventDefault(); void sendMessage(); }} className="rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-2">
+
           {selectedAssets.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5 px-1" aria-label="Selected VYRA Assets">{selectedAssets.map((asset) => <span key={asset.id} className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] text-[var(--vyra-text-primary)]"><span className="max-w-36 truncate">{asset.name}</span><span className="text-[var(--vyra-text-muted)]">{asset.visibility}</span><button type="button" onClick={() => { const next = selectedAssets.filter((item) => item.id !== asset.id); setSelectedAssets(next); onSelectedAssetsChange?.(next); }} aria-label={'Remove '+asset.name} className="rounded-full p-0.5 hover:bg-[var(--vyra-bg-hover)]"><X size={11}/></button></span>)}<button type="button" onClick={() => { setSelectedAssets([]); onSelectedAssetsChange?.([]); }} className="px-1 text-[10px] text-[var(--vyra-text-muted)] underline">Clear</button></div>}
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
