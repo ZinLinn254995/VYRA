@@ -54,6 +54,8 @@ A Vyral may contain or reference:
 
 No fixed category list or minimum structure is required. A creator may start with one character or one image and expand the universe over time. Relationship and story information is captured when supplied or reliably established; the system must not invent it to satisfy a schema.
 
+The `.vyral` file is VYRA's native Creative Universe package for backup, transfer, sharing, and import. It should preserve the selected Universe structure, Asset files/references, versions, DNA/context records, relationships, timeline/state, provenance, licensing, and package integrity according to the creator's export permissions. It is not an external-AI reconstruction prompt bundle. New native exports must not ship legacy `AI_RECONSTRUCTION_GUIDE.md` or `tools/reconstruct_vyral.py`; legacy DNA-only packages may remain importable for backward compatibility while the format is migrated safely.
+
 ## 5. DNA, Fingerprints, and Consistency
 
 - **Asset DNA** is the structured knowledge and useful generation guidance for one Asset. It is created and maintained automatically where supported.
