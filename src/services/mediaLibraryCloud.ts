@@ -593,15 +593,15 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
  * Originals are only downloaded; they are never moved, overwritten or deleted.
  * The thumbnail is stored first, then its path is added to the row metadata.
  */
-export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number> {
+export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
   // Keep the PostgREST filter value free of fractional-second dots.
   const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const { data, error } = await db.from('media_library_items')
+  const { data, error } = await applyUniverseScope(db.from('media_library_items')
     .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
-    .eq('user_id', userId)
+    .eq('user_id', userId), universeId)
     .is('metadata->thumbnail_path', null)
     .is('metadata->thumbnail_backfill_attempted_at', null)
     .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + retryCutoff)
@@ -626,9 +626,9 @@ export async function backfillMediaLibraryThumbnails(limit = 4): Promise<number>
       const delayMinutes = Math.min(5 * (2 ** (attempts - 1)), 24 * 60);
       retryMetadata.thumbnail_backfill_retry_after_at = new Date(Date.now() + delayMinutes * 60_000).toISOString();
     }
-    await db.from('media_library_items')
+    await applyUniverseScope(db.from('media_library_items')
       .update({ metadata: retryMetadata })
-      .eq('id', row.id).eq('user_id', userId)
+      .eq('id', row.id).eq('user_id', userId), universeId)
       .is('metadata->thumbnail_path', null)
       .is('metadata->thumbnail_backfill_attempted_at', null);
   };
