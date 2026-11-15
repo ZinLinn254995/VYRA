@@ -27,7 +27,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createUniverseRequest?: number; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createUniverseRequest?: number; openUniverseRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -64,7 +64,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, openUniverseRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const createDefaultStoryboardRef = useRef<() => void>(() => {});
   const lastStoryboardSyncAtRef = useRef(0);
@@ -751,6 +751,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
   const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('scenes'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+
+  useEffect(() => {
+    if (!openUniverseRequest || loadedStorageKey !== storageKey) return;
+    const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId);
+    if (item) openStoryboardEditor(item);
+  }, [openUniverseRequest?.requestId, openUniverseRequest?.storyboardId, loadedStorageKey, storageKey, storyboards]);
 
   const confirmDeleteStoryboard = async () => {
     if (!storyboardToDelete || isDeletingStoryboard) return;
