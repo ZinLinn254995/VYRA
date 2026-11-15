@@ -417,7 +417,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const previews: ProjectMediaPreview[] = [];
           for (let index = 0; index < assets.length; index++) {
             const asset = assets[index];
-            const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
+            const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600);
             previews.push({ assetId: asset.assetId, name: 'Recovered Asset ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
           }
           setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
@@ -2340,7 +2340,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const previews: ProjectMediaPreview[] = [];
         for (let index = 0; index < generatedAssets.length; index++) {
           const asset = generatedAssets[index];
-          const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600);
+          const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
           previews.push({ assetId: asset.assetId, name: 'Generated ' + mediaTask + ' ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
         }
         const summary = generatedAssets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
