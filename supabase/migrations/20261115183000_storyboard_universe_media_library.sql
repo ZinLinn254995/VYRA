@@ -9,16 +9,11 @@ drop index if exists public.media_library_folders_root_name_unique;
 drop index if exists public.media_library_folders_child_name_unique;
 create unique index media_library_folders_root_name_unique
   on public.media_library_folders(
-    user_id,
-    coalesce(universe_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    lower(name)
+    user_id, coalesce(universe_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(name)
   ) where parent_id is null;
 create unique index media_library_folders_child_name_unique
   on public.media_library_folders(
-    user_id,
-    coalesce(universe_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    parent_id,
-    lower(name)
+    user_id, coalesce(universe_id, '00000000-0000-0000-0000-000000000000'::uuid), parent_id, lower(name)
   ) where parent_id is not null;
 
 create index if not exists media_library_folders_universe_parent_idx
@@ -37,6 +32,7 @@ declare
   parent_universe uuid;
   universe_owner uuid;
   universe_scope text;
+  creates_cycle boolean := false;
 begin
   if new.universe_id is not null then
     select user_id, metadata ->> 'universe_scope'
@@ -62,10 +58,120 @@ begin
           join descendants parent on child.parent_id = parent.id
           where child.user_id = new.user_id and child.universe_id is not distinct from new.universe_id
       )
-      select exists(select 1 from descendants where id = new.parent_id) into strict creates_cycle;
+      select exists(select 1 from descendants where id = new.parent_id) into creates_cycle;
+      if creates_cycle then raise exception 'A folder cannot be moved into one of its descendants'; end if;
     end if;
   end if;
   new.updated_at := now();
   return new;
 end;
 $$;
+
+create or replace function public.enforce_media_library_item_owner_refs()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  folder_owner uuid;
+  folder_universe uuid;
+  asset_owner uuid;
+  asset_universe uuid;
+  universe_owner uuid;
+  universe_scope text;
+begin
+  if new.universe_id is not null then
+    select user_id, metadata ->> 'universe_scope'
+      into universe_owner, universe_scope
+    from public.vyrals where id = new.universe_id;
+    if universe_owner is distinct from new.user_id or universe_scope is distinct from 'storyboard' then
+      raise exception 'Storyboard Universe does not belong to this user';
+    end if;
+    if new.source_asset_id is null then
+      raise exception 'Storyboard Universe files must be backed by a canonical Asset with DNA';
+    end if;
+  end if;
+  if new.folder_id is not null then
+    select user_id, universe_id into folder_owner, folder_universe
+      from public.media_library_folders where id = new.folder_id;
+    if folder_owner is distinct from new.user_id or folder_universe is distinct from new.universe_id then
+      raise exception 'Media Library folder does not belong to this Library scope';
+    end if;
+  end if;
+  if new.source_asset_id is not null then
+    select user_id, vyral_id into asset_owner, asset_universe
+      from public.vyral_assets where id = new.source_asset_id;
+    if asset_owner is distinct from new.user_id then
+      raise exception 'Source Asset does not belong to this user';
+    end if;
+    if new.universe_id is not null and asset_universe is distinct from new.universe_id then
+      raise exception 'Source Asset does not belong to this Storyboard Universe';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop policy if exists media_library_folders_select_own on public.media_library_folders;
+create policy media_library_folders_select_own on public.media_library_folders
+for select to authenticated using (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
+drop policy if exists media_library_folders_insert_own on public.media_library_folders;
+create policy media_library_folders_insert_own on public.media_library_folders
+for insert to authenticated with check (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
+drop policy if exists media_library_folders_update_own on public.media_library_folders;
+create policy media_library_folders_update_own on public.media_library_folders
+for update to authenticated using (user_id = (select auth.uid()))
+with check (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
+drop policy if exists media_library_items_select_own on public.media_library_items;
+create policy media_library_items_select_own on public.media_library_items
+for select to authenticated using (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
+drop policy if exists media_library_items_insert_own on public.media_library_items;
+create policy media_library_items_insert_own on public.media_library_items
+for insert to authenticated with check (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
+drop policy if exists media_library_items_update_own on public.media_library_items;
+create policy media_library_items_update_own on public.media_library_items
+for update to authenticated using (user_id = (select auth.uid()))
+with check (
+  user_id = (select auth.uid()) and (
+    universe_id is null or exists (
+      select 1 from public.vyrals u where u.id = universe_id
+        and u.user_id = (select auth.uid()) and u.metadata ->> 'universe_scope' = 'storyboard'
+    )
+  )
+);
