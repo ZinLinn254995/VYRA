@@ -90,6 +90,52 @@ export function hydrateSceneContinuityLedger(
   } as SceneContinuityLedger;
 }
 
+/**
+ * Stores an explicitly creator-authored starting snapshot for the first Scene.
+ * This is an entry baseline only; it does not approve any generated Scene exit.
+ * Replacing it invalidates all downstream approvals because their continuity
+ * chain depends on this baseline.
+ */
+export function setCreatorApprovedSceneStartingState(
+  ledgerInput: unknown,
+  scenes: ReadonlyArray<{ id: string }>,
+  sceneId: string,
+  startingState: SceneState,
+  updatedAt = new Date().toISOString(),
+): SceneContinuityLedger {
+  const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
+  if (ledger.sceneOrder[0] !== sceneId) {
+    throw new Error('Only the first Scene can define the Storyboard starting state.');
+  }
+  if (!isRecord(startingState) || Object.keys(startingState).length === 0) {
+    throw new Error('Add at least one starting condition before saving.');
+  }
+  const serialized = JSON.stringify(startingState);
+  if (!serialized || serialized.length > 16_000) {
+    throw new Error('The starting state is too large to save safely.');
+  }
+  // Validate JSON compatibility and reject unsafe object paths before cloning.
+  stableStateValue(startingState);
+  const nextScenes = { ...ledger.scenes };
+  for (const [index, orderedSceneId] of ledger.sceneOrder.entries()) {
+    const current = nextScenes[orderedSceneId];
+    if (!current) continue;
+    nextScenes[orderedSceneId] = {
+      ...current,
+      ...(index === 0 ? {
+        entryState: structuredClone(startingState),
+        entryFromSceneId: null,
+        entryFromSceneUpdatedAt: null,
+      } : {}),
+      validationStatus: 'not_evaluated',
+      proposedExitState: null,
+      violations: [],
+      updatedAt,
+    };
+  }
+  return { ...ledger, scenes: nextScenes };
+}
+
 export interface SceneContinuityContext {
   sceneId: string;
   sequence: number;
