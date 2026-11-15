@@ -6,6 +6,8 @@ export interface SceneContinuityRecord {
   previousSceneId: string | null;
   nextSceneId: string | null;
   entryState: Record<string, unknown> | null;
+  entryFromSceneId?: string | null;
+  entryFromSceneUpdatedAt?: string | null;
   intendedChanges: Array<{ path: string; value: unknown; reason: string }>;
   exitState: Record<string, unknown> | null;
   validationStatus: SceneContinuityStatus;
@@ -30,6 +32,8 @@ const emptyRecord = (sceneId: string, sequence: number): SceneContinuityRecord =
   previousSceneId: null,
   nextSceneId: null,
   entryState: null,
+  entryFromSceneId: null,
+  entryFromSceneUpdatedAt: null,
   intendedChanges: [],
   exitState: null,
   validationStatus: 'not_evaluated',
@@ -108,15 +112,24 @@ export function getSceneContinuityContext(
   const previousSceneApproved = !previous || (
     previous.validationStatus === 'creator_approved' && previous.exitState !== null
   );
+  const previousExitState = previousSceneApproved ? previous?.exitState ?? null : null;
+  // An entry snapshot is valid only for the exact predecessor version it was
+  // evaluated against. Reordering or re-approving an earlier Scene invalidates
+  // that snapshot and forces the newest approved handoff to be used.
+  const entrySnapshotCurrent = current.entryFromSceneId === (current.previousSceneId ?? null)
+    && (current.entryFromSceneUpdatedAt ?? null) === (previous?.updatedAt ?? null);
+  const currentEntryState = entrySnapshotCurrent && current.entryState
+    ? current.entryState
+    : previousExitState;
   return {
-    sceneId,
+    sceneId: current.sceneId,
     sequence: current.sequence,
     previousSceneId: current.previousSceneId,
-    previousExitState: previousSceneApproved ? previous?.exitState ?? null : null,
+    previousExitState,
     previousSceneApproved,
-    currentEntryState: current.entryState ?? (previousSceneApproved ? previous?.exitState ?? null : null),
+    currentEntryState,
     intendedChanges: current.intendedChanges,
-    contextComplete: previousSceneApproved && (current.sequence === 0 || Boolean(previous?.exitState)),
+    contextComplete: previousSceneApproved && currentEntryState !== null,
   };
 }
 
@@ -145,6 +158,8 @@ export function recordSceneContinuityEvaluation(
       [input.sceneId]: {
         ...current,
         entryState: structuredClone(input.entryState),
+        entryFromSceneId: current.previousSceneId ?? null,
+        entryFromSceneUpdatedAt: current.previousSceneId ? ledger.scenes[current.previousSceneId]?.updatedAt ?? null : null,
         intendedChanges: structuredClone(input.intendedChanges),
         proposedExitState: structuredClone(input.expectedExitState),
         validationStatus: input.status,
@@ -167,8 +182,13 @@ export function approveSceneContinuityState(
   const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
   const current = ledger.scenes[sceneId];
   if (!current) throw new Error('Cannot approve continuity for an unknown Scene.');
-  if (current.validationStatus !== 'consistent' || !isRecord(current.proposedExitState)) {
-    throw new Error('A Scene must pass continuity evaluation before its state can be approved.');
+  if (
+    current.validationStatus !== 'consistent'
+    || !isRecord(current.proposedExitState)
+    || !Array.isArray(current.violations)
+    || current.violations.length !== 0
+  ) {
+    throw new Error('A Scene must pass continuity evaluation with no violations before its state can be approved.');
   }
   return {
     ...ledger,
