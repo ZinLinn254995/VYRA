@@ -182,11 +182,11 @@ function VyraApp() {
             </ErrorBoundary>
           </div>
         )}
-        <div hidden={profileOpen || activeSection !== 'workspace'} aria-hidden={profileOpen || activeSection !== 'workspace'} style={profileOpen || activeSection !== 'workspace' ? { display: "none" } : undefined} className="min-h-0 flex-1 flex flex-col overflow-hidden">
+        <div hidden={true} aria-hidden="true" style={{ display: "none" }}>
           <ErrorBoundary>
             <WorkspacePage
               storageKey={workspaceStorageKey}
-              isAuthenticated={hasPermanentAccount} isActive={activeSection === 'workspace' && !profileOpen} onLoginRequired={() => requestAuth('login')}
+              isAuthenticated={hasPermanentAccount} isActive={false} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Workspace / My Universes' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
               pendingSceneStateProposal={pendingSceneStateProposal}
@@ -197,6 +197,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
+        {!profileOpen && <main aria-label="VYRA" className="min-h-0 flex-1" />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
