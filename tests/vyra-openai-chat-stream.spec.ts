@@ -152,7 +152,7 @@ test('AI Chat retrieves task-relevant Assets and only uses revision-pinned relat
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   const retrieval = read('src/services/universeConsistencyRetrieval.ts');
   assert.match(edge, /retrieveUniverseConsistencyContext\(/);
-  assert.match(edge, /\.slice\(-3\)[\s\S]*?role === 'user'/);
+  assert.match(edge, /role === 'user'[\s\S]*?\.slice\(-3\)/);
   assert.match(edge, /maxAssets: 12/);
   assert.match(edge, /maxRelationships: 24/);
   assert.match(edge, /masterSnapshotIsCurrent \? snapshotRelationships\.map/);
