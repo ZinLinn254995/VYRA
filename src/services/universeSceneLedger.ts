@@ -183,6 +183,10 @@ export function approveSceneContinuityState(
   const ledger = hydrateSceneContinuityLedger(ledgerInput, scenes);
   const current = ledger.scenes[sceneId];
   if (!current) throw new Error('Cannot approve continuity for an unknown Scene.');
+  const continuity = getSceneContinuityContext(ledger, scenes, sceneId);
+  if (!continuity?.contextComplete) {
+    throw new Error('The previous Scene must have an approved continuity handoff before this Scene can be approved.');
+  }
   if (
     current.validationStatus !== 'consistent'
     || !isRecord(current.proposedExitState)
