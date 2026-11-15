@@ -252,10 +252,19 @@ test('Master Editor non-Scene selection never invents Scene-specific canon', () 
     page: 'storyboard-editor',
     editorView: 'master',
     selectedTimelineItem: { kind: 'audio-clip', id: 'music-1', trackId: 'audio-1', label: 'Background music' },
+    activeSceneId: 'scene-a',
+    activeSceneTitle: 'Stale active Scene',
+    sceneContinuity: {
+      previousSceneId: null, previousSceneApproved: true, entrySnapshotStale: false,
+      previousExitState: null, currentEntryState: { character: { wardrobe: 'should not leak' } },
+      intendedChanges: [], contextComplete: true, validationStatus: 'creator_approved',
+    },
     continuityRuntime: { sceneIds: ['scene-a'], scenes: [{ id: 'scene-a', title: 'Arrival' }], ledger: { scenes: {} } },
   });
   assert.equal(result.mode, 'incomplete');
   assert.match(result.promptText, /Selected timeline item: audio-clip \/ Background music/);
   assert.match(result.promptText, /No single Scene is selected/);
+  assert.doesNotMatch(result.promptText, /Stale active Scene/);
+  assert.doesNotMatch(result.promptText, /should not leak/);
   assert.match(result.promptText, /Do not invent or assume character identity/);
 });
