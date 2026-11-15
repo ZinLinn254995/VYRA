@@ -3,7 +3,7 @@ name: VYRA Browser UI Tests
 on:
   pull_request:
   push:
-    branches: [main, 'rebuild/**']
+    branches: [main, 'rebuild/**', 'feature/**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,9 +28,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run production build
         run: npm run build
-      # The former Studio-shell browser specs target a retired navigation layout.
-      # Keep them in the repository for reference; run the current Marketplace/Workspace suite here.
-      - name: Run current Marketplace and Workspace browser tests
+      # The Project-first shell is the active branch experience. The legacy
+      # Marketplace/Workspace suite remains for release branches until its
+      # navigation assertions are migrated.
+      - name: Run Project-first entry browser tests
+        if: startsWith(github.head_ref, 'feature/') || startsWith(github.ref, 'refs/heads/feature/')
+        run: mkdir -p artifacts && npx playwright test tests/project-first-entry.spec.ts
+      - name: Run legacy Marketplace and Workspace browser tests
+        if: ${{ !startsWith(github.head_ref, 'feature/') && !startsWith(github.ref, 'refs/heads/feature/') }}
         run: mkdir -p artifacts && npx playwright test tests/current-marketplace-workspace.spec.ts
       - name: Upload screenshots and test report
         if: always()
