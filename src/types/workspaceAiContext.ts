@@ -15,6 +15,7 @@ export type WorkspaceAiContext = {
   continuityRuntime?: {
     storyboardId: string;
     sceneIds: string[];
+    scenes?: Array<{ id: string; title: string }>;
     ledger: unknown;
     initialEntryState?: Record<string, unknown> | null;
   } | null;
