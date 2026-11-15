@@ -392,6 +392,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     activeRequestControllerRef.current?.abort();
     activeRequestControllerRef.current = null;
   }, []);
+
+  useEffect(() => () => {
+    mediaRequestControllerRef.current?.abort();
+    mediaRequestControllerRef.current = null;
+  }, []);
   const chatScrollRef = useRef<HTMLElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const [historyReady, setHistoryReady] = useState(false);
