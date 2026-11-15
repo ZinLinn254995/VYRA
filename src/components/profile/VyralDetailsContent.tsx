@@ -175,7 +175,6 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
   const [busy, setBusy] = useState(false);
   const [backgroundJob, setBackgroundJob] = useState<{ assetName: string; stage: string; detail: string } | null>(null);
   const [packageBusy, setPackageBusy] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [verifyingAssetId, setVerifyingAssetId] = useState<string | null>(null);
   const [comparingReconstructionAssetId, setComparingReconstructionAssetId] = useState<string | null>(null);
   const [extractingDnaV3, setExtractingDnaV3] = useState(false);
@@ -3382,7 +3381,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             <Upload size={13}/> Import legacy package
             <input type="file" accept=".vyral,application/vnd.vyra.vyral+zip" className="hidden" onChange={(event)=>{const file=event.target.files?.[0];event.target.value='';if(file)void importVyralPackage(file);}} disabled={busy || packageBusy}/>
           </label>
-          <button type="button" disabled title="Standard-format export is being prepared" className={button + ' cursor-not-allowed opacity-60'}>
+          <button type="button" onClick={() => void exportVyralPackage()} disabled title="Standard-format export is being prepared" className={button + ' cursor-not-allowed opacity-60'}>
             <Archive size={13}/> Standard export coming soon
           </button>
         </div>
