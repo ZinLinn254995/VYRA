@@ -1,5 +1,7 @@
 # Credit Ledger Lifecycle
 
+> **Billing boundary update (2026-11-15):** Customer-supplied provider keys and OpenRouter BYOK generation have been removed. VYRA uses platform-managed provider credentials. The credit ledger remains infrastructure only; no generation route currently reserves or charges customer credits. Reconfirm provider metering, price reconciliation, consent, and refund behavior before enabling billing.
+
 ## Status (2026-11-03)
 
 The Development database already contains the append-only \`credit_ledger_entries\` table and the service-role-only \`apply_credit_ledger_entry()\` RPC. The server now has a typed wrapper in \`src/server/creditLedger.ts\` for the existing RPC.
@@ -8,7 +10,7 @@ This is infrastructure only:
 - No public HTTP endpoint exposes financial writes.
 - No provider-generation route calls the credit ledger wrapper.
 - No customer credits are reserved, committed, released, granted, or refunded automatically.
-- The BYOK path remains provider-billed to the customer's own OpenRouter account and must not consume VYRA credits.
+- No customer BYOK path is supported. Provider credentials are centrally managed by VYRA; provider cost and VYRA credit charging remain separate until the new metering flow is verified.
 - Production schema and balances remain untouched.
 
 ## Entry semantics
@@ -50,9 +52,9 @@ The database function uses a per-user advisory transaction lock, a unique \`(use
 8. If a definitive provider failure qualifies for a refund, append a compensating \`release\` or \`refund\` entry according to whether the credits were still reserved or already committed.
 9. Persist the provider USD cost separately from customer credit units. Never infer provider actual cost from an estimate.
 
-## BYOK vs VYRA-managed billing
+## Platform-managed provider billing vs VYRA credit billing
 
-- **BYOK:** the customer supplies their own provider key; OpenRouter bills the customer directly. VYRA may record usage/cost metadata for the customer's history, but does not deduct VYRA credits.
+- **Platform-managed provider:** VYRA holds provider credentials server-side and pays the provider. Actual provider cost must be reconciled before any VYRA credit settlement.
 - **VYRA-managed:** VYRA supplies the provider key and bears provider cost. Only this path may eventually reserve and commit VYRA credits, after the commercial policy is approved.
 
 ## Commercial and launch gates
