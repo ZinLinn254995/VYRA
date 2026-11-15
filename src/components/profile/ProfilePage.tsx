@@ -35,7 +35,7 @@ type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponen
 
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
-    { key: 'my-vyrals', label: 'My Vyrals', detail: 'Manage your Creative Universes', icon: VyralIdentityIcon },
+    { key: 'my-vyrals', label: 'My Universes', detail: 'Manage your Creative Universes', icon: VyralIdentityIcon },
     { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded and generated media', icon: Images },
   ] },
   { title: 'Platform', items: [
