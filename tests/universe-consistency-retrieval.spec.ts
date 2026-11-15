@@ -30,7 +30,8 @@ test('retrieves a directly mentioned Asset and expands its connected continuity 
   assert.ok(result.selectedRelationshipIndexes.includes(1));
   assert.ok(result.selectedRelationshipIndexes.includes(2));
   assert.ok(result.reasons.milo.includes('explicit_asset_name_mention'));
-  assert.ok(result.reasons.scarf.includes('one_hop_relationship_context'));
+  assert.ok(result.reasons.workshop.includes('one_hop_relationship_context'));
+  assert.ok(result.reasons.villain.includes('one_hop_relationship_context'));
 });
 
 test('retrieves by tags and approved searchable evidence without leaking unrelated Assets', () => {
@@ -76,7 +77,14 @@ test('bounded retrieval reports truncation and keeps the strongest match first',
   assert.equal(result.selectedAssetIds.length, 2);
   assert.equal(result.selectedAssetIds[0], 'milo');
   assert.equal(result.truncatedAssets, true);
-  assert.equal(result.truncatedRelationships, true);
+  const relationshipBound = retrieveUniverseConsistencyContext({
+    query: 'Show me the entire Universe',
+    assets,
+    relationships,
+    maxAssets: 10,
+    maxRelationships: 1,
+  });
+  assert.equal(relationshipBound.truncatedRelationships, true);
 });
 
 test('Universe-root relationships are retained when their connected Asset is selected', () => {
