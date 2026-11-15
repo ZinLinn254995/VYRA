@@ -28,7 +28,7 @@ export type WorkspaceAiContext = {
     sceneCount: number;
     sceneTitles: string[];
   } | null;
-  editorView?: 'scenes' | 'master' | 'chat' | 'universe';
+  editorView?: 'scenes' | 'master' | 'chat' | 'universe' | 'details';
   storyboardUniverse?: { id: string; name: string; description: string } | null;
   selectedSceneIds?: string[];
   selectedSceneTitles?: string[];
