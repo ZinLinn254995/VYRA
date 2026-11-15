@@ -57,7 +57,7 @@ begin
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;
-  if p_decision not in ('creator_approved','creator_rejected') then
+  if p_decision is null or p_decision not in ('creator_approved','creator_rejected') then
     raise exception 'Invalid relationship review decision';
   end if;
   if coalesce(char_length(p_review_note),0) > 2000 then
