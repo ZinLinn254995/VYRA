@@ -251,21 +251,12 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
       }
       if (isActive) void refresh(true);
     };
-    const handleUniverseDnaSync = (event: Event) => {
-      const detail = (event as CustomEvent<{ universeId?: string; status?: string }>).detail;
-      if (!universeId || detail?.universeId !== universeId) return;
-      setNotice(detail.status === 'ready'
-        ? 'Assets saved. This Universe’s Master DNA is up to date.'
-        : 'Assets saved. Master DNA synchronization is pending; VYRA will retry.');
-    };
     window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
-    window.addEventListener('vyra:universe-dna-sync', handleUniverseDnaSync);
     window.addEventListener('focus', refreshIfStale);
     window.addEventListener('online', refreshIfStale);
     document.addEventListener('visibilitychange', refreshIfStale);
     return () => {
       window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
-      window.removeEventListener('vyra:universe-dna-sync', handleUniverseDnaSync);
       window.removeEventListener('focus', refreshIfStale);
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
