@@ -39,19 +39,19 @@ test('Marketplace does not display fictional demo listings', async ({ page }) =>
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Marketplace', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No Vyrals listed yet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No Universes listed yet' })).toBeVisible();
   await expect(page.getByText('Story Character Pack')).toHaveCount(0);
   await expect(page.getByText('Milo — The Explorer')).toHaveCount(0);
   await expect(page.getByText('Neon City at Night')).toHaveCount(0);
 });
 
-test('Workspace opens the Vyral and media libraries and storyboard creation entry', async ({ page }) => {
+test('Workspace opens the Universe and media libraries and storyboard creation entry', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
   await openSection(page, 'Workspace');
 
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /My Vyrals/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /My Universes/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /My Media Library/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Storyboards' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create Storyboard' })).toBeVisible();
