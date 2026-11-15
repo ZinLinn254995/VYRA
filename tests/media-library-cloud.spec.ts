@@ -185,7 +185,7 @@ test('My Media Library UI includes required organization, filtering, views and m
   const openStart = page.indexOf('const openEntry = async (entry: Entry)');
   const openEnd = page.indexOf('const selectedFiles =', openStart);
   const openFlow = page.slice(openStart, openEnd);
-  assert.ok(openFlow.includes('await getMediaLibraryItemSignedUrl(entry.item.id)'), 'Original file URLs must be fetched only when a file is opened.');
+  assert.ok(openFlow.includes('await getMediaLibraryItemSignedUrl(entry.item.id, universeId)'), 'Original file URLs must be fetched only when a file is opened.');
   assert.ok(openFlow.includes('setPreviewItem({ ...entry.item, signed_url: signedUrl })'), 'The preview must receive its freshly authorized URL.');
   assert.ok(openFlow.includes('setError(cause instanceof Error ? cause.message'), 'Secure URL failures must be visible to the user.');
   assert.ok(page.includes('else if (entry.item) void openEntry(entry)'), 'Touch preview must use the same on-demand secure URL flow.');
@@ -521,5 +521,5 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(universeTab.includes('<MyMediaLibraryPage'), 'The Storyboard Universe tab must reuse the real My Media Library UI.');
   assert.ok(universeTab.includes('universeId={universe.id}'), 'The Library UI must be scoped to the resolved private Universe.');
   assert.ok(workspace.includes('renderLibrary={storyboardEditorView === \'universe\'}'), 'The Library should mount only when the Universe tab is visible.');
-  assert.ok(workspace.includes('activeVyralId={storyboardUniverse?.id ?? null}'), 'Storyboard AI Chat must operate against the same dedicated Universe.');
+  assert.ok(workspace.includes('activeVyralId={storyboardUniverse.id}'), 'Storyboard AI Chat must operate against the same dedicated Universe.');
 });
