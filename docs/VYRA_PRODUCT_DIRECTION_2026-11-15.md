@@ -31,7 +31,7 @@ VYRA is not limited to an AI video generator, a prompt box, a single editor, a f
 2. **AI Creative Workspace** — create images, video, audio, text/documents, 3D and other supported media.
 3. **Creative Editing** — edit existing or generated media, create versions and variations, and refine results.
 4. **Creative Projects & Storyboards** — organize deliverables, scenes, production stages, and editable work.
-5. **Vyral Creative Universe** — maintain reusable creative worlds and their characters, entities, locations, objects, stories, rules, relationships, timelines, and state.
+5. **Creative Universe** — maintain reusable creative worlds and their characters, entities, locations, objects, stories, rules, relationships, timelines, and state.
 6. **DNA & Consistency Engine** — preserve identity and continuity across media, edits, scenes, episodes, and collaborators.
 7. **Asset & Media Library** — store, browse, organize, version, preview, and reuse original and generated media.
 8. **Sharing & Collaboration** — share projects, universes, assets, and selected knowledge with controlled permissions and collaborative workflows.
@@ -43,7 +43,7 @@ These are product capabilities, not claims that every system is already implemen
 
 ## 4. Vyral: Creative Universe
 
-A **Vyral** is a reusable Creative Universe: a creator-owned collection of creative knowledge and resources that can be used to produce consistent related work and can be shared with others under explicit permissions.
+A **Universe** is a reusable creative world: a creator-owned collection of creative knowledge and resources that can be used to produce consistent related work and can be shared with others under explicit permissions.
 
 A Vyral may contain or reference:
 - characters, creatures, people-like fictional entities, and other reusable subjects;
@@ -54,12 +54,12 @@ A Vyral may contain or reference:
 
 No fixed category list or minimum structure is required. A creator may start with one character or one image and expand the universe over time. Relationship and story information is captured when supplied or reliably established; the system must not invent it to satisfy a schema.
 
-The `.vyral` file is VYRA's native Creative Universe package for backup, transfer, sharing, and import. It should preserve the selected Universe structure, Asset files/references, versions, DNA/context records, relationships, timeline/state, provenance, licensing, and package integrity according to the creator's export permissions. It is not an external-AI reconstruction prompt bundle. New native exports must not ship legacy `AI_RECONSTRUCTION_GUIDE.md` or `tools/reconstruct_vyral.py`; legacy DNA-only packages may remain importable for backward compatibility while the format is migrated safely.
+**No custom `.vyral` extension or proprietary Universe package is part of the product direction.** A Universe is a first-class VYRA workspace concept managed directly in the app. Creators share or export the selected content through ordinary, familiar media and document formats, or through a standard archive only when a multi-file transfer is genuinely needed. Do not introduce a new extension or make users learn a VYRA-specific file type.
 
 ## 5. DNA, Fingerprints, and Consistency
 
 - **Asset DNA** is the structured knowledge and useful generation guidance for one Asset. It is created and maintained automatically where supported.
-- **Vyral / Universe DNA** is derived from the universe's assets, entities, approved knowledge, relationships, canon, timeline, and state. It is not a manually maintained giant text field.
+- **Universe DNA** is derived from the universe's assets, entities, approved knowledge, relationships, canon, timeline, and state. It is not a manually maintained giant text field.
 - **Fingerprint** supports integrity, identity, version comparison, and change detection. A fingerprint alone does not establish authorship or semantic similarity.
 - **Consistency** means preserving the relevant approved traits and continuity, not forcing every output to be byte-identical. It includes appearance, voice, world rules, relationships, story canon, timeline, and changing state.
 - Keep stable identity/canon separate from mutable state. For example, a character's injury may persist across episodes until a later event changes it.
@@ -72,7 +72,7 @@ The `.vyral` file is VYRA's native Creative Universe package for backup, transfe
 The implementation should converge on clear, connected concepts rather than duplicate stores:
 
 - **Creative Project:** a deliverable or body of work being produced.
-- **Vyral Universe:** reusable continuity, canon, knowledge, and shareable creative resources.
+- **Universe:** reusable continuity, canon, knowledge, and shareable creative resources.
 - **Asset:** an individual original, generated, imported, or edited media object with immutable versions and provenance.
 - **Storyboard / Scene:** a planning and production structure belonging to a Creative Project.
 - **Edit / Output Version:** a derived result with traceable source assets and edit/generation history.
@@ -119,7 +119,7 @@ Do not delete user-owned assets, canonical records, protected samples, productio
 2. Produce the Keep / Refactor / Replace / Remove inventory with exact paths, tables, migrations, and dependency evidence.
 3. Establish one authoritative architecture and update conflicting documentation.
 4. Remove verified dead UI/code and obsolete product concepts without touching protected areas.
-5. Refactor core data foundations: Project, Vyral Universe, Asset, versions, DNA/context, and consistency.
+5. Refactor core data foundations: Project, Universe, Asset, versions, DNA/context, and consistency.
 6. Connect creation and editing workflows to shared Asset and Project state.
 7. Add scoped sharing and collaboration.
 8. Complete marketplace and social publishing workflows.
