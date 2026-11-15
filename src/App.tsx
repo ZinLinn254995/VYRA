@@ -162,9 +162,7 @@ function VyraApp() {
     <div className={`flex ${(profileOpen && user) || activeSection === 'workspace' ? "h-svh overflow-hidden" : "min-h-svh"} flex-col bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)]`}>
       <AppHeader
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
-        activeSection={profileOpen ? 'profile' : activeSection}
         onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
-        onAIChatRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('ai-chat'); }}
         onAuthRequest={requestAuth}
         onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
       />
