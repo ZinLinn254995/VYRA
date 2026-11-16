@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildDirectorShotTimelineClips, type DirectorShotTimelineClip } from '../src/services/directorShotTimeline';
+import { mergeWorkspaceStoryboards } from '../src/services/workspaceStoryboards';
 
 const shot = (shotIndex: number, durationSeconds: number, assetId = 'asset-' + shotIndex) => ({
   shotId: 'shot-' + shotIndex,
@@ -131,4 +132,35 @@ test('Project Editor autosaves every confirmed edit and restores the saved Proje
   assert.ok(workspace.includes('setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } })'));
   assert.ok(workspace.includes('const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId)'));
   assert.ok(sync.includes('storyboards: Array.from(merged.values())'));
+});
+
+
+test('cloud deletion tombstones suppress stale Projects across devices during merge', () => {
+  const id = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d';
+  const live = {
+    id,
+    title: 'ORIGIN-01',
+    topic: 'Foundational Project',
+    createdAt: '2026-11-01T00:00:00.000Z',
+    updatedAt: '2026-11-10T00:00:00.000Z',
+    details: { scenes: [] },
+  };
+  const tombstone = {
+    ...live,
+    updatedAt: '2026-11-16T00:00:00.000Z',
+    details: { ...live.details, __vyraDeletedAt: '2026-11-16T00:00:00.000Z' },
+  };
+
+  const staleDeviceMerge = mergeWorkspaceStoryboards([live], [tombstone]);
+  assert.deepEqual(staleDeviceMerge.storyboards, []);
+  assert.deepEqual(staleDeviceMerge.pending, []);
+
+  const deletedLocalMerge = mergeWorkspaceStoryboards([tombstone], [live]);
+  assert.deepEqual(deletedLocalMerge.storyboards, []);
+  assert.deepEqual(deletedLocalMerge.pending, []);
+
+  const unrelatedProject = { ...live, id: 'c5afacb6-174a-498a-88f2-476b24f08e87', title: 'Unrelated Project' };
+  const unrelatedMerge = mergeWorkspaceStoryboards([live, unrelatedProject], [tombstone]);
+  assert.deepEqual(unrelatedMerge.storyboards.map((item) => item.id), [unrelatedProject.id]);
+  assert.deepEqual(unrelatedMerge.pending, []);
 });
