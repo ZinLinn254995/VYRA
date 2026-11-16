@@ -258,7 +258,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           }
           void removeVyralAssetLocalCopy(user.id, clip.assetId!, clip.assetVersionId!);
         } catch (error) {
-          if (!cancelled) setMediaUploadError((clip.name || 'Media') + ' is saved locally. Cloud upload will retry when the Editor is reopened: ' +
+          if (editorMountedRef.current) setMediaUploadError((clip.name || 'Media') + ' is saved locally. Cloud upload will retry when the Editor is reopened: ' +
             (error instanceof Error ? error.message : 'Upload interrupted.'));
         } finally {
           recoveringUploadKeysRef.current.delete(key);
