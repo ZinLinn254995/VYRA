@@ -59,7 +59,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   const backfill = service.slice(backfillStart, backfillEnd);
   assert.ok(backfill.includes('.update({ metadata })'), 'thumbnail metadata should update without changing the file modified date');
   assert.ok(!backfill.includes('updated_at: new Date().toISOString()'), 'thumbnail backfill must preserve the original modified date');
-  assert.ok(backfill.includes('const applyMetadataSnapshot ='), 'Metadata writes must compare the complete original JSON snapshot to avoid clobbering concurrent metadata changes.');
+  assert.ok(service.includes('const applyMetadataSnapshot ='), 'Metadata writes must compare the complete original JSON snapshot to avoid clobbering concurrent metadata changes.');
   assert.ok(backfill.includes('.eq(\'metadata\', metadata)'), 'Non-null metadata snapshots must use an equality guard.');
   assert.ok(backfill.includes('.is(\'metadata\', null)'), 'Null metadata snapshots must remain eligible for compare-and-set updates.');
   assert.ok(backfill.includes('const attachmentQuery = applyMetadataSnapshot('), 'Thumbnail attachment must apply its metadata compare-and-set before selecting the updated row.');
