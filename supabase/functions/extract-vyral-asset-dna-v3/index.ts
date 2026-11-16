@@ -7,7 +7,7 @@ import { computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptua
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_PIXELS = 10_000_000;
-const TILE = 256;
+const TILE = 512;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wasm = await Deno.readFile(new URL('magick.wasm', import.meta.resolve('npm:@imagemagick/magick-wasm@0.0.30')));
 await initializeImageMagick(wasm);
@@ -16,9 +16,8 @@ const reply = (body: Record<string, unknown>, status = 200) => new Response(JSON
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
 });
 const sha256 = async (bytes: Uint8Array) => {
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  // Web Crypto accepts the existing byte view; do not duplicate a full image/sample buffer.
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
@@ -105,10 +104,8 @@ Deno.serve(async (request: Request) => {
   const persistBatch = async () => {
     const batch = pending.splice(0, pending.length);
     const outcomes = await Promise.allSettled(batch.map(async (tile) => {
-      const tileBuffer = new ArrayBuffer(tile.bytes.byteLength);
-      new Uint8Array(tileBuffer).set(tile.bytes);
       const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
-        tile.path, new Blob([tileBuffer], { type: 'application/octet-stream' }),
+        tile.path, new Blob([tile.bytes], { type: 'application/octet-stream' }),
         { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
       );
       if (error) throw new Error(error.message);
@@ -139,7 +136,7 @@ Deno.serve(async (request: Request) => {
           bytes.set(samples.subarray(offset, offset + tileWidth * 4), row * tileWidth * 4);
         }
         pending.push({ x, y, width: tileWidth, height: tileHeight, bytes, path: storagePrefix + x + '_' + y + '.raw' });
-        if (pending.length >= 4) await persistBatch();
+        if (pending.length >= 2) await persistBatch();
       }
     }
     if (pending.length) await persistBatch();
