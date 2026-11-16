@@ -1303,7 +1303,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
           const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
             .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
-          if (!instance.videoClips?.length) return instance;
+          if (!instance.videoClips?.length) {
+            const scene = sceneIndex < 0 ? undefined : orderedScenes[sceneIndex];
+            if (!scene || !instance.assetId || !instance.assetVersionId ||
+                !(instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/')) ||
+                sceneStart < insertionTime - 0.001) return instance;
+            const sourceIn = instance.videoSourceIn ?? 0;
+            const sourceOut = instance.videoSourceOut ?? scene.duration;
+            return {
+              ...instance,
+              videoClips: [{
+                id: instance.id,
+                name: scene.title,
+                start: amount,
+                duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
+                sourceIn,
+                sourceOut,
+                assetId: instance.assetId,
+                assetVersionId: instance.assetVersionId,
+                assetMimeType: instance.assetMimeType,
+                mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video',
+              }],
+            };
+          }
           return {
             ...instance,
             videoClips: instance.videoClips.map((clip) =>
@@ -1818,7 +1840,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
       const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
         .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
-      if (!instance.videoClips?.length) return instance;
+      if (!instance.videoClips?.length) {
+        const scene = sceneIndex < 0 ? undefined : orderedScenes[sceneIndex];
+        if (!scene || !instance.assetId || !instance.assetVersionId ||
+            !(instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/')) ||
+            sceneStart < start - 0.001) return instance;
+        const sourceIn = instance.videoSourceIn ?? 0;
+        const sourceOut = instance.videoSourceOut ?? scene.duration;
+        return {
+          ...instance,
+          videoClips: [{
+            id: instance.id,
+            name: scene.title,
+            start: 3,
+            duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
+            sourceIn,
+            sourceOut,
+            assetId: instance.assetId,
+            assetVersionId: instance.assetVersionId,
+            assetMimeType: instance.assetMimeType,
+            mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video',
+          }],
+        };
+      }
       return {
         ...instance,
         videoClips: instance.videoClips.map((clip) =>
