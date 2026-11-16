@@ -1485,24 +1485,101 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const runDeleteSelectedVisual = () => {
     const selected = getSelectedVisualClip();
     if (!selected) return;
+
+    // Ripple-delete the selected visual clip. When it sits between two clips,
+    // close the entire gap so its previous and next clips become adjacent.
+    const ordered = orderedVisualClips.map((entry) => entry.clip);
+    const selectedIndex = ordered.findIndex((clip) => clip.id === selected.id);
+    const previousClip = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
+    const nextClip = selectedIndex >= 0 ? ordered[selectedIndex + 1] || null : null;
+    const rippleAmount = previousClip && nextClip
+      ? Math.max(0, nextClip.start - (previousClip.start + previousClip.duration))
+      : nextClip ? Math.max(0, selected.duration) : 0;
+    const shiftedStarts = new Map<string, number>();
+    if (nextClip && rippleAmount > 0) {
+      ordered.slice(selectedIndex + 1).forEach((clip) => {
+        shiftedStarts.set(clip.id, clip.start - rippleAmount);
+      });
+    }
+
     const nextTracks = (value?.videoTracks || []).map((track) => ({
       ...track,
-      clips: track.clips.filter((clip) => clip.id !== selected.id),
+      clips: track.clips
+        .filter((clip) => clip.id !== selected.id)
+        .map((clip) => shiftedStarts.has(clip.id)
+          ? { ...clip, start: shiftedStarts.get(clip.id)! }
+          : clip),
     })).filter((track) => track.clips.length > 0);
+
+    const clipById = new Map(ordered.map((clip) => [clip.id, clip]));
     const nextInstances = (value?.sceneInstances || []).map((instance) => {
-      if (instance.videoClips?.some((clip) => clip.id === selected.id)) {
-        return { ...instance, videoClips: instance.videoClips.filter((clip) => clip.id !== selected.id) };
+      const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
+      const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
+        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
+
+      if (instance.videoClips?.length) {
+        return {
+          ...instance,
+          videoClips: instance.videoClips
+            .filter((clip) => clip.id !== selected.id)
+            .map((clip) => shiftedStarts.has(clip.id)
+              ? { ...clip, start: shiftedStarts.get(clip.id)! - sceneStart }
+              : clip),
+        };
       }
+
       if (instance.id === selected.id) {
-        return { ...instance, assetId: undefined, assetVersionId: undefined, assetMimeType: undefined, videoSourceIn: undefined, videoSourceOut: undefined };
+        return {
+          ...instance,
+          assetId: undefined,
+          assetVersionId: undefined,
+          assetMimeType: undefined,
+          videoSourceIn: undefined,
+          videoSourceOut: undefined,
+        };
+      }
+
+      // A legacy Director clip is stored on the scene instance itself rather
+      // than in videoClips. Materialize it as a scene-relative clip when ripple
+      // deletion moves it, preserving its immutable Asset Version reference.
+      const shiftedInstanceStart = shiftedStarts.get(instance.id);
+      const legacyClip = clipById.get(instance.id);
+      if (shiftedInstanceStart !== undefined && legacyClip && instance.assetId && instance.assetVersionId) {
+        return {
+          ...instance,
+          videoClips: [{
+            ...legacyClip,
+            start: shiftedInstanceStart - sceneStart,
+          }],
+        };
       }
       return instance;
     });
+
     const transitions = { ...(value?.transitions || {}) };
     Object.keys(transitions).forEach((key) => {
-      if (key.startsWith(selected.id + ':') || key.endsWith(':' + selected.id)) delete transitions[key];
+      if (key.split(':').includes(selected.id)) delete transitions[key];
     });
-    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: nextInstances, transitions, videoTracks: nextTracks, audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
+
+    // The newly adjacent pair must start with no transition. "None" is
+    // represented by the absence of a transition record in this timeline.
+    if (previousClip && nextClip) {
+      const joinedBoundary = previousClip.start + previousClip.duration;
+      const legacyBoundary = sceneTransitionMarkers.find(
+        (marker) => Math.abs(marker.boundary - joinedBoundary) <= 0.001,
+      );
+      const joinedKey = legacyBoundary?.key || (previousClip.id + ':' + nextClip.id);
+      delete transitions[joinedKey];
+    }
+
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: nextInstances,
+      transitions,
+      videoTracks: nextTracks,
+      audioTracks: value?.audioTracks || [],
+      textTracks: value?.textTracks || [],
+    });
     setSelectedVisualClipId(null);
   };
 
