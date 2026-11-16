@@ -1,6 +1,6 @@
 export type VyralMediaPlaybackRequest = { assetId: string; versionId: string };
 export type VyralMediaPlaybackResult = { signedUrl: string; expiresInSeconds: number };
-export type VyralPlayableMediaType = 'audio' | 'video';
+export type VyralPlayableMediaType = 'audio' | 'video' | 'image';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SIGNED_URL_TTL_SECONDS = 3600;
@@ -15,7 +15,7 @@ export async function createVyralMediaPlaybackUrl(
   request: VyralMediaPlaybackRequest,
   mediaType: VyralPlayableMediaType,
 ): Promise<VyralMediaPlaybackResult> {
-  const label = mediaType === 'video' ? 'Video' : 'Audio';
+  const label = mediaType === 'video' ? 'Video' : mediaType === 'image' ? 'Image' : 'Audio';
   if (!db || !request || !UUID.test(request.assetId) || !UUID.test(request.versionId)) {
     throw new Error('A valid ' + label + ' Asset and immutable Version are required.');
   }
@@ -76,4 +76,12 @@ export function createVyralVideoPlaybackUrl(
   request: VyralMediaPlaybackRequest,
 ): Promise<VyralMediaPlaybackResult> {
   return createVyralMediaPlaybackUrl(db, request, 'video');
+}
+
+/** Short-lived signed URL for an exact immutable Image Asset Version. */
+export function createVyralImagePlaybackUrl(
+  db: any,
+  request: VyralMediaPlaybackRequest,
+): Promise<VyralMediaPlaybackResult> {
+  return createVyralMediaPlaybackUrl(db, request, 'image');
 }
