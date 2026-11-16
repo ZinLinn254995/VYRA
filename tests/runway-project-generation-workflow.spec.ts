@@ -92,7 +92,7 @@ test('shot prompt isolates one ordered shot and carries its continuity handoff',
 
 test('shot sequence reuses the approved generation lifecycle sequentially and enforces a total budget', () => {
   assert.ok(workflow.includes('generateRunwayProjectShotSequence'));
-  assert.ok(workflow.includes('for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++)'));
+  assert.ok(workflow.includes('const shotIndices = request.repair ? [request.repair.shotIndex] : request.scene.shots.map((_shot, index) => index)'));
   assert.ok(workflow.includes("task: 'video'"));
   assert.ok(workflow.includes('approvedCostUsd + quote.estimatedCostUsd > request.maxTotalCostUsd'));
   assert.ok(workflow.includes('approvedCostUsd + approval.maxCostUsd > request.maxTotalCostUsd'));
@@ -123,7 +123,7 @@ test('shot sequence verifies each ingested video output before continuing and st
   assert.ok(workflow.includes('evaluateSceneVisualVerification'));
   assert.ok(workflow.includes('getCurrentBaselineRevision'));
   assert.ok(workflow.includes("status: 'needs_review'"));
-  assert.ok(workflow.includes("stoppedStatus: 'visual_verification_needs_review'"));
+  assert.ok(workflow.includes("transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review'"));
   assert.ok(workflow.includes('Do not generate later shots against an unverified handoff'));
   assert.ok(workflow.includes("visualVerificationStatus: request.visualVerification ? 'verified' : 'not_configured'"));
   assert.ok(workflow.includes('buildSceneVisualRepairPrompt'));
@@ -132,7 +132,7 @@ test('shot sequence verifies each ingested video output before continuing and st
 test('visual inspection failures remain unknown and never trigger paid automatic retries', () => {
   assert.ok(workflow.includes('A failed vision pass is an unknown result, never a silent pass'));
   assert.ok(workflow.includes('inspectionComplete = false'));
-  assert.ok(workflow.includes('visualVerificationStatus: \'not_configured\''));
+  assert.ok(workflow.includes("visualVerificationStatus: !request.visualVerification ? 'not_configured' : verifiedShotCount > 0 ? 'partial' : 'not_run'"));
   assert.ok(workflow.includes('Do not auto-regenerate a paid output'));
   assert.ok(visualVerifier.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
 });
