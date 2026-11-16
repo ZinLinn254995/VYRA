@@ -88,7 +88,7 @@ export function startMasterTimelineVideoPlayback(
     void runtime.resolveAssetUrl(item.assetId, item.assetVersionId, controller.signal)
       .then((url) => {
         if (stopped || controller.signal.aborted || token !== loadToken) return;
-        if (!/^https:\/\//i.test(url)) throw new Error('The private Video playback URL is invalid.');
+        if (!/^(https:\/\/|blob:)/i.test(url)) throw new Error('The private Video playback URL is invalid.');
         video.src = url;
         const onReady: EventListener = () => {
           video.removeEventListener('loadedmetadata', onReady);
