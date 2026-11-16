@@ -1004,7 +1004,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
           : existingVisualClips.reduce((end, existing) => Math.max(end, existing.start + existing.duration), 0);
-        const previousVisualClip = kind === 'audio' ? undefined : [...existingVisualClips].sort((a, b) => a.start - b.start || a.duration - b.duration).at(-1);
+        const previousVisualClip = kind === 'audio' ? undefined : existingVisualClips.reduce<TimelineClip | undefined>((latest, candidate) => !latest || candidate.start + candidate.duration > latest.start + latest.duration ? candidate : latest, undefined);
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
           name: file.name,
