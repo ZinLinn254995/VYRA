@@ -720,7 +720,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           videoClips: [{
             id: instance.id,
             name: orderedScenes[sceneIndex]?.title || 'Scene media',
-            start: 0,
+            start: offset,
             duration: Math.max(0.1, Math.min(orderedScenes[sceneIndex]?.duration ?? sourceOut - sourceIn, sourceOut - sourceIn)),
             sourceIn,
             sourceOut,
