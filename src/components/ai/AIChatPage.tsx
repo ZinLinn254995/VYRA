@@ -2588,8 +2588,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             assetId: asset.assetId, assetVersionId: asset.versionId, mimeType: asset.mimeType,
           }] : [];
         });
-        if (linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && activeDirectorScenePlan && storyboardId) {
-          onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots, ...(repairRequest ? { replaceShot: true } : {}) });
+        if (!repairRequest && linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && activeDirectorScenePlan && storyboardId) {
+          onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots });
         }
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
         const findings = result.completedShots.flatMap((shot) => [
