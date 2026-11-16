@@ -705,7 +705,7 @@ export async function generateRunwayProjectShotSequence(
       repairPrompts.push(buildSceneVisualRepairPrompt(transitionVerification, shot));
     }
     if (request.visualVerification && request.repair?.shotIndex === shotIndex) {
-      const currentAsset = shotAssets.find((asset) => /^video\\//i.test(asset.mimeType));
+      const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
       let previousAsset = currentAsset;
       let previousShot = shot;
       let previousShotIndex = shotIndex;
@@ -721,7 +721,7 @@ export async function generateRunwayProjectShotSequence(
         let inspectionComplete = false;
         let currentBaselineRevision = request.visualVerification.baselineRevision;
         try {
-          if (previousAsset && nextAsset && /^video\\//i.test(nextAsset.mimeType) && request.visualVerification.inspectTransition) {
+          if (previousAsset && nextAsset && /^video\//i.test(nextAsset.mimeType) && request.visualVerification.inspectTransition) {
             const transition = await request.visualVerification.inspectTransition({
               previousAsset, currentAsset: nextAsset, previousShot, currentShot: nextShot,
               previousShotIndex, currentShotIndex, scene: request.scene,
@@ -749,7 +749,7 @@ export async function generateRunwayProjectShotSequence(
         downstreamTransitionVerifications.push({ previousShotIndex, currentShotIndex, verification });
         repairPrompts.push(buildSceneVisualRepairPrompt(verification, previousShot));
         if (!outgoingTransitionVerification) outgoingTransitionVerification = verification;
-        if (!nextAsset || !/^video\\//i.test(nextAsset.mimeType)) {
+        if (!nextAsset || !/^video\//i.test(nextAsset.mimeType)) {
           // The chain cannot skip a missing timeline shot and still claim continuity.
           break;
         }
