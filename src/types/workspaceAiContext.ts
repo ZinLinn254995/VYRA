@@ -60,6 +60,8 @@ export type WorkspaceAiContext = {
     validationStatus: 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
   } | null;
   activeSceneDirectorShots?: Array<{ shotId: string; shotIndex: number; assetId: string; assetVersionId: string; mimeType: string }>;
+  /** Prior repair outcomes for this Scene; diagnostic evidence only, never canon. */
+  activeSceneRepairHistory?: Array<{ shotIndex: number; outcome: 'verified' | 'needs_review'; createdAt: string; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number }>;
   selectedTimelineItem?: {
     kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip';
     id: string;
