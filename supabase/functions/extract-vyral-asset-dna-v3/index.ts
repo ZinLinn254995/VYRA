@@ -202,7 +202,7 @@ Deno.serve(async (request: Request) => {
     if (uploaded.length) await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
     const detail = error instanceof Error ? error.message : 'Unknown raster extraction error.';
     const pixelCount = width > 0 && height > 0 ? width * height : null;
-    const pixelLimitExceeded = detail.includes('10-megapixel DNA v3 limit');
+    const pixelLimitExceeded = detail.includes('50-megapixel DNA v3 limit');
     console.error('[vyral-dna-v3] raster extraction failed.', JSON.stringify({
       phase: tileUploadStarted ? 'tile_upload_or_persistence' : 'pinned_decode',
       detail, source_bytes: size, width: width || null, height: height || null,
