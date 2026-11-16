@@ -533,7 +533,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         return {
           storyboardId: activeStoryboard.id,
           sceneIds: scenes.slice(0, 500).map((scene) => scene.id),
-          scenes: scenes.slice(0, 500).map((scene) => ({ id: scene.id, title: scene.title.slice(0, 180), description: scene.description.slice(0, 1200) })),
+          scenes: scenes.slice(0, 500).map((scene) => ({
+            id: scene.id, title: scene.title.slice(0, 180), description: scene.description.slice(0, 1200),
+            ...(scene.project?.creativeDirection ? { creativeDirection: scene.project.creativeDirection } : {}),
+          })),
           ledger: JSON.stringify(ledger).length <= 48_000 ? ledger : null,
           initialEntryState: activeContinuity?.previousSceneId === null && !activeContinuity.entrySnapshotStale
             ? activeContinuity.currentEntryState : null,
