@@ -120,6 +120,16 @@ test('Project Editor navigation stays above its video preview and Scene manageme
 });
 
 
+test('needs_review shot candidates stay in Project Assets and are never handed off to the Editor', () => {
+  const start = chat.indexOf("} else if ('completedShots' in result && result.status === 'needs_review')");
+  const end = chat.indexOf("} else if (result.status === 'ready')", start);
+  assert.ok(start >= 0 && end > start);
+  const reviewBranch = chat.slice(start, end);
+  assert.ok(!reviewBranch.includes('onShotSequenceReady('));
+  assert.ok(reviewBranch.includes('not added to the Editor'));
+  assert.ok(reviewBranch.includes('previous Editor clip remains unchanged'));
+});
+
 test('Project AI Chat samples generated video frames and invokes the grounded visual inspection adapter', () => {
   const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
   assert.ok(chat.includes('createSignedUrl(asset.storagePath, 300)'));
