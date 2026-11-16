@@ -109,6 +109,93 @@ test('shot prompt isolates one ordered shot and carries its continuity handoff',
   assert.match(prompt, /SCENE 2: Warehouse Fight/);
 });
 
+
+const sequenceDb = {} as Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0];
+const sequenceQuote = (cost: number) => ({
+  id: 'quote-test', task: 'video' as const, quality: 'standard' as const,
+  provider: 'runway', model: 'test-model', estimatedCredits: 1,
+  estimatedCostUsd: cost, expiresAt: '2099-01-01T00:00:00.000Z',
+  requestFingerprint: 'a'.repeat(64),
+}) as Parameters<Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]['requestApproval']>[0];
+const sequenceAsset = (index: number) => ({
+  assetId: 'asset-' + index, versionId: 'version-' + index,
+  storagePath: 'private/asset-' + index + '.mp4', sha256: 'b'.repeat(64),
+  mimeType: 'video/mp4', sizeBytes: 1024,
+});
+const sequenceRequest = (overrides: Partial<Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectShotSequence>[1]> = {}) => ({
+  targetVyralId: 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d',
+  quality: 'standard' as const,
+  scene: shotScene,
+  productionTitle: 'Night Shift',
+  logline: 'A confrontation turns into an escape.',
+  genre: 'Action',
+  tone: 'Tense',
+  promptText: 'Make this Scene cinematic.',
+  maxTotalCostUsd: 2,
+  maxCostUsdPerShot: 1,
+  requestApproval: async () => ({ confirmed: true as const, maxCostUsd: 1 }),
+  ...overrides,
+});
+
+test('shot orchestrator executes real sequence control flow with an offline media adapter', async () => {
+  const calls: number[] = [];
+  const approvals: number[] = [];
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    const shotIndex = Number(mediaRequest.input.promptText?.toString().match(/SHOT (\\d+) OF/)?.[1]) - 1;
+    calls.push(shotIndex);
+    const approval = await mediaRequest.requestApproval(sequenceQuote(0.6));
+    if (!approval.confirmed) return { status: 'approval_declined' as const, quote: sequenceQuote(0.6) };
+    approvals.push(shotIndex);
+    return { status: 'ready' as const, quote: sequenceQuote(0.6), jobId: 'job-' + shotIndex, assets: [sequenceAsset(shotIndex)] };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb, sequenceRequest({ maxTotalCostUsd: 1, maxCostUsdPerShot: 0.75 }),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'budget_exceeded');
+  assert.deepEqual(calls, [0, 1]);
+  assert.deepEqual(approvals, [0]);
+  assert.equal(result.completedShots.length, 1);
+  assert.equal(result.stoppedAtShotIndex, 1);
+  assert.equal(result.approvedCostUsd, 0.6);
+});
+
+test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
+  const calls: number[] = [];
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    _mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    calls.push(calls.length);
+    return { status: 'submitted_pending' as const, quote: sequenceQuote(0.2), jobId: 'pending-job' };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb, sequenceRequest(),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'partial');
+  assert.deepEqual(calls, [0]);
+  assert.equal(result.stoppedAtShotIndex, 0);
+  assert.equal(result.stoppedStatus, 'submitted_pending');
+  assert.equal(result.completedShots.length, 0);
+});
+
+test('shot orchestrator preserves explicit creator decline without reserving later shots', async () => {
+  let calls = 0;
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    calls += 1;
+    await mediaRequest.requestApproval(sequenceQuote(0.2));
+    return { status: 'approval_declined' as const, quote: sequenceQuote(0.2) };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb, sequenceRequest({ requestApproval: async () => ({ confirmed: false as const }) }),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'approval_declined');
+  assert.equal(calls, 1);
+  assert.equal(result.completedShots.length, 0);
+});
+
 test('shot sequence reuses the approved generation lifecycle sequentially and enforces a total budget', () => {
   assert.ok(workflow.includes('generateRunwayProjectShotSequence'));
   assert.ok(workflow.includes('const shotIndices = request.repair ? [request.repair.shotIndex] : request.scene.shots.map((_shot, index) => index)'));
