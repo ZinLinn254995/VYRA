@@ -1985,7 +1985,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               {visibleVideoTracks.map((track, trackIndex) => {
                 const sceneStyleClips = [...track.clips].sort((a, b) => a.start - b.start || a.duration - b.duration);
                 return (
-                  <div key={track.id} data-video-track-id={track.id} className="relative h-16 py-2">
+                  <div key={track.id} data-video-track-id={track.id} className="sticky top-10 z-10 relative h-16 py-2 bg-[var(--vyra-bg-canvas)]">
                     {sceneStyleClips.map((clip) => {
                       const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
                       const width = Math.max(24, clip.duration * pixelsPerSecond);
@@ -2237,7 +2237,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           </div>
         </div>
         {!isTextEditMode && (
-          <div className="pointer-events-none absolute right-4 top-[4.5rem] z-40 flex flex-col items-end gap-2">
+          <div className="pointer-events-none absolute right-4 top-[3.25rem] z-40 flex flex-col items-end gap-2">
             {mediaUploadError && <div role="status" className="max-w-56 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2 text-xs text-[var(--vyra-text-primary)] shadow-lg">{mediaUploadError}</div>}
             <button type="button" disabled={mediaUploadBusy || !vyralId} onClick={() => mediaFileInputRef.current?.click()}
               title="Upload Video, Image or Audio" aria-label="Upload Video, Image or Audio"
