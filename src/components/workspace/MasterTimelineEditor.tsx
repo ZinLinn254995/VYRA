@@ -1001,6 +1001,38 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       return;
     }
     masterPlaybackProgrammaticScrollRef.current = null;
+
+    // Magnetic timeline scrolling: when any clip boundary across the visual,
+    // audio, or text tracks comes within 12 screen pixels of the fixed playhead,
+    // pull the timeline so that boundary aligns exactly with the playhead.
+    // The leading half-viewport spacer is already accounted for by this
+    // coordinate system, so the matching scroll offset is boundaryTime * scale.
+    if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') {
+      const scale = pixelsPerSecondRef.current;
+      const playheadTime = Math.max(0, element.scrollLeft / scale);
+      const clipBoundaries = [
+        ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+        ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+        ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+      ].filter((time) => Number.isFinite(time) && time >= 0);
+      let nearestBoundary: number | null = null;
+      let nearestDistance = 12 / scale;
+      for (const boundary of clipBoundaries) {
+        const distance = Math.abs(boundary - playheadTime);
+        if (distance <= nearestDistance) {
+          nearestDistance = distance;
+          nearestBoundary = boundary;
+        }
+      }
+      if (nearestBoundary !== null) {
+        const snappedScrollLeft = Math.max(0, nearestBoundary * scale);
+        if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
+          element.scrollLeft = snappedScrollLeft;
+          setTimelinePlayheadTime(nearestBoundary);
+        }
+      }
+    }
+
     if (masterPlaybackState === 'paused') {
       // A manual seek while paused invalidates the old suspended sources.
       // The next Play starts cleanly from the newly selected Playhead time.
