@@ -172,8 +172,8 @@ export function buildMasterTimelineVideoPlaybackPlan(
       const available = Math.min(clipEnd - playbackStartSeconds, sourceOut - sourceOffsetSeconds);
       if (available <= 0 || sourceOffsetSeconds >= sourceOut) continue;
       plan.push({
-        instanceId: track.id + ':' + clip.id,
-        sceneId: track.id,
+        instanceId: 'timeline-track:' + track.id + ':' + clip.id,
+        sceneId: 'timeline-track:' + track.id,
         assetId: clip.assetId,
         assetVersionId: clip.assetVersionId,
         timelineStartSeconds: clip.start,
@@ -186,6 +186,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
       });
     }
   }
-  plan.sort((a, b) => a.playbackStartSeconds - b.playbackStartSeconds);
+  plan.sort((a, b) => a.playbackStartSeconds - b.playbackStartSeconds ||
+    Number(!a.sceneId.startsWith('timeline-track:')) - Number(!b.sceneId.startsWith('timeline-track:')));
   return plan;
 }
