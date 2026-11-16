@@ -1033,7 +1033,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // Snap within 10 screen pixels so the behavior stays consistent at every zoom level.
   const snapTrimPointToPlayhead = (time: number) => {
     const scale = pixelsPerSecondRef.current;
-    const playheadTime = (scrollRef.current?.scrollLeft ?? 0) / scale;
+    const viewport = scrollRef.current;
+    const playheadTime = ((viewport?.scrollLeft ?? 0) + (viewport?.clientWidth ?? viewportWidth) / 2) / scale;
     return Math.abs(time - playheadTime) * scale <= 10 ? playheadTime : time;
   };
 
