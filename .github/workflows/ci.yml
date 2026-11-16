@@ -27,6 +27,8 @@ jobs:
         run: npm run lint
       - name: OpenAI Chat streaming contract tests
         run: npm run test:ai-chat-stream
+      - name: Creative Director Intelligence contract tests
+        run: npm run test:creative-director
       - name: AI Chat history and provider configuration contract tests
         run: npm run test:ai-chat-history
       - name: Global AI Chat safe action tests
