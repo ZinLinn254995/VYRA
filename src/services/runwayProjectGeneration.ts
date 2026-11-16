@@ -1,6 +1,12 @@
 import { buildRunwayProjectConsistencyContext, buildRunwaySceneContinuityPrompt, type RunwaySceneContinuityInput } from './runwayProjectConsistencyContext';
 import type { MediaQuality, MediaTask } from './mediaModelSelection';
 import { ingestRunwayProjectOutput } from './runwayProjectOutputIngestion';
+import {
+  validateCreativeProductionPlan,
+  type CreativeScenePlan,
+  type CreativeShotPlan,
+} from './creativeProductionPlanning';
+
 
 type RunwayTask = Exclude<MediaTask, 'video-edit'>;
 type Db = {
@@ -343,12 +349,6 @@ export async function recoverRunwayProjectMediaJob(
   return { ...recovered, status: 'ready' as const };
 }
 
-
-import {
-  validateCreativeProductionPlan,
-  type CreativeScenePlan,
-  type CreativeShotPlan,
-} from './creativeProductionPlanning';
 
 export type RunwayProjectShotSequenceRequest = Omit<
   RunwayProjectGenerationRequest,
