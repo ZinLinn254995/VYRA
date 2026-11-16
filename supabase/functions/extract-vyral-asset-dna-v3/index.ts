@@ -137,6 +137,9 @@ Deno.serve(async (request: Request) => {
     let decodeInput: Uint8Array | null = original;
     original = null;
     await ImageMagick.read(decodeInput!, async (image) => {
+      // ImageMagick has consumed the encoded source by the time this callback
+      // runs. Release it before allocating any JavaScript tile buffers.
+      decodeInput = null;
       width = image.width; height = image.height;
       const pixels = width * height;
       if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) {
@@ -205,7 +208,7 @@ Deno.serve(async (request: Request) => {
 
   logExtractionPhase('image_decoded_and_tiled', startedAt, { width, height, pixel_count: width * height });
   logExtractionPhase('tiles_uploaded', startedAt, { tile_count: tileMetadata.length, tile_bytes: tileMetadata.reduce((total, tile) => total + Number(tile.byte_length ?? 0), 0) });
-  logExtractionPhase('decoded_samples_released', startedAt, { width, height });
+  logExtractionPhase('decoded_streaming_complete', startedAt, { width, height });
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
     source: { asset_id: assetId, asset_version_id: versionId, sha256: sourceHash, size_bytes: size, mime_type: mime },
