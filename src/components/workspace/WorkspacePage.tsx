@@ -1778,6 +1778,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     {storyboardEditorView === 'master' ? (
                       <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
 <MasterTimelineEditor
+                    vyralId={storyboardUniverse?.id}
                     scenes={scenes.map((scene) => ({
                       ...scene,
                       projectId: scene.project?.id,
