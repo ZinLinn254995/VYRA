@@ -69,6 +69,14 @@ function waitForRetry(delay: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, delay));
 }
 
+function getUploadKey(db: any, path: string, file: File): string {
+  return [db.supabaseUrl, path, file.size, file.lastModified].join('|');
+}
+
+export async function clearVyralResumableUpload(db: any, path: string, file: File): Promise<void> {
+  await removeUpload(getUploadKey(db, path, file)).catch(() => undefined);
+}
+
 async function resumableSupabaseUpload(db: any, path: string, file: File, mimeType: string): Promise<void> {
   const { data: sessionData, error: sessionError } = await db.auth.getSession();
   const accessToken = sessionData?.session?.access_token;
@@ -84,7 +92,7 @@ async function resumableSupabaseUpload(db: any, path: string, file: File, mimeTy
     apikey: db.supabaseKey,
     'Tus-Resumable': '1.0.0',
   };
-  const key = [db.supabaseUrl, path, file.size, file.lastModified].join('|');
+  const key = getUploadKey(db, path, file);
   let saved = await readUpload(key).catch(() => null);
   let uploadUrl = saved && saved.sizeBytes === file.size && saved.lastModified === file.lastModified
     ? saved.uploadUrl : null;
@@ -198,7 +206,8 @@ async function resumableSupabaseUpload(db: any, path: string, file: File, mimeTy
     }
   }
 
-  await removeUpload(key).catch(() => undefined);
+  // Keep the completed TUS session until the Asset, Version and DNA are committed.
+  // A retry can HEAD this session and skip bytes already accepted by Storage.
 }
 
 export async function uploadVyralAssetResumably(db: any, path: string, file: File, mimeType: string): Promise<void> {
