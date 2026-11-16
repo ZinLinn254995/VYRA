@@ -703,13 +703,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           validationStatus: record.validationStatus,
         };
       })() : null,
-      activeSceneDirectorShots: (scenes.find((scene) => scene.id === activeSceneId)?.project?.timeline?.tracks ?? [])
+      activeSceneDirectorShots: (scenes.find((scene) => scene.id === (selectedTimelineItem?.kind === 'scene' ? selectedTimelineItem.id : activeSceneId))?.project?.timeline?.tracks ?? [])
         .filter((track) => track.type === 'video')
         .flatMap((track) => track.clips)
         .filter((clip) => clip.source === 'ai_director_shot' && clip.shotId && clip.assetId && clip.assetVersionId && /^video\//i.test(clip.assetMimeType || ''))
         .map((clip) => ({
           shotId: clip.shotId!,
-          shotIndex: (scenes.find((scene) => scene.id === activeSceneId)?.project?.creativeDirection?.shots ?? []).findIndex((shot) => shot.id === clip.shotId),
+          shotIndex: (scenes.find((scene) => scene.id === (selectedTimelineItem?.kind === 'scene' ? selectedTimelineItem.id : activeSceneId))?.project?.creativeDirection?.shots ?? []).findIndex((shot) => shot.id === clip.shotId),
           assetId: clip.assetId!,
           assetVersionId: clip.assetVersionId!,
           mimeType: clip.assetMimeType!,
