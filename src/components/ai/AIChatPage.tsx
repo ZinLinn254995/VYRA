@@ -2639,7 +2639,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
               ? ' All generated shots also passed the required sampled-frame visual continuity checks; creator approval is still required.'
               : isShotSequence ? ' Visual continuity was not automatically verified because no current creator-approved Scene baseline was available.' : '') +
-            '\\n\\n' + summary,
+            '\n\n' + summary,
         }]);
         setDraft('');
         setMediaGenerationStatus(isShotSequence
