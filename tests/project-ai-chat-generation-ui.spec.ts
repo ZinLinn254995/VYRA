@@ -152,3 +152,13 @@ test('generation success message renders its summary on separate lines', () => {
   const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
   assert.ok(chat.includes("'\\n\\n' + summary"));
 });
+
+
+test('shot repair handoff replaces only the matching Editor clip and preserves the remaining Director sequence', () => {
+  assert.ok(workspacePage.includes('replaceShot?: boolean'));
+  assert.ok(workspacePage.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
+  assert.ok(workspacePage.includes('sequence.replaceShot'));
+  assert.ok(workspacePage.includes('!sequence.shots.some((shot) => shot.shotId === clip.shotId)'));
+  assert.ok(workspacePage.includes('...incomingClips'));
+  assert.ok(workspacePage.includes('const videoClips = generatedClips.map'));
+});
