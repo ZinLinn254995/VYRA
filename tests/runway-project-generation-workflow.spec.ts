@@ -139,11 +139,13 @@ const sequenceRequest = (overrides: Partial<Parameters<typeof import('../src/ser
 
 test('shot orchestrator executes real sequence control flow with an offline media adapter', async () => {
   const calls: number[] = [];
+  const prompts: string[] = [];
   const approvals: number[] = [];
   const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
     mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
-    const shotIndex = Number(mediaRequest.input.promptText?.toString().match(/SHOT (\\d+) OF/)?.[1]) - 1;
+    const shotIndex = calls.length;
     calls.push(shotIndex);
+    prompts.push(String(mediaRequest.input.promptText ?? ''));
     const approval = await mediaRequest.requestApproval(sequenceQuote(0.6));
     if (!approval.confirmed) return { status: 'approval_declined' as const, quote: sequenceQuote(0.6) };
     approvals.push(shotIndex);
@@ -155,6 +157,8 @@ test('shot orchestrator executes real sequence control flow with an offline medi
   );
   assert.equal(result.status, 'budget_exceeded');
   assert.deepEqual(calls, [0, 1]);
+  assert.match(prompts[0], /SHOT 1 OF 2/);
+  assert.match(prompts[1], /SHOT 2 OF 2/);
   assert.deepEqual(approvals, [0]);
   assert.equal(result.completedShots.length, 1);
   assert.equal(result.stoppedAtShotIndex, 1);
