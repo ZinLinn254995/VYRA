@@ -536,6 +536,9 @@ export async function generateRunwayProjectShotSequence(
     throw new Error('The Scene shot plan is incomplete: ' + validation.errors.join(' '));
   }
 
+  if (request.repair && !request.visualVerification) {
+    throw new Error('A paid shot repair requires the same creator-approved visual verification adapter.');
+  }
   if (request.repair && (!Number.isInteger(request.repair.shotIndex) || request.repair.shotIndex < 0 || request.repair.shotIndex >= request.scene.shots.length)) {
     throw new Error('A shot repair must target one existing shot in the approved Scene.');
   }
