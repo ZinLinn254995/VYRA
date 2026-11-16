@@ -15,7 +15,19 @@ export type WorkspaceAiContext = {
   continuityRuntime?: {
     storyboardId: string;
     sceneIds: string[];
-    scenes?: Array<{ id: string; title: string }>;
+    scenes?: Array<{
+      id: string; title: string; description?: string;
+      creativeDirection?: {
+        productionTitle?: string; logline?: string; genre?: string; tone?: string;
+        sceneIndex?: number; sceneCount?: number; purpose?: string; location?: string;
+        characters?: string[]; entryState?: string; action?: string; exitState?: string;
+        shots?: Array<{
+          id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string;
+          cameraMovement: string; composition: string; lighting: string; focus: string; sound: string;
+          action: string; continuityNotes: string[];
+        }>;
+      };
+    }>;
     ledger: unknown;
     initialEntryState?: Record<string, unknown> | null;
   } | null;
