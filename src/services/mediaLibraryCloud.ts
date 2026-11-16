@@ -780,6 +780,7 @@ async function runMediaLibraryThumbnailBackfill(
         // the row before deleting the object: removing a possibly-referenced
         // thumbnail would turn a transient response failure into broken media.
         let latestMetadata: Record<string, unknown> | null | undefined;
+        let latestRowExists = false;
         let couldVerifyRow = false;
         try {
           const { data: latestRow, error: readError } = await applyUniverseScope(
@@ -789,6 +790,7 @@ async function runMediaLibraryThumbnailBackfill(
           ).maybeSingle();
           if (!readError) {
             couldVerifyRow = true;
+            latestRowExists = Boolean(latestRow);
             latestMetadata = latestRow?.metadata as Record<string, unknown> | null | undefined;
           }
         } catch {
@@ -813,7 +815,7 @@ async function runMediaLibraryThumbnailBackfill(
             last_error: 'Unclaimed thumbnail cleanup failed: ' + removeError.message.slice(0, 700),
           });
         }
-        if (latestMetadata && latestMetadata.thumbnail_path == null) await scheduleRetry(row);
+        if (latestRowExists && latestMetadata?.thumbnail_path == null) await scheduleRetry(row);
         continue;
       }
       generated += 1;
