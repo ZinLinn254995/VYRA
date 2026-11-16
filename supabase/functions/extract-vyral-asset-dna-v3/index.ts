@@ -22,6 +22,11 @@ const sha256 = async (bytes: Uint8Array) => {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
+const extractionStartedAt = () => performance.now();
+const logExtractionPhase = (phase: string, startedAt: number, details: Record<string, unknown> = {}) => {
+  console.info('[vyral-dna-v3]', JSON.stringify({ phase, elapsed_ms: Math.round(performance.now() - startedAt), ...details }));
+};
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return reply({ error: 'Method not allowed.' }, 405);
@@ -34,6 +39,8 @@ Deno.serve(async (request: Request) => {
   const versionId = typeof body.versionId === 'string' ? body.versionId : '';
   if (!userId || !UUID.test(assetId) || !UUID.test(versionId)) return reply({ error: 'Valid session, Asset ID and Version ID are required.' }, 400);
 
+  const startedAt = extractionStartedAt();
+  logExtractionPhase('request_validated', startedAt);
   const [a, v, existing, duplicate] = await Promise.all([
     ctx.supabase.from('vyral_assets').select('id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type,processing_status').eq('id', assetId).eq('user_id', userId).maybeSingle(),
     ctx.supabase.from('vyral_asset_versions').select('id,asset_id,vyral_id,user_id,storage_path,sha256,size_bytes,mime_type').eq('id', versionId).eq('asset_id', assetId).eq('user_id', userId).maybeSingle(),
@@ -77,9 +84,11 @@ Deno.serve(async (request: Request) => {
   const { data: blob, error: downloadError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
   if (downloadError || !blob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
   if (blob.size !== size) return reply({ error: 'Downloaded byte size does not match the source Version.' }, 409);
+  logExtractionPhase('source_downloaded', startedAt, { source_bytes: blob.size });
   const original = new Uint8Array(await blob.arrayBuffer());
   const sourceHash = await sha256(original);
   if (sourceHash !== String(version.sha256 ?? '').toLowerCase()) return reply({ error: 'Source SHA-256 mismatch. No DNA was written.' }, 409);
+  logExtractionPhase('source_hash_verified', startedAt);
 
   let width = 0, height = 0;
   let samples: Uint8Array;
@@ -95,6 +104,8 @@ Deno.serve(async (request: Request) => {
   } catch (error) {
     return reply({ error: error instanceof Error ? error.message : 'Pinned raster decode failed.' }, 422);
   }
+
+  logExtractionPhase('image_decoded', startedAt, { width, height, pixel_count: width * height, decoded_bytes: samples.byteLength });
 
   const recordId = crypto.randomUUID();
   const storagePrefix = userId + '/' + asset.vyral_id + '/' + assetId + '/dna/v3/' + recordId + '/tiles/';
@@ -146,6 +157,7 @@ Deno.serve(async (request: Request) => {
     return reply({ error: 'DNA tile upload failed; uploaded tiles were rolled back.', detail: error instanceof Error ? error.message : 'Unknown tile error.' }, 500);
   }
 
+  logExtractionPhase('tiles_uploaded', startedAt, { tile_count: tileMetadata.length, tile_bytes: tileMetadata.reduce((total, tile) => total + Number(tile.byte_length ?? 0), 0) });
   const decodedHash = await sha256(samples);
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
@@ -178,6 +190,7 @@ Deno.serve(async (request: Request) => {
     if (insertError?.code === '23505') return reply({ error: 'This Asset Version already has an immutable DNA record.', code: 'DNA_SOURCE_VERSION_ALREADY_EXISTS' }, 409);
     return reply({ error: 'DNA record insert failed; uploaded tiles were rolled back.', detail: insertError?.message ?? 'No row returned.' }, 500);
   }
+  logExtractionPhase('dna_record_saved', startedAt, { tile_count: tileMetadata.length });
   let visualFingerprintStatus: 'recorded' | 'failed' = 'failed';
   let visualFingerprint = '';
   try {
@@ -202,6 +215,7 @@ Deno.serve(async (request: Request) => {
   } catch (error) {
     console.warn('[vyral-visual-fingerprint] DNA extraction succeeded, but the perceptual fingerprint could not be saved.', error);
   }
+  logExtractionPhase('extraction_complete', startedAt, { width, height, tile_count: tileMetadata.length, visual_fingerprint: visualFingerprintStatus });
   return reply({ status: 'extracted', assetId, versionId, dnaRecordId: row.id, recordId,
     parentDnaRecordId: row.parent_dna_record_id ?? null, revisionNumber: row.revision_number,
     sourceSha256: sourceHash, decodedSamplesSha256: decodedHash, width, height, channelLayout: 'RGBA',
