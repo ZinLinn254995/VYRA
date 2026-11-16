@@ -5,6 +5,7 @@ import { buildRunwayProjectShotPrompt } from '../src/services/runwayProjectGener
 import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
 
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
+const visualVerifier = readFileSync(new URL('../src/services/universeSceneVisualVerification.ts', import.meta.url), 'utf8');
 const ingestion = readFileSync(new URL('../src/services/runwayProjectOutputIngestion.ts', import.meta.url), 'utf8');
 
 test('generation verifies the signed-in owner and Project Assets destination before requesting a quote', () => {
@@ -124,5 +125,5 @@ test('visual inspection failures remain unknown and never trigger paid automatic
   assert.ok(workflow.includes('inspectionComplete = false'));
   assert.ok(workflow.includes('visualVerificationStatus: \'not_configured\''));
   assert.ok(workflow.includes('Do not auto-regenerate a paid output'));
-  assert.ok(workflow.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
+  assert.ok(visualVerifier.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
 });
