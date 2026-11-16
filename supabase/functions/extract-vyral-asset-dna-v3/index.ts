@@ -81,11 +81,14 @@ Deno.serve(async (request: Request) => {
   const size = Number(version.size_bytes);
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Image exceeds the 20 MB extraction limit.' }, 413);
 
-  const { data: blob, error: downloadError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
-  if (downloadError || !blob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
-  if (blob.size !== size) return reply({ error: 'Downloaded byte size does not match the source Version.' }, 409);
-  logExtractionPhase('source_downloaded', startedAt, { source_bytes: blob.size });
-  const original = new Uint8Array(await blob.arrayBuffer());
+  let sourceBlob: Blob | null = null;
+  const download = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
+  sourceBlob = download.data;
+  if (download.error || !sourceBlob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
+  if (sourceBlob.size !== size) return reply({ error: 'Downloaded byte size does not match the source Version.' }, 409);
+  logExtractionPhase('source_downloaded', startedAt, { source_bytes: sourceBlob.size });
+  let original: Uint8Array | null = new Uint8Array(await sourceBlob.arrayBuffer());
+  sourceBlob = null;
   const sourceHash = await sha256(original);
   if (sourceHash !== String(version.sha256 ?? '').toLowerCase()) return reply({ error: 'Source SHA-256 mismatch. No DNA was written.' }, 409);
   logExtractionPhase('source_hash_verified', startedAt);
@@ -93,7 +96,12 @@ Deno.serve(async (request: Request) => {
   let width = 0, height = 0;
   let samples: Uint8Array;
   try {
-    samples = await ImageMagick.read(original, (image) => {
+    // Hand the verified source bytes to the pinned decoder, then release the
+    // original JS buffer immediately after decoding. Keeping both the encoded
+    // file and the full RGBA sample stream alive is a major avoidable memory peak.
+    let decodeInput: Uint8Array | null = original;
+    original = null;
+    samples = await ImageMagick.read(decodeInput!, (image) => {
       width = image.width; height = image.height;
       const pixels = width * height;
       if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 10-megapixel DNA v3 limit.');
@@ -101,6 +109,7 @@ Deno.serve(async (request: Request) => {
       if (!rgba || rgba.byteLength !== pixels * 4) throw new Error('Pinned decoder did not return a complete RGBA8 sample stream.');
       return rgba;
     });
+    decodeInput = null;
   } catch (error) {
     return reply({ error: error instanceof Error ? error.message : 'Pinned raster decode failed.' }, 422);
   }
