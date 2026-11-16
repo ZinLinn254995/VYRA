@@ -205,7 +205,7 @@ export function buildSceneVisualRepairPrompt(
       ...result.limitations.slice(0, 8).map((limitation) => '- ' + limitation),
       'Refresh the approved Scene baseline or complete a new visual inspection before continuing.',
       'Do not change canon or spend credits without explicit creator approval.',
-    ].join('\\n').slice(0, 4000);
+    ].join('\n').slice(0, 4000);
   }
   const lines = [
     'VYRA VISUAL CONTINUITY REPAIR — REVIEW REQUIRED',
