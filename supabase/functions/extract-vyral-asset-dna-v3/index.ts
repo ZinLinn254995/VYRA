@@ -17,7 +17,8 @@ const reply = (body: Record<string, unknown>, status = 200) => new Response(JSON
 });
 const sha256 = async (bytes: Uint8Array) => {
   // Web Crypto accepts the existing byte view; do not duplicate a full image/sample buffer.
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const digestView = new Uint8Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength);
+  const digest = await crypto.subtle.digest('SHA-256', digestView);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
