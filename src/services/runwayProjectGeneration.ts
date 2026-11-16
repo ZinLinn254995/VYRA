@@ -364,12 +364,14 @@ export type RunwayShotVisualVerificationAdapter = {
   baselineRevision: string;
   anchors: SceneVisualAnchor[];
   /** Inspect the ingested private video Asset using the configured vision adapter. */
+  getAnchorsForShot?: (shot: CreativeShotPlan, shotIndex: number, scene: CreativeScenePlan) => SceneVisualAnchor[];
   inspect: (input: {
     asset: RunwayProjectOutputAsset;
     shot: CreativeShotPlan;
     shotIndex: number;
     shotCount: number;
     scene: CreativeScenePlan;
+    anchors: SceneVisualAnchor[];
     signal?: AbortSignal;
   }) => Promise<{ observations: SceneVisualObservation[]; inspectionComplete: boolean }>;
   /** Read the latest approved baseline revision after inspection to detect stale results. */
@@ -581,6 +583,8 @@ export async function generateRunwayProjectShotSequence(
     const repairPrompts: string[] = [];
     if (request.visualVerification) {
       for (const asset of shotAssets) {
+        const shotAnchors = request.visualVerification.getAnchorsForShot?.(shot, shotIndex, request.scene)
+          ?? request.visualVerification.anchors;
         let observations: SceneVisualObservation[] = [];
         let inspectionComplete = false;
         let currentBaselineRevision = request.visualVerification.baselineRevision;
@@ -588,7 +592,7 @@ export async function generateRunwayProjectShotSequence(
           if (/^video\//i.test(asset.mimeType)) {
             const inspection = await request.visualVerification.inspect({
               asset, shot, shotIndex, shotCount: request.scene.shots.length,
-              scene: request.scene, signal: request.signal,
+              scene: request.scene, anchors: shotAnchors, signal: request.signal,
             });
             observations = Array.isArray(inspection.observations) ? inspection.observations : [];
             inspectionComplete = inspection.inspectionComplete === true && Array.isArray(inspection.observations);
@@ -612,7 +616,7 @@ export async function generateRunwayProjectShotSequence(
           mediaKind: 'video',
           baselineRevision: request.visualVerification.baselineRevision,
           currentBaselineRevision,
-          anchors: request.visualVerification.anchors,
+          anchors: shotAnchors,
           observations,
           inspectionComplete,
         });
