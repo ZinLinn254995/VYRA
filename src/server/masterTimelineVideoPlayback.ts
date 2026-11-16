@@ -49,6 +49,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
   scenes: MasterTimelineVideoScene[],
   instances: MasterTimelineVideoInstance[] | undefined,
   playheadTime: number,
+  videoTracks: Array<{ id: string; clips: Array<{ id: string; start: number; duration: number; sourceIn?: number; sourceOut?: number; assetId?: string; assetVersionId?: string; assetMimeType?: string; mediaKind?: string }> }> = [],
 ): MasterTimelineVideoPlaybackItem[] {
   if (!Array.isArray(scenes) || !Number.isFinite(playheadTime) || playheadTime < 0) return [];
 
@@ -150,5 +151,41 @@ export function buildMasterTimelineVideoPlaybackPlan(
       playbackEndSeconds: Math.max(sceneStart, playheadTime) + Math.min(available, sourceOut - sourceOffsetSeconds),
     });
   }
+
+  // Directly uploaded media lives on Video rows rather than Scene instances.
+  // Include only immutable Video Asset Versions; Image clips are rendered by
+  // the visual preview surface and never sent to the video decoder.
+  for (const track of videoTracks || []) {
+    for (const clip of track.clips || []) {
+      if (!clip || !clip.id || !Number.isFinite(clip.start) || clip.start < 0 ||
+          !Number.isFinite(clip.duration) || clip.duration <= 0 ||
+          typeof clip.assetId !== 'string' || !clip.assetId ||
+          typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
+          typeof clip.assetMimeType !== 'string' || !/^video\\//i.test(clip.assetMimeType)) continue;
+      const clipEnd = clip.start + clip.duration;
+      if (playheadTime >= clipEnd) continue;
+      const sourceIn = Number.isFinite(clip.sourceIn) && (clip.sourceIn as number) >= 0 ? clip.sourceIn as number : 0;
+      const sourceOut = Number.isFinite(clip.sourceOut) && (clip.sourceOut as number) > sourceIn
+        ? clip.sourceOut as number : sourceIn + clip.duration;
+      const sourceOffsetSeconds = sourceIn + Math.max(0, playheadTime - clip.start);
+      const playbackStartSeconds = Math.max(clip.start, playheadTime);
+      const available = Math.min(clipEnd - playbackStartSeconds, sourceOut - sourceOffsetSeconds);
+      if (available <= 0 || sourceOffsetSeconds >= sourceOut) continue;
+      plan.push({
+        instanceId: track.id + ':' + clip.id,
+        sceneId: track.id,
+        assetId: clip.assetId,
+        assetVersionId: clip.assetVersionId,
+        timelineStartSeconds: clip.start,
+        timelineEndSeconds: clipEnd,
+        delaySeconds: Math.max(0, clip.start - playheadTime),
+        sourceOffsetSeconds,
+        durationSeconds: available,
+        playbackStartSeconds,
+        playbackEndSeconds: playbackStartSeconds + available,
+      });
+    }
+  }
+  plan.sort((a, b) => a.playbackStartSeconds - b.playbackStartSeconds);
   return plan;
 }
