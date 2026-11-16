@@ -140,7 +140,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const key = assetId + ':' + versionId;
     const activeUrl = localMediaObjectUrlsRef.current.get(key);
     if (activeUrl) return activeUrl;
-    const userId = localMediaUserIdRef.current;
+    let userId = localMediaUserIdRef.current;
+    if (!userId && supabase) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        userId = data.session?.user?.id ?? null;
+        localMediaUserIdRef.current = userId;
+      } catch { userId = null; }
+    }
     if (!userId) return null;
     const cached = await getVyralAssetLocalCopy(userId, assetId, versionId);
     if (!cached) return null;
