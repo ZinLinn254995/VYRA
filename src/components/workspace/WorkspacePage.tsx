@@ -73,6 +73,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const createDefaultStoryboardRef = useRef<() => void>(() => {});
   const lastOpenedUniverseRequestRef = useRef<number | null>(null);
   const lastStoryboardSyncAtRef = useRef(0);
+  const storyboardSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
   const storyboardStorageKeyRef = useRef(storageKey);
   const suggestionRequestIdRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
@@ -830,16 +831,35 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
     if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id)) return;
-    const { data: authData, error: authError } = await client.auth.getUser();
-    if (authError || !authData.user) {
-      setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
-      return;
+
+    // Serialize writes per Storyboard so a slower older snapshot cannot
+    // overwrite a newer Editor/AI update in the cloud.
+    const previousSave = storyboardSaveQueueRef.current.get(item.id) || Promise.resolve();
+    let saveTask!: Promise<void>;
+    saveTask = previousSave.catch(() => undefined).then(async () => {
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || !authData.user) {
+        if (storyboardSaveQueueRef.current.get(item.id) === saveTask) {
+          setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
+        }
+        return;
+      }
+      const { error: saveError } = await client.from('vyral_storyboards').upsert({
+        id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
+        details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
+      }, { onConflict: 'id' });
+      if (storyboardSaveQueueRef.current.get(item.id) === saveTask) {
+        setCloudSyncMessage(saveError ? 'Cloud sync is unavailable. This Storyboard is saved on this device.' : '');
+      }
+    });
+    storyboardSaveQueueRef.current.set(item.id, saveTask);
+    try {
+      await saveTask;
+    } finally {
+      if (storyboardSaveQueueRef.current.get(item.id) === saveTask) {
+        storyboardSaveQueueRef.current.delete(item.id);
+      }
     }
-    const { error: saveError } = await client.from('vyral_storyboards').upsert({
-      id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
-      details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
-    }, { onConflict: 'id' });
-    setCloudSyncMessage(saveError ? 'Cloud sync is unavailable. This Storyboard is saved on this device.' : '');
   };
 
   useEffect(() => {
