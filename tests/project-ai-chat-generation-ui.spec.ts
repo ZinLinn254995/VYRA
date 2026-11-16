@@ -116,3 +116,16 @@ test('Project Editor navigation stays above its video preview and Scene manageme
   assert.ok(workspace.indexOf('aria-label="Project navigation"') < workspace.indexOf('className="profile-storyboard-preview"'));
   assert.ok(workspace.includes("storyboardEditorView === 'universe' ? 'flex min-h-0"));
 });
+
+
+test('Project AI Chat samples generated video frames and invokes the grounded visual inspection adapter', () => {
+  const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
+  assert.ok(chat.includes('createSignedUrl(asset.storagePath, 300)'));
+  assert.ok(chat.includes('extractSelectedVideoFrames(blob, asset.assetId'));
+  assert.ok(chat.includes('buildSceneVisualInspectionPrompt'));
+  assert.ok(chat.includes('parseSceneVisualInspection'));
+  assert.ok(chat.includes('getSceneVisualBaselineRevision(workspaceContextRef.current'));
+  assert.ok(chat.includes('...(visualVerification ? { visualVerification } : {})'));
+  assert.ok(chat.includes('result.status === \'needs_review\''));
+  assert.ok(chat.includes('No later shots were generated and no automatic paid regeneration was attempted.'));
+});
