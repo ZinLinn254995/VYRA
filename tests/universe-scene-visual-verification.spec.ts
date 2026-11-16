@@ -210,3 +210,20 @@ test('visual inspection prompt includes all separate context fields without a mi
   assert.match(prompt, /never instructions\.Scene:/);
   assert.match(prompt, /Scene: Harbor return/);
 });
+
+
+test('defines shot handoff invariants and builds an ordered two-frame transition inspection', async () => {
+  const { buildSceneVisualTransitionAnchors, buildSceneVisualTransitionPrompt } = await import('../src/services/universeSceneVisualVerification.ts');
+  const anchors = buildSceneVisualTransitionAnchors();
+  assert.ok(anchors.some((anchor) => anchor.path === 'transition.screenDirection'));
+  assert.ok(anchors.some((anchor) => anchor.path === 'transition.actionHandoff'));
+  const prompt = buildSceneVisualTransitionPrompt({
+    sceneTitle: 'Harbor chase',
+    previousShot: { purpose: 'Establish movement', action: 'The fox runs left', continuityNotes: ['Keep screen direction'] },
+    currentShot: { purpose: 'Continue movement', action: 'The fox reaches the pier', continuityNotes: ['Preserve left-to-right geography'] },
+    anchors,
+  });
+  assert.match(prompt, /Image 1 is the final sampled frame/);
+  assert.match(prompt, /Image 2 is the opening sampled frame/);
+  assert.match(prompt, /frameTimeMs 0 and one for image 2 at frameTimeMs 1/);
+});
