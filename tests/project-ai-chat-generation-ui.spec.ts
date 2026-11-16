@@ -78,8 +78,8 @@ test('completed Director shots are linked to the selected Scene Project timeline
   assert.ok(workspace.includes('onShotSequenceReady={handleShotSequenceReady}'));
   assert.ok(workspace.includes("'ai-director-shots-' + scene.id"));
   assert.ok(shotTimeline.includes("source: 'ai_director_shot' as const"));
-  assert.ok(workspace.includes('assetVersionId: shot.assetVersionId'));
-  assert.ok(workspace.includes('assetMimeType: shot.mimeType'));
+  assert.ok(workspace.includes('assetVersionId: clip.assetVersionId!'));
+  assert.ok(workspace.includes('assetMimeType: clip.assetMimeType!'));
   assert.ok(workspace.includes('preservedManualClips'));
   assert.ok(workspace.includes('Generated Director shots are saved as linked Project Assets in this Scene Timeline'));
   assert.ok(workspace.includes('Linked private Project Asset'));
@@ -186,7 +186,7 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('repair: { shotIndex: repairRequest.shotIndex'));
   assert.ok(generation.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
   assert.ok(chat.includes('replaceShot: true'));
-  assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
+  assert.ok(chat.includes("if ('completedShots' in result && activeDirectorScenePlan && storyboardId && (!repairRequest || result.finalSceneValidation?.status === 'verified'))"));
   assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
   assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes'));
   assert.ok(chat.includes('The existing Editor clip was kept'));
@@ -209,7 +209,7 @@ test('continuity review exposes the saved candidate preview without replacing th
   assert.ok(chat.includes('const reviewPreviews: ProjectMediaPreview[] = []'));
   assert.ok(chat.includes('Continuity review candidate'));
   assert.ok(chat.includes('mediaAssets: reviewPreviews'));
-  assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
+  assert.ok(chat.includes("if ('completedShots' in result && activeDirectorScenePlan && storyboardId && (!repairRequest || result.finalSceneValidation?.status === 'verified'))"));
   assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes.'));
 });
 
