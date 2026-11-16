@@ -74,3 +74,24 @@ test('cloud merge preserves the complete Editor timeline and exact video Asset v
   assert.equal(restored.masterTimeline.sceneInstances[0].videoClips[0].sourceIn, 1);
   assert.equal(restored.masterTimeline.sceneInstances[0].videoClips[0].sourceOut, 5);
 });
+
+test('cloud deletion tombstones prevent stale copies on another device from resurrecting a Project', () => {
+  const staleLocal = item({ title: 'Old device copy', updatedAt: '2026-11-15T00:00:00.000Z' });
+  const cloudTombstone = item({
+    title: 'Deleted Project',
+    updatedAt: '2026-11-16T00:00:00.000Z',
+    details: { category: 'Short film', __vyraDeletedAt: '2026-11-16T00:00:00.000Z' },
+  });
+  const result = mergeWorkspaceStoryboards([staleLocal], [cloudTombstone]);
+  assert.deepEqual(result.storyboards, []);
+  assert.deepEqual(result.pending, []);
+});
+
+test('local tombstones are never displayed or queued for upload', () => {
+  const localTombstone = item({
+    details: { category: 'Short film', __vyraDeletedAt: '2026-11-16T00:00:00.000Z' },
+  });
+  const result = mergeWorkspaceStoryboards([localTombstone], []);
+  assert.deepEqual(result.storyboards, []);
+  assert.deepEqual(result.pending, []);
+});
