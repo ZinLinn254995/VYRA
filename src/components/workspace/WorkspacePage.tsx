@@ -832,8 +832,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
+    const ownerStorageKey = storyboardStorageKeyRef.current;
     if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id) || deletedStoryboardIdsRef.current.has(item.id)) return;
 
+    // A queued save belongs to the account that scheduled it. Never let it
+    // resume under a different signed-in account after an owner switch.
     // Serialize writes per Storyboard so a slower older snapshot cannot
     // overwrite a newer Editor/AI update in the cloud.
     const previousSave = storyboardSaveQueueRef.current.get(item.id) || Promise.resolve();
@@ -841,11 +844,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     saveTask = previousSave.catch(() => undefined).then(async () => {
       const { data: authData, error: authError } = await client.auth.getUser();
       if (authError || !authData.user) {
-        if (storyboardSaveQueueRef.current.get(item.id) === saveTask) {
+        if (storyboardStorageKeyRef.current === ownerStorageKey && storyboardSaveQueueRef.current.get(item.id) === saveTask) {
           setCloudSyncMessage('Could not sync this Storyboard. Sign in again to retry.');
         }
         return;
       }
+      if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       const payload = {
         id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
         details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
@@ -875,7 +879,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           saveError = deletionWon ? null : (latestError || insertError);
         }
       }
-      if (storyboardSaveQueueRef.current.get(item.id) === saveTask) {
+      if (storyboardStorageKeyRef.current === ownerStorageKey && storyboardSaveQueueRef.current.get(item.id) === saveTask) {
         setCloudSyncMessage(saveError ? 'Cloud sync is unavailable. This Storyboard is saved on this device.' : '');
       }
     });
