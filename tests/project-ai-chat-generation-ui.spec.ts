@@ -159,8 +159,10 @@ test('shot repair handoff replaces only the matching Editor clip and preserves t
   assert.ok(generation.includes('replaceShot?: boolean'));
   assert.ok(workspace.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
   assert.ok(workspace.includes('sequence.replaceShot'));
-  assert.ok(workspace.includes('!sequence.shots.some((shot) => shot.shotId === clip.shotId)'));
-  assert.ok(workspace.includes('...incomingClips'));
+  assert.ok(workspace.includes('const replaced = existingDirectorClips.map((clip) =>'));
+  assert.ok(workspace.includes('return incoming ? { ...incoming, start: clip.start } : clip;'));
+  assert.ok(workspace.includes('const appendAt = existingDirectorClips.reduce'));
+  assert.ok(workspace.includes('cursor = combined.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);'));
   assert.ok(workspace.includes('const videoClips = generatedClips.map'));
 });
 
