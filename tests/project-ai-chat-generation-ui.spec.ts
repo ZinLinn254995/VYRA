@@ -179,6 +179,8 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
   assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes'));
   assert.ok(chat.includes('The existing Editor clip was kept'));
+  assert.ok(chat.includes('downstream shot boundaries have not yet been re-inspected'));
+  assert.ok(chat.includes('downstream boundaries still need review'));
   assert.ok(chat.includes('setPendingShotRepair(null)'));
 });
 
