@@ -1,6 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
+  Image as ImageIcon,
+  Video,
   LoaderCircle,
   Pause,
   Play,
@@ -535,6 +537,38 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // Audio and Text can extend the shared timeline beyond the Scene sequence.
   // Scene source durations remain unchanged; the ruler grows to fit all content.
   const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd, videoContentEnd);
+  const directorVideoTrack = (() => {
+    const instances = value?.sceneInstances || [];
+    const clips: TimelineClip[] = [];
+    let sceneStart = 0;
+    orderedScenes.forEach((scene, index) => {
+      const instance = instances.find((item) => item.sceneId === scene.id);
+      if (instance?.videoClips?.length) {
+        for (const clip of instance.videoClips) {
+          if (clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')) {
+            clips.push({ ...clip, start: sceneStart + clip.start, mediaKind: 'video' });
+          }
+        }
+      } else if (instance?.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) {
+        const sourceIn = instance.videoSourceIn ?? 0;
+        const sourceOut = instance.videoSourceOut ?? scene.duration;
+        clips.push({
+          id: instance.id, name: scene.title, start: sceneStart,
+          duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
+          sourceIn, sourceOut, assetId: instance.assetId,
+          assetVersionId: instance.assetVersionId, assetMimeType: instance.assetMimeType,
+          mediaKind: 'video',
+        });
+      }
+      sceneStart += sceneSegments[index]?.duration ?? scene.duration;
+    });
+    return clips.length ? { id: 'director-video-track', name: 'Video · AI Director', clips } : null;
+  })();
+  const visibleVideoTracks = [
+    ...(directorVideoTrack ? [directorVideoTrack] : []),
+    ...(value?.videoTracks || []),
+  ];
+
   const timelineWidth = totalDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
     masterPlaybackRequestIdRef.current += 1;
@@ -1614,6 +1648,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <input ref={mediaFileInputRef} type="file" accept="video/*,image/*,audio/*" multiple className="hidden" onChange={handleMediaFilesSelected} aria-label="Upload Video, Image or Audio files" />
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
       {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) || Boolean(instance.videoClips?.some((clip) => clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')))) && (
         <div className="w-full shrink-0 px-3 pt-2">
@@ -1691,61 +1726,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                   </div>
                 ))}
               </div>
-              <div className="relative flex h-16 items-center gap-0 py-2">
-                {orderedScenes.map((scene, index) => {
-                  const segment = sceneSegments[index];
-                  return (
-                    <button
-                      key={scene.id}
-                      data-timeline-scene-id={scene.id}
-                      type="button"
-                      title={scene.title}
-                      aria-pressed={selectedSceneIds.includes(scene.id)}
-                      onClick={(event) => {
-                        if (consumeSuppressedGestureClick(event)) return;
-                        setSelectedTransitionKey(null);
-                        setSelectedTextClip(null);
-                        setSelectedAudioClip(null);
-                        setSelectedSceneIds((current) => current[0] === scene.id ? [] : [scene.id]);
-                      }}
-                      className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${selectedSceneIds.includes(scene.id) ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
-                      style={{ width: Math.max(24, segment.duration * pixelsPerSecond) }}
-                    >
-                      <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{scene.title}</span>
-                    </button>
-                  );
-                })}
-                {orderedScenes.slice(0, -1).map((scene, index) => {
-                  const nextScene = orderedScenes[index + 1];
-                  const transitionKey = `${scene.id}:${nextScene.id}`;
-                  const boundary = sceneSegments.slice(0, index + 1).reduce((sum, segment) => sum + segment.duration, 0) * pixelsPerSecond;
-                  const hiddenBySceneSelection = selectedSceneIds.includes(scene.id) || selectedSceneIds.includes(nextScene.id);
-                  if (hiddenBySceneSelection) return null;
-                  const transition = value?.transitions?.[transitionKey];
-                  const effectLabel = transitionOptions.find((option) => option.value === transition?.effect)?.label || transition?.effect;
-                  const isSelected = selectedTransitionKey === transitionKey;
-                  return (
-                    <button
-                      key={transitionKey}
-                      data-timeline-transition-key={transitionKey}
-                      type="button"
-                      title={transition ? `Edit ${effectLabel} transition` : 'Add transition'}
-                      aria-label={`${transition ? `Edit ${effectLabel} transition` : 'Add transition'} between ${scene.title} and ${nextScene.title}`}
-                      aria-pressed={isSelected}
-                      onClick={(event) => {
-                        if (consumeSuppressedGestureClick(event)) return;
-                        setSelectedSceneIds([]);
-                        setSelectedTextClip(null);
-                        setSelectedTransitionKey(transitionKey);
-                      }}
-                      className={`absolute top-1/2 z-10 inline-flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-colors ${transition ? 'px-2 text-[10px] font-semibold' : 'w-7 p-0'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
-                      style={{ left: boundary }}
-                    >
-                      {transition ? effectLabel : <Plus aria-hidden="true" className="block shrink-0" size={18} strokeWidth={1.6} />}
-                    </button>
-                  );
-                })}
-              </div>
+              {visibleVideoTracks.map((track) => (
+                <div key={track.id} data-video-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/55">
+                  {track.clips.map((clip) => {
+                    const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
+                    return (
+                      <div key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
+                        title={clip.name + ' · ' + clip.duration.toFixed(1) + 's'}
+                        className="absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15 px-2 text-[10px] font-medium text-[var(--vyra-text-primary)]"
+                        style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
+                        {isImage ? <ImageIcon size={12} className="mr-1 shrink-0" /> : <Video size={12} className="mr-1 shrink-0" />}
+                        <span className="truncate">{clip.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
               {textTracks.map((track) => (
                 <div key={track.id} data-text-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
                   {track.clips.map((clip) => {
@@ -1875,6 +1871,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             <div aria-hidden="true" style={{ width: leadingSpace, flex: '0 0 auto' }} />
           </div>
         </div>
+        {!isTextEditMode && (
+          <div className="pointer-events-none absolute right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-end gap-2">
+            {mediaUploadError && <div role="status" className="max-w-56 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2 text-xs text-[var(--vyra-text-primary)] shadow-lg">{mediaUploadError}</div>}
+            <button type="button" disabled={mediaUploadBusy || !vyralId} onClick={() => mediaFileInputRef.current?.click()}
+              title="Upload Video, Image or Audio" aria-label="Upload Video, Image or Audio"
+              className="pointer-events-auto grid size-12 place-items-center rounded-full border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white shadow-lg transition-transform hover:scale-105 disabled:cursor-wait disabled:opacity-60">
+              {mediaUploadBusy ? <LoaderCircle size={22} className="animate-spin" /> : <Plus size={24} strokeWidth={2} />}
+            </button>
+          </div>
+        )}
         {isTextEditMode && (
           <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-[var(--vyra-bg-canvas)]" aria-label="Text clip edit mode">
             <style>{`.text-tools-horizontal-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; } .text-tools-horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }`}</style>
