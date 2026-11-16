@@ -81,7 +81,7 @@ test('completed Director shots are linked to the selected Scene Project timeline
   assert.ok(workspace.includes('preservedManualClips'));
   assert.ok(workspace.includes('Generated Director shots are saved as linked Project Assets in this Scene Timeline'));
   assert.ok(workspace.includes('Linked private Project Asset'));
-  assert.ok(workspace.includes('playback and final Scene rendering are the next stage'));
+  assert.ok(workspace.includes('Playback and final Scene rendering are the next stage'));
 });
 
 test('Master Editor preview schedules each generated Scene shot Asset in order', () => {
