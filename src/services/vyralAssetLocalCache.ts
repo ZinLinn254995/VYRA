@@ -32,6 +32,20 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * Ask the browser to protect this app's offline Asset copies from routine
+ * storage eviction. This is best-effort: browsers may deny the request and
+ * the app must remain fully usable when persistence is unavailable.
+ */
+async function requestPersistentAssetStorage(): Promise<void> {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.storage?.persist) return;
+    await navigator.storage.persist();
+  } catch {
+    // Persistence is an optimization only; IndexedDB and cloud fallback remain authoritative.
+  }
+}
+
 function cacheKey(userId: string, assetId: string, versionId: string): string {
   return userId + ':' + assetId + ':' + versionId;
 }
@@ -44,6 +58,7 @@ export async function saveVyralAssetLocalCopy(input: Omit<VyralLocalAssetCopy, '
   if (!input.userId || !input.assetId || !input.versionId || !(input.blob instanceof Blob) || input.blob.size < 1) return false;
   let database: IDBDatabase | null = null;
   try {
+    await requestPersistentAssetStorage();
     database = await openDatabase();
     await new Promise<void>((resolve, reject) => {
       const transaction = database!.transaction(STORE_NAME, 'readwrite');
