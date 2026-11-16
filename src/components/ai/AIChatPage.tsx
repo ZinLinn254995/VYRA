@@ -1055,7 +1055,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
           if (authError || !authData.user) throw new Error('Sign in again before deleting this Storyboard.');
           const { data: currentCloud, error: loadError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
-            .select('id,updated_at')
+            .select('id,updated_at,details')
             .eq('id', draft.storyboardId)
             .eq('user_id', authData.user.id)
             .maybeSingle());
@@ -1065,8 +1065,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             throw new Error('This Storyboard changed after the delete preview was prepared. Nothing was deleted. Ask me to prepare the delete again.');
           }
           if (currentCloud) {
+            const details = currentCloud.details && typeof currentCloud.details === 'object'
+              ? currentCloud.details as Record<string, unknown>
+              : {};
+            const deletedAt = new Date().toISOString();
             const { data: deletedRows, error: deleteError } = await awaitForCurrentRequest(supabase.from('vyral_storyboards')
-              .delete()
+              .update({ details: { ...details, __vyraDeletedAt: deletedAt }, updated_at: deletedAt })
               .eq('id', draft.storyboardId)
               .eq('user_id', authData.user.id)
               .eq('updated_at', draft.expectedUpdatedAt)
