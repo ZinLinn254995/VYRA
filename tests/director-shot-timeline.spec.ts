@@ -79,5 +79,9 @@ test('Project Editor wires the verified handoff into both Scene Timeline and Mas
   assert.ok(workspace.includes('sceneInstances: nextSceneInstances'));
   assert.ok(workspace.includes('setActiveStoryboard((current)'));
   assert.ok(workspace.includes('void persistStoryboard(saved)'));
+  assert.ok(workspace.includes('storyboardSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map())'));
+  assert.ok(workspace.includes('const previousSave = storyboardSaveQueueRef.current.get(item.id) || Promise.resolve()'));
+  assert.ok(workspace.includes('previousSave.catch(() => undefined).then(async () =>'));
+  assert.ok(workspace.includes('storyboardSaveQueueRef.current.get(item.id) === saveTask'));
   assert.ok(workspace.includes('onShotSequenceReady={handleShotSequenceReady}'));
 });
