@@ -628,6 +628,41 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const key = legacySceneBoundary?.key || (clip.id + ':' + nextClip.id);
     return { key, boundary, rowIndex: entry.trackIndex, clipId: clip.id, nextClipId: nextClip.id, transition: value?.transitions?.[key] };
   });
+  const updateVisualClipTiming = (clip: TimelineClip, start: number, duration: number, sourceIn: number, sourceOut: number) => {
+    const videoTracks = (value?.videoTracks || []).map((track) => ({
+      ...track,
+      clips: track.clips.map((item) => item.id === clip.id
+        ? { ...item, start, duration, sourceIn, sourceOut }
+        : item),
+    }));
+    let sceneStart = 0;
+    const sceneInstances = (value?.sceneInstances || []).map((instance, index) => {
+      const scene = orderedScenes.find((item) => item.id === instance.sceneId);
+      const currentSceneStart = sceneStart;
+      sceneStart += sceneSegments[index]?.duration ?? scene?.duration ?? 0;
+      if (instance.videoClips?.some((item) => item.id === clip.id)) {
+        return {
+          ...instance,
+          videoClips: instance.videoClips.map((item) => item.id === clip.id
+            ? { ...item, start: start - currentSceneStart, duration, sourceIn, sourceOut }
+            : item),
+        };
+      }
+      if (instance.id === clip.id) {
+        return { ...instance, videoSourceIn: sourceIn, videoSourceOut: sourceOut };
+      }
+      return instance;
+    });
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks: value?.audioTracks || [],
+      videoTracks,
+      textTracks: value?.textTracks || [],
+    });
+  };
+
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
       !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
@@ -1891,6 +1926,66 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                           style={{ width }}>
                           {isImage ? <ImageIcon size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" /> : <Video size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" />}
                           <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{clip.name}</span>
+                          {isSelected && (['left', 'right'] as const).map((edge) => (
+                            <span key={edge} role="presentation" data-trim-handle="true"
+                              aria-label={edge === 'left' ? 'Adjust start point' : 'Adjust end point'}
+                              title={edge === 'left' ? 'Drag to adjust start point' : 'Drag to adjust end point'}
+                              className={`absolute inset-y-0 z-20 w-2 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/45 hover:bg-[var(--vyra-accent-primary)] ${edge === 'left' ? 'left-0 rounded-l-md' : 'right-0 rounded-r-md'}`}
+                              onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setSelectedVisualClipId(clip.id);
+                                event.currentTarget.setPointerCapture(event.pointerId);
+                                const handle = event.currentTarget;
+                                handle.dataset.edge = edge;
+                                handle.dataset.startX = String(event.clientX);
+                                handle.dataset.initialStart = String(clip.start);
+                                handle.dataset.initialDuration = String(clip.duration);
+                                handle.dataset.initialSourceIn = String(clip.sourceIn ?? 0);
+                                handle.dataset.initialSourceOut = String(clip.sourceOut ?? ((clip.sourceIn ?? 0) + clip.duration));
+                              }}
+                              onPointerMove={(event) => {
+                                const handle = event.currentTarget;
+                                if (!handle.hasPointerCapture(event.pointerId)) return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                                const delta = (event.clientX - Number(handle.dataset.startX)) / pixelsPerSecondRef.current;
+                                const initialStart = Number(handle.dataset.initialStart);
+                                const initialDuration = Number(handle.dataset.initialDuration);
+                                const initialSourceIn = Number(handle.dataset.initialSourceIn);
+                                const initialSourceOut = Number(handle.dataset.initialSourceOut);
+                                const minDuration = 0.2;
+                                const allClips = visibleVideoTracks.flatMap((item) => item.clips).filter((item) => item.id !== clip.id);
+                                const previousEnd = allClips.filter((item) => item.start + item.duration <= initialStart + 0.0001)
+                                  .reduce((end, item) => Math.max(end, item.start + item.duration), 0);
+                                const nextStart = allClips.filter((item) => item.start >= initialStart + initialDuration - 0.0001)
+                                  .reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
+                                let nextClipStart = initialStart;
+                                let nextClipDuration = initialDuration;
+                                let nextSourceIn = initialSourceIn;
+                                let nextSourceOut = initialSourceOut;
+                                if (edge === 'left') {
+                                  const fixedEnd = initialStart + initialDuration;
+                                  nextClipStart = Math.max(previousEnd, Math.min(fixedEnd - minDuration, initialStart + delta));
+                                  nextClipDuration = fixedEnd - nextClipStart;
+                                  if (!isImage) nextSourceIn = initialSourceIn + (nextClipStart - initialStart);
+                                } else {
+                                  const maxEnd = Number.isFinite(nextStart) ? nextStart : Number.POSITIVE_INFINITY;
+                                  nextClipDuration = Math.max(minDuration, Math.min(maxEnd - initialStart, initialDuration + delta));
+                                  if (!isImage) nextSourceOut = initialSourceIn + nextClipDuration;
+                                }
+                                updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut);
+                              }}
+                              onPointerUp={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                              }}
+                              onPointerCancel={(event) => {
+                                if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                              }}
+                            />
+                          ))}
                         </button>
                       );
                     })}
