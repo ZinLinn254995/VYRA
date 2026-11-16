@@ -24,7 +24,7 @@ import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extr
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
-import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob } from '../../services/runwayProjectGeneration';
+import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
@@ -45,6 +45,7 @@ type AIChatPageProps = {
   onLoginRequired: () => void;
   initialSelectedAssets?: VyralChatAssetContext[];
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
+  onShotSequenceReady?: (sequence: RunwayProjectShotSequenceReady) => void;
   workspaceContext?: WorkspaceAiContext | null;
   onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
   storyboardId?: string;
@@ -2392,6 +2393,25 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           completed + ' earlier shot(s) are saved in Project Assets.' +
           (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
       } else if (result.status === 'ready') {
+        if ('completedShots' in result && directorScenePlan && storyboardId) {
+          const linkedShots = result.completedShots.flatMap((shot) => {
+            const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
+            const shotPlan = directorScenePlan.shots[shot.shotIndex];
+            return asset && shotPlan ? [{
+              shotId: shot.shotId,
+              shotIndex: shot.shotIndex,
+              durationSeconds: shotPlan.durationSeconds,
+              assetId: asset.assetId,
+              assetVersionId: asset.versionId,
+              mimeType: asset.mimeType,
+            }] : [];
+          });
+          if (linkedShots.length === result.completedShots.length) {
+            onShotSequenceReady?.({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+          } else {
+            setMediaGenerationStatus('All outputs are saved, but one or more shots could not be linked to the Editor timeline because no verified Video Asset was returned.');
+          }
+        }
         const generatedAssets = 'completedShots' in result
           ? result.completedShots.flatMap((shot) => shot.assets.map((asset) => ({ ...asset, shotIndex: shot.shotIndex })))
           : Array.isArray(result.assets) ? result.assets.map((asset) => ({ ...asset, shotIndex: null as number | null })) : [];
