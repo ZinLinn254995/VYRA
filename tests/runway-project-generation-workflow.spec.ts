@@ -184,4 +184,5 @@ test('repair reports the exact first failing downstream boundary and its correct
   assert.ok(workflow.includes('failedTransitionBoundary?: { previousShotIndex: number; currentShotIndex: number; status: SceneVisualVerificationResult[\'status\']; verification: SceneVisualVerificationResult }'));
   assert.ok(workflow.includes('const failedDownstreamBoundary = downstreamTransitionVerifications.find((item) => item.verification.status !== \'consistent\')'));
   assert.ok(workflow.includes('currentShotIndex: failedDownstreamBoundary.currentShotIndex'));
+  assert.ok(workflow.includes('buildSceneVisualRepairPrompt(verification, nextShot)'));
 });
