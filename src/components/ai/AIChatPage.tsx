@@ -2346,6 +2346,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       return;
     }
     if (!storyboardId || !storyboardUniverseId || !supabase) {
+    const projectSupabase = supabase;
       setMediaGenerationStatus('Open a Project before creating media.');
       return;
     }
@@ -2435,10 +2436,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               { path: 'shot.focus', expectedValue: shot.focus, scope: 'scene_state', visibility: 'optional' },
             ],
             inspect: async ({ asset, shot, shotIndex, shotCount, scene, signal, anchors: shotAnchors }) => {
-              if (!supabase || !/^video\//i.test(asset.mimeType)) {
+              if (!projectSupabase || !/^video\//i.test(asset.mimeType)) {
                 return { observations: [], inspectionComplete: false };
               }
-              const { data: signed, error: signedError } = await supabase.storage
+              const { data: signed, error: signedError } = await projectSupabase.storage
                 .from('vyral-assets').createSignedUrl(asset.storagePath, 300);
               if (signedError || !signed?.signedUrl) throw new Error('The private generated shot could not be opened for visual inspection.');
               const response = await fetch(signed.signedUrl, {
@@ -2478,7 +2479,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               );
             },
             inspectTransition: async ({ previousAsset, currentAsset, previousShot, currentShot, scene, anchors: transitionAnchors, signal }) => {
-              const storageClient = supabase;
+              const storageClient = projectSupabase;
               if (!storageClient) return { observations: [], inspectionComplete: false };
               const loadBoundaryFrame = async (asset: NonNullable<typeof previousAsset>, boundary: 'opening' | 'closing') => {
                 const { data: signed, error: signedError } = await storageClient.storage
@@ -2543,7 +2544,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
       };
       const result = effectiveMediaTask === 'video' && activeDirectorScenePlan
-        ? await generateRunwayProjectShotSequence(supabase, {
+        ? await generateRunwayProjectShotSequence(projectSupabase, {
           targetVyralId: storyboardUniverseId,
           quality: mediaQuality,
           maxTotalCostUsd: budget,
@@ -2563,7 +2564,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           onShotProgress: (event) => setMediaGenerationStatus('Shot ' + (event.shotIndex + 1) + ' of ' + event.shotCount + ' · ' + event.status + (event.jobId ? ' · Job ' + event.jobId : '')),
           requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose),
         })
-        : await generateRunwayProjectMedia(supabase, {
+        : await generateRunwayProjectMedia(projectSupabase, {
           targetVyralId: storyboardUniverseId, task: effectiveMediaTask, quality: mediaQuality,
           maxCostUsd: budget, input: { promptText: prompt },
           sceneContext,
@@ -2675,7 +2676,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const previews: ProjectMediaPreview[] = [];
         for (let index = 0; index < generatedAssets.length; index++) {
           const asset = generatedAssets[index];
-          const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
+          const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(projectSupabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
           const name = asset.shotIndex === null
             ? 'Generated ' + mediaTask + ' ' + (index + 1)
             : 'Shot ' + (asset.shotIndex + 1) + ' · Generated video';
