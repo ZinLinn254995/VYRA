@@ -146,3 +146,9 @@ test('Project AI Chat compares the previous shot final frame with the current sh
   assert.ok(chat.includes('parseSceneVisualInspection(vision.content, transitionAnchors, [0, 1])'));
   assert.ok(chat.includes('shot.transitionVerification'));
 });
+
+
+test('generation success message renders its summary on separate lines', () => {
+  const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
+  assert.ok(chat.includes("'\\n\\n' + summary"));
+});
