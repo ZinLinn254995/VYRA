@@ -2592,17 +2592,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           completed + ' earlier shot(s) are saved in Project Assets.' +
           (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
       } else if ('completedShots' in result && result.status === 'needs_review') {
-        const linkedShots = result.completedShots.flatMap((shot) => {
-          const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
-          const shotPlan = activeDirectorScenePlan?.shots[shot.shotIndex];
-          return asset && shotPlan ? [{
-            shotId: shot.shotId, shotIndex: shot.shotIndex, durationSeconds: shotPlan.durationSeconds,
-            assetId: asset.assetId, assetVersionId: asset.versionId, mimeType: asset.mimeType,
-          }] : [];
-        });
-        if (!repairRequest && linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && activeDirectorScenePlan && storyboardId) {
-          onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots });
-        }
+        // A needs_review result is never eligible for Editor handoff. Keep every
+        // candidate in Project Assets until the complete Scene passes verification.
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
         const findings = result.completedShots.flatMap((shot) => [
           ...(shot.visualVerifications ?? []).map((verification) => ({ verification, label: 'Shot ' + (shot.shotIndex + 1) })),
@@ -2779,7 +2770,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             (failedBoundary ? ' at the boundary Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + ' (' + failedBoundary.status + ')' : failedDownstreamShot ? ' while rechecking downstream Shot ' + (failedDownstreamShot.shotIndex + 1) : ' after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1)) +
             (repairRequest
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
-              : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
+              : '. The generated Asset remains in Project Assets and was not added to the Editor because continuity verification did not pass.\n\n') +
             detail +
             (failedBoundary
               ? targetedRepairPrepared
