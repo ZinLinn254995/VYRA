@@ -1296,8 +1296,16 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     setMediaUploadBusy(true);
     setMediaUploadError('');
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) throw new Error('Sign in again before uploading media.');
+      // Read the already-persisted device session first; do not wait for a
+      // network user lookup before showing the selected local file in Editor.
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      let uploadUser = sessionData?.session?.user ?? null;
+      if (!uploadUser) {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        uploadUser = authData?.user ?? null;
+      }
+      if (sessionError || !uploadUser) throw new Error('Sign in again before uploading media.');
       let nextVideoTracks = value?.videoTracks || [];
       let nextAudioTracks = value?.audioTracks || [];
       let nextSceneInstances = value?.sceneInstances || [];
@@ -1415,7 +1423,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         try {
           const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
             vyralId,
-            userId: authData.user.id,
+            userId: uploadUser.id,
             folderId: null,
             file: normalizedFile,
             metadata: { upload_source: 'creator_workspace', origin: 'project_editor' },
@@ -1452,7 +1460,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           try {
             await registerVyralAssetInMediaLibrary({
               assetId: ingestion.assetId,
-              userId: authData.user.id,
+              userId: uploadUser.id,
               fileName: file.name,
               mimeType: ingestion.mimeType,
               sizeBytes: ingestion.sizeBytes,
