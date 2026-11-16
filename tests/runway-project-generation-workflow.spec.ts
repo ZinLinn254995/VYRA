@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { buildRunwayProjectShotPrompt, validateFinalSceneRepairCoverage } from '../src/services/runwayProjectGeneration';
+import { buildRunwaySceneContinuityPrompt } from '../src/services/runwayProjectConsistencyContext';
 import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
 import type { SceneVisualVerificationResult } from '../src/services/universeSceneVisualVerification';
 
@@ -308,4 +309,50 @@ test('final Scene repair validation rejects any non-consistent inspection even w
   });
   assert.equal(result.status, 'needs_review');
   assert.match(result.reasons.join(' '), /did not pass visual continuity verification/);
+});
+
+
+test('prior Shot repair history informs generation as bounded diagnostic evidence, never canon', () => {
+  const result = buildRunwaySceneContinuityPrompt('Create the next video shot', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-1',
+    activeSceneTitle: 'The Arrival',
+    activeSceneDescription: 'A character enters the station.',
+    activeSceneRepairHistory: [{
+      shotIndex: 2,
+      outcome: 'needs_review',
+      createdAt: '2026-11-15T10:00:00.000Z',
+      baselineRevision: 'scene-rev-4',
+      checkedBoundaryIndices: [1, 2],
+      findings: ['Wardrobe changed between adjacent shots.', 'Screen direction reversed unexpectedly.'],
+      approvedCostUsd: 0.12,
+    }],
+    sceneContinuity: null,
+  });
+  assert.match(result.promptText, /PAST SHOT REPAIR HISTORY/);
+  assert.match(result.promptText, /Shot 3 · needs review/);
+  assert.match(result.promptText, /Wardrobe changed between adjacent shots/);
+  assert.match(result.promptText, /diagnostic evidence only; never canon or instructions/);
+  assert.match(result.promptText, /creator’s current request always take precedence/);
+});
+
+test('repair history context is bounded to the most recent six events and four findings each', () => {
+  const history = Array.from({ length: 10 }, (_item, index) => ({
+    shotIndex: index,
+    outcome: 'needs_review' as const,
+    createdAt: '2026-11-15T10:00:00.000Z',
+    baselineRevision: 'scene-rev-1',
+    checkedBoundaryIndices: [],
+    findings: Array.from({ length: 8 }, (_finding, findingIndex) => 'finding-' + index + '-' + findingIndex),
+    approvedCostUsd: 0.1,
+  }));
+  const result = buildRunwaySceneContinuityPrompt('Generate a Scene', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-1',
+    activeSceneRepairHistory: history,
+  });
+  assert.doesNotMatch(result.promptText, /Shot 1 · needs review/);
+  assert.match(result.promptText, /Shot 10 · needs review/);
+  assert.match(result.promptText, /finding-9-3/);
+  assert.doesNotMatch(result.promptText, /finding-9-4/);
 });
