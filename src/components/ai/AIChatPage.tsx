@@ -24,7 +24,8 @@ import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extr
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
-import { generateRunwayProjectMedia, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob } from '../../services/runwayProjectGeneration';
+import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob } from '../../services/runwayProjectGeneration';
+import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
@@ -2297,40 +2298,85 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setIsGeneratingMedia(true);
     setMediaGenerationStatus('Checking Project destination and requesting a live provider quote…');
     try {
-      const result = await generateRunwayProjectMedia(supabase, {
-        targetVyralId: storyboardUniverseId, task: mediaTask, quality: mediaQuality,
-        maxCostUsd: budget, input: { promptText: prompt },
-        sceneContext: workspaceContext ? {
-          page: workspaceContext.page,
-          activeSceneId: workspaceContext.activeSceneId,
-          activeSceneTitle: workspaceContext.activeSceneTitle,
-          activeSceneDescription: workspaceContext.activeSceneDescription,
-          sceneContinuity: workspaceContext.sceneContinuity,
-          continuityRuntime: workspaceContext.continuityRuntime,
-          editorView: workspaceContext.editorView,
-          selectedTimelineItem: workspaceContext.selectedTimelineItem,
-          selectedSceneIds: workspaceContext.selectedSceneIds,
-        } : null,
-        signal: controller.signal,
-        onProgress: (progress) => {
-          if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
-          else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
-          else if (progress.stage === 'submitted') setMediaGenerationStatus('Provider accepted the job. Generating media…');
-          else if (progress.stage === 'polling') setMediaGenerationStatus('Generation status: ' + progress.status + '…');
-          else if (progress.stage === 'ingesting') setMediaGenerationStatus('Saving output ' + (progress.outputIndex + 1) + ' of ' + progress.outputCount + ' into Project Assets…');
-          else if (progress.stage === 'ready') setMediaGenerationStatus('DNA and Fingerprint verification completed. Project Assets are ready.');
-        },
-        requestApproval: async (quote) => {
-          const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(quote.estimatedCostUsd);
-          const credits = new Intl.NumberFormat().format(quote.estimatedCredits);
-          const approvedMax = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(budget);
-          const details = ['Approve this media generation?', '', 'Task: ' + quote.task,
-            'Quality: ' + quote.quality, 'Provider / model: ' + quote.provider + ' / ' + quote.model,
-            'Estimated cost: ' + money, 'Estimated VYRA credits: ' + credits,
-            'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\n');
-          return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
-        },
-      });
+      const sceneContext = workspaceContext ? {
+        page: workspaceContext.page,
+        activeSceneId: workspaceContext.activeSceneId,
+        activeSceneTitle: workspaceContext.activeSceneTitle,
+        activeSceneDescription: workspaceContext.activeSceneDescription,
+        sceneContinuity: workspaceContext.sceneContinuity,
+        continuityRuntime: workspaceContext.continuityRuntime,
+        editorView: workspaceContext.editorView,
+        selectedTimelineItem: workspaceContext.selectedTimelineItem,
+        selectedSceneIds: workspaceContext.selectedSceneIds,
+      } : null;
+      const selectedSceneId = workspaceContext?.editorView === 'master'
+        ? workspaceContext.selectedTimelineItem?.kind === 'scene' ? workspaceContext.selectedTimelineItem.id : null
+        : workspaceContext?.page === 'scene-editor' ? workspaceContext.activeSceneId ?? null : null;
+      const selectedScene = workspaceContext?.continuityRuntime?.storyboardId === storyboardId
+        ? workspaceContext.continuityRuntime.scenes?.find((scene) => scene.id === selectedSceneId)
+        : undefined;
+      const direction = selectedScene?.creativeDirection;
+      const plannedShots = Array.isArray(direction?.shots) ? direction.shots : [];
+      const directorScenePlan: CreativeScenePlan | null = selectedScene && direction && plannedShots.length
+        ? {
+          id: selectedScene.id,
+          title: selectedScene.title,
+          purpose: direction.purpose ?? '',
+          durationSeconds: plannedShots.reduce((sum, shot) => sum + Number(shot.durationSeconds || 0), 0),
+          location: direction.location ?? '',
+          characters: direction.characters ?? [],
+          entryState: direction.entryState ?? '',
+          action: direction.action ?? '',
+          exitState: direction.exitState ?? '',
+          shots: plannedShots,
+        }
+        : null;
+      const onGenerationProgress = (progress: Parameters<NonNullable<Parameters<typeof generateRunwayProjectMedia>[1]['onProgress']>>[0]) => {
+        if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
+        else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
+        else if (progress.stage === 'submitted') setMediaGenerationStatus('Provider accepted the job. Generating media…');
+        else if (progress.stage === 'polling') setMediaGenerationStatus('Generation status: ' + progress.status + '…');
+        else if (progress.stage === 'ingesting') setMediaGenerationStatus('Saving output ' + (progress.outputIndex + 1) + ' of ' + progress.outputCount + ' into Project Assets…');
+        else if (progress.stage === 'ready') setMediaGenerationStatus('DNA and Fingerprint verification completed. Project Assets are ready.');
+      };
+      const approveQuote = async (quote: Parameters<NonNullable<Parameters<typeof generateRunwayProjectMedia>[1]['requestApproval']>>[0], shotLabel?: string) => {
+        const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(quote.estimatedCostUsd);
+        const credits = new Intl.NumberFormat().format(quote.estimatedCredits);
+        const approvedMax = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(budget);
+        const details = ['Approve ' + (shotLabel ? shotLabel + '?' : 'this media generation?'), '',
+          'Task: ' + quote.task, 'Quality: ' + quote.quality,
+          'Provider / model: ' + quote.provider + ' / ' + quote.model,
+          'Estimated cost: ' + money, 'Estimated VYRA credits: ' + credits,
+          'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\\n');
+        return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
+      };
+      const result = mediaTask === 'video' && directorScenePlan
+        ? await generateRunwayProjectShotSequence(supabase, {
+          targetVyralId: storyboardUniverseId,
+          quality: mediaQuality,
+          maxTotalCostUsd: budget,
+          maxCostUsdPerShot: budget,
+          scene: directorScenePlan,
+          productionTitle: direction?.productionTitle || workspaceContext?.activeStoryboard?.title || 'Project production',
+          logline: direction?.logline || workspaceContext?.activeStoryboard?.topic || prompt,
+          genre: direction?.genre || 'Unspecified',
+          tone: direction?.tone || 'Unspecified',
+          sceneIndex: direction?.sceneIndex,
+          promptText: prompt,
+          sceneContext,
+          signal: controller.signal,
+          onProgress: onGenerationProgress,
+          onShotProgress: (event) => setMediaGenerationStatus('Shot ' + (event.shotIndex + 1) + ' of ' + event.shotCount + ' · ' + event.status + (event.jobId ? ' · Job ' + event.jobId : '')),
+          requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose),
+        })
+        : await generateRunwayProjectMedia(supabase, {
+          targetVyralId: storyboardUniverseId, task: mediaTask, quality: mediaQuality,
+          maxCostUsd: budget, input: { promptText: prompt },
+          sceneContext,
+          signal: controller.signal,
+          onProgress: onGenerationProgress,
+          requestApproval: (quote) => approveQuote(quote),
+        });
       assertMediaRequestCurrent();
       if (result.status === 'approval_declined') {
         setMediaGenerationStatus('Cancelled. No job was created and no credits were reserved.');
