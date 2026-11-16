@@ -830,10 +830,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       setImagePreviewUrl(null);
       return;
     }
-    void resolveLocalMediaUrl(activeImageClip.assetId, activeImageClip.assetVersionId).then((localImageUrl) => {
+    const imageAssetId = activeImageClip.assetId;
+    const imageVersionId = activeImageClip.assetVersionId;
+    void resolveLocalMediaUrl(imageAssetId, imageVersionId).then((localImageUrl) => {
       if (cancelled) return;
       if (localImageUrl) { setImagePreviewUrl(localImageUrl); return; }
-      void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId })
+      void createVyralImagePlaybackUrl(supabase, { assetId: imageAssetId, versionId: imageVersionId })
         .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
         .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
     });
