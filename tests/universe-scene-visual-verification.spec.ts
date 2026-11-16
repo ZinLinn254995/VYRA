@@ -227,3 +227,18 @@ test('defines shot handoff invariants and builds an ordered two-frame transition
   assert.match(prompt, /Image 2 is the opening sampled frame/);
   assert.match(prompt, /frameTimeMs 0 and one for image 2 at frameTimeMs 1/);
 });
+
+
+test('parses complete shot-boundary findings for both ordered frames', async () => {
+  const { buildSceneVisualTransitionAnchors, parseSceneVisualInspection } = await import('../src/services/universeSceneVisualVerification.ts');
+  const anchors = buildSceneVisualTransitionAnchors();
+  const observations = anchors.flatMap((anchor) => [0, 1].map((frameTimeMs) => ({
+    path: anchor.path, status: 'match', confidence: 0.96,
+    evidence: 'The visible handoff is consistent with the approved transition rule.',
+    frameTimeMs,
+  })));
+  const response = '<vyra-visual-inspection>' + JSON.stringify({ schemaVersion: 1, observations }) + '</vyra-visual-inspection>';
+  const parsed = parseSceneVisualInspection(response, anchors, [0, 1]);
+  assert.equal(parsed.inspectionComplete, true);
+  assert.equal(parsed.observations.length, anchors.length * 2);
+});
