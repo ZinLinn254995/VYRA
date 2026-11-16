@@ -2393,6 +2393,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           completed + ' earlier shot(s) are saved in Project Assets.' +
           (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
       } else if (result.status === 'ready') {
+        let shotSequenceLinkMessage = '';
         if ('completedShots' in result && directorScenePlan && storyboardId) {
           const linkedShots = result.completedShots.flatMap((shot) => {
             const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
@@ -2406,10 +2407,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               mimeType: asset.mimeType,
             }] : [];
           });
-          if (linkedShots.length === result.completedShots.length) {
-            onShotSequenceReady?.({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+          if (linkedShots.length === result.completedShots.length && onShotSequenceReady) {
+            onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+            shotSequenceLinkMessage = 'All generated shots are linked to the Scene Project timeline in production order.';
           } else {
-            setMediaGenerationStatus('All outputs are saved, but one or more shots could not be linked to the Editor timeline because no verified Video Asset was returned.');
+            shotSequenceLinkMessage = 'All outputs are saved in Project Assets, but the complete sequence could not be linked to the Editor timeline.';
           }
         }
         const generatedAssets = 'completedShots' in result
@@ -2437,7 +2439,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }]);
         setDraft('');
         setMediaGenerationStatus(isShotSequence
-          ? 'Completed. All planned shots are saved in Project Assets in production order.'
+          ? 'Completed. All planned shots are saved in Project Assets. ' + (shotSequenceLinkMessage || 'Open the Scene to review its timeline links.')
           : 'Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
         setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
