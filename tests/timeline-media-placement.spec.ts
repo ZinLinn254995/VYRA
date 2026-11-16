@@ -2,13 +2,40 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
+import { buildScenesClipTrainLayout, getScenesInsertionIndex, getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
 
 const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
   id, name: id, start, duration, assetId: 'asset-' + id, assetVersionId: 'version-' + id, assetMimeType: mime,
 });
 const idFactory = () => { let id = 0; return () => 'track-' + (++id); };
 
+
+
+test('Scenes insertion slot ignores trailing empty space and appends after the final clip', () => {
+  const clips = [clip('a', 0, 4), clip('b', 9, 3)];
+  assert.equal(getScenesInsertionIndex(clips, 30), 2);
+});
+
+test('Scenes insertion slot places a new clip between clips when playhead is in a gap', () => {
+  const clips = [clip('a', 0, 4), clip('b', 9, 3)];
+  assert.equal(getScenesInsertionIndex(clips, 6), 1);
+});
+
+test('Scenes insertion slot places a new clip after the clip under the playhead', () => {
+  const clips = [clip('a', 0, 4), clip('b', 4, 3)];
+  assert.equal(getScenesInsertionIndex(clips, 2), 1);
+});
+
+test('Scenes clip train compacts every clip to zero-based consecutive positions', () => {
+  const layout = buildScenesClipTrainLayout([
+    clip('c', 12, 2),
+    clip('a', 0, 4),
+    clip('b', 8, 3),
+  ]);
+  assert.deepEqual(layout.map(({ id, start }) => [id, start]), [
+    ['a', 0], ['b', 4], ['c', 7],
+  ]);
+});
 
 test('Scenes starts at zero when empty, regardless of playhead', () => {
   assert.equal(getScenesInsertionTime([], 42), 0);
