@@ -2532,16 +2532,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         else if (progress.stage === 'ingesting') setMediaGenerationStatus('Saving output ' + (progress.outputIndex + 1) + ' of ' + progress.outputCount + ' into Project Assets…');
         else if (progress.stage === 'ready') setMediaGenerationStatus('DNA and Fingerprint verification completed. Project Assets are ready.');
       };
-      const approveQuote = async (quote: Parameters<NonNullable<Parameters<typeof generateRunwayProjectMedia>[1]['requestApproval']>>[0], shotLabel?: string) => {
+      const approveQuote = async (quote: Parameters<NonNullable<Parameters<typeof generateRunwayProjectMedia>[1]['requestApproval']>>[0], shotLabel?: string, maxApprovedCostUsd = budget) => {
         const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(quote.estimatedCostUsd);
         const credits = new Intl.NumberFormat().format(quote.estimatedCredits);
-        const approvedMax = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(budget);
+        const approvedMax = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(maxApprovedCostUsd);
         const details = ['Approve ' + (shotLabel ? shotLabel + '?' : 'this media generation?'), '',
           'Task: ' + quote.task, 'Quality: ' + quote.quality,
           'Provider / model: ' + quote.provider + ' / ' + quote.model,
           'Estimated cost: ' + money, 'Estimated VYRA credits: ' + credits,
           'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\\n');
-        return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
+        return window.confirm(details) ? { confirmed: true as const, maxCostUsd: maxApprovedCostUsd } : { confirmed: false as const };
       };
       const result = effectiveMediaTask === 'video' && activeDirectorScenePlan
         ? await generateRunwayProjectShotSequence(projectSupabase, {
@@ -2562,7 +2562,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ...(visualVerification ? { visualVerification } : {}),
           onProgress: onGenerationProgress,
           onShotProgress: (event) => setMediaGenerationStatus('Shot ' + (event.shotIndex + 1) + ' of ' + event.shotCount + ' · ' + event.status + (event.jobId ? ' · Job ' + event.jobId : '')),
-          requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose),
+          requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose, quote.estimatedCostUsd),
         })
         : await generateRunwayProjectMedia(projectSupabase, {
           targetVyralId: storyboardUniverseId, task: effectiveMediaTask, quality: mediaQuality,
