@@ -147,6 +147,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const masterPlaybackClockRef = useRef<{ contextStart: number; timelineStart: number } | null>(null);
   const masterPlaybackSeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const masterPlaybackProgrammaticScrollRef = useRef<number | null>(null);
+  // Remember the boundary we just snapped to so native scrolling can move away
+  // from it freely instead of being pulled back on every scroll event.
+  const magneticScrollLockRef = useRef<number | null>(null);
   const masterPlaybackTickRef = useRef<(() => void) | null>(null);
   const masterPlaybackSeekPendingRef = useRef(false);
   useEffect(() => {
@@ -1002,31 +1005,45 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     }
     masterPlaybackProgrammaticScrollRef.current = null;
 
-    // Magnetic timeline scrolling: when any clip boundary across the visual,
-    // audio, or text tracks comes within 12 screen pixels of the fixed playhead,
-    // pull the timeline so that boundary aligns exactly with the playhead.
-    // The leading half-viewport spacer is already accounted for by this
-    // coordinate system, so the matching scroll offset is boundaryTime * scale.
+    // Magnetic timeline scrolling: snap a nearby clip boundary to the playhead,
+    // but release that boundary as soon as the user deliberately scrolls away.
+    // Without this release zone, each native scroll event re-applies the snap
+    // and makes the timeline feel locked to the same clip edge.
     if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') {
       const scale = pixelsPerSecondRef.current;
       const playheadTime = Math.max(0, element.scrollLeft / scale);
+      const releaseBoundary = magneticScrollLockRef.current;
+      const releaseDistancePx = releaseBoundary === null
+        ? Number.POSITIVE_INFINITY
+        : Math.abs(playheadTime - releaseBoundary) * scale;
+
+      // Keep the just-snapped edge out of consideration until the user has
+      // moved at least 24 screen pixels away. This gives the scroll gesture a
+      // clean escape path while retaining the 12px magnetic approach zone.
+      if (releaseBoundary !== null && releaseDistancePx > 24) {
+        magneticScrollLockRef.current = null;
+      }
+
+      const lockedBoundary = magneticScrollLockRef.current;
       const clipBoundaries = [
         ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
       ].filter((time) => Number.isFinite(time) && time >= 0);
       let nearestBoundary: number | null = null;
-      let nearestDistance = 12 / scale;
+      let nearestDistance = 12;
       for (const boundary of clipBoundaries) {
-        const distance = Math.abs(boundary - playheadTime);
-        if (distance <= nearestDistance) {
-          nearestDistance = distance;
+        if (lockedBoundary !== null && Math.abs(boundary - lockedBoundary) * scale < 0.5) continue;
+        const distancePx = Math.abs(boundary - playheadTime) * scale;
+        if (distancePx <= nearestDistance) {
+          nearestDistance = distancePx;
           nearestBoundary = boundary;
         }
       }
       if (nearestBoundary !== null) {
         const snappedScrollLeft = Math.max(0, nearestBoundary * scale);
         if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
+          magneticScrollLockRef.current = nearestBoundary;
           element.scrollLeft = snappedScrollLeft;
           setTimelinePlayheadTime(nearestBoundary);
         }
