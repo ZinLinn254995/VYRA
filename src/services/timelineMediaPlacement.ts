@@ -3,9 +3,9 @@ export type TimelineMediaClipPlacement = {
   name: string;
   start: number;
   duration: number;
-  assetId: string;
-  assetVersionId: string;
-  assetMimeType: string;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
   sourceIn?: number;
   sourceOut?: number;
   waveform?: number[];
