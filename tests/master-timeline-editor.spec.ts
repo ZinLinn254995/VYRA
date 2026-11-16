@@ -162,7 +162,7 @@ test('deleting a middle visual clip ripples the next clip into place and clears 
 });
 
 
-test('trimming a Scenes start point does not shift Text or Audio layers', async ({ page }) => {
+test('trimming a Scenes start point normalizes Scenes to zero without shifting Text or Audio layers', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(({ key, id }) => {
     const now = new Date().toISOString();
@@ -235,7 +235,7 @@ test('trimming a Scenes start point does not shift Text or Audio layers', async 
       audioStart: timeline?.audioTracks?.[0]?.clips.find((clip) => clip.id === 'audio-clip')?.start,
     };
   }, { key: storageKey, id: storyboardId })).toEqual({
-    sceneStart: 2,
+    sceneStart: 0,
     textStart: 0,
     audioStart: 0,
   });
