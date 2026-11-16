@@ -501,8 +501,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.'
           : 'This generation job is already recovered.');
       } else if (result.status === 'submitted_pending') {
+        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('The provider is still processing this job. Check again shortly.');
       } else if (result.status === 'reconciliation_required') {
+        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('This job needs provider reconciliation. It was not resubmitted.');
       } else {
         setMediaGenerationStatus('Generation job status: ' + result.status + '.');
@@ -2707,8 +2709,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             (shotSequenceLinkMessage || 'Open the Scene to review its timeline links.')
           : 'Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
+        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
       } else if (result.status === 'reconciliation_required') {
+        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('Provider outcome needs reconciliation. Job ID: ' + result.jobId + '. VYRA will not submit it again automatically.');
       } else {
         setMediaGenerationStatus('Generation ' + result.status + ': ' + ('error' in result ? result.error : 'Please check the generation job.'));
