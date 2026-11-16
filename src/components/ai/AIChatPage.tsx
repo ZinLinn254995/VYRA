@@ -27,7 +27,7 @@ import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryClo
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
-import { buildSceneVisualInspectionPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
+import { buildSceneVisualInspectionPrompt, buildSceneVisualRepairPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type PendingShotRepair = {
@@ -2621,6 +2621,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const downstreamFailureTargetsDifferentShot = Boolean(
           repairRequest && failedBoundary && failedBoundary.currentShotIndex !== repairRequest.shotIndex
         );
+        const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedShot?.shotIndex;
+        const repairTargetShotPlan = repairTargetShotIndex !== undefined ? activeDirectorScenePlan?.shots[repairTargetShotIndex] : undefined;
         const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
         const failedShotVerifications = failedShot ? [
           ...(failedShot.visualVerifications ?? []),
@@ -2664,9 +2666,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             downstreamShotAssets.push(...repairRequest.downstreamShotAssets);
           }
         }
-        const nextShotAsset = downstreamShotAssets.find((item) => item.shotIndex === (failedShot?.shotIndex ?? -1) + 1)?.asset
-          ?? repairRequest?.nextShotAsset;
-        const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
+        const repairPreviousShotAsset = repairTargetShotIndex !== undefined && repairTargetShotIndex > 0
+          ? downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex - 1)?.asset
+            ?? (failedShot?.shotIndex === repairTargetShotIndex
+              ? previousShotAsset
+              : result.completedShots.find((item) => item.shotIndex === repairTargetShotIndex - 1)?.assets.find((asset) => /^video\\//i.test(asset.mimeType)))
+          : undefined;
+        const repairNextShotAsset = repairTargetShotIndex !== undefined
+          ? downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex + 1)?.asset
+          : undefined;
+        const repairDownstreamShotAssets = repairTargetShotIndex !== undefined
+          ? downstreamShotAssets.filter((item) => item.shotIndex > repairTargetShotIndex)
+          : [];
+        const repairInstruction = failedBoundary
+          ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan ?? activeDirectorScenePlan?.shots[failedBoundary.currentShotIndex])
+          : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
           const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
@@ -2679,14 +2693,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}),
           });
         }
-        if (!downstreamFailureTargetsDifferentShot && failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
+        if (repairTargetShotIndex !== undefined && repairTargetShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
           setPendingShotRepair({
-            scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
+            scene: activeDirectorScenePlan, shotIndex: repairTargetShotIndex,
             storyboardId,
-            ...(previousShotAsset ? { previousShotAsset } : {}),
-            ...(nextShotAsset ? { nextShotAsset } : {}),
-            ...(downstreamShotAssets.length ? { downstreamShotAssets } : repairRequest?.downstreamShotAssets ? { downstreamShotAssets: repairRequest.downstreamShotAssets } : {}),
-            promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED SHOT REPAIR:\n' + repairInstruction,
+            ...(repairPreviousShotAsset ? { previousShotAsset: repairPreviousShotAsset } : {}),
+            ...(repairNextShotAsset ? { nextShotAsset: repairNextShotAsset } : {}),
+            ...(repairDownstreamShotAssets.length ? { downstreamShotAssets: repairDownstreamShotAssets } : {}),
+            promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED TARGETED SHOT REPAIR:\n' + repairInstruction,
             originalPromptText: repairRequest?.originalPromptText ?? prompt,
             productionTitle: repairRequest?.productionTitle ?? direction?.productionTitle ?? workspaceContext?.activeStoryboard?.title ?? 'Project production',
             logline: repairRequest?.logline ?? direction?.logline ?? workspaceContext?.activeStoryboard?.topic ?? prompt,
@@ -2706,16 +2720,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
               : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
             detail +
-            (downstreamFailureTargetsDifferentShot
-              ? '\n\nThis failure is between existing Shot ' + (failedBoundary!.previousShotIndex + 1) + ' and Shot ' + (failedBoundary!.currentShotIndex + 1) + '. The original repair target cannot fix this later handoff. VYRA has not offered a repair for the wrong Shot; the correct next repair target is Shot ' + (failedBoundary!.currentShotIndex + 1) + '.'
+            (failedBoundary
+              ? '\n\nThe failed handoff is Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. VYRA has prepared a separate repair for the receiving Shot ' + (failedBoundary.currentShotIndex + 1) + '; the earlier repair target will not be regenerated.'
               : '') +
             (baselineChangedDuringReview ? '\n\nThe approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.' : '') + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
             '\n\nNo later shots were generated and no automatic paid regeneration was attempted.',
         }]);
         setMediaGenerationStatus(baselineChangedDuringReview
           ? 'The approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.'
-          : downstreamFailureTargetsDifferentShot
-          ? 'Continuity mismatch at Shot ' + (failedBoundary!.previousShotIndex + 1) + ' → Shot ' + (failedBoundary!.currentShotIndex + 1) + '. The correct repair target is Shot ' + (failedBoundary!.currentShotIndex + 1) + '; no incorrect repair was offered.'
+          : failedBoundary
+          ? 'Continuity mismatch at Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. A targeted repair is ready for Shot ' + (failedBoundary.currentShotIndex + 1) + '.'
           : 'Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
             (repairRequest
               ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
