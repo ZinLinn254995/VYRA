@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
+const masterEditor = readFileSync(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
+const videoPlanner = readFileSync(new URL('../src/server/masterTimelineVideoPlayback.ts', import.meta.url), 'utf8');
 
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
   assert.ok(chat.includes('generateRunwayProjectMedia'));
@@ -80,6 +82,16 @@ test('completed Director shots are linked to the selected Scene Project timeline
   assert.ok(workspace.includes('Generated Director shots are saved as linked Project Assets in this Scene Timeline'));
   assert.ok(workspace.includes('Linked private Project Asset'));
   assert.ok(workspace.includes('playback and final Scene rendering are the next stage'));
+});
+
+test('Master Editor preview schedules each generated Scene shot Asset in order', () => {
+  assert.ok(workspace.includes('videoClips,'));
+  assert.ok(workspace.includes('videoClips: generatedClips.map'));
+  assert.ok(masterEditor.includes('videoClips?: TimelineClip[]'));
+  assert.ok(videoPlanner.includes('Array.isArray(instance.videoClips)'));
+  assert.ok(videoPlanner.includes("instance.id + ':' + clip.id"));
+  assert.ok(videoPlanner.includes('clipStart = sceneStart + clip.start'));
+  assert.ok(videoPlanner.includes('assetVersionId: clip.assetVersionId'));
 });
 
 test('Project Editor navigation stays above its video preview and Scene management remains in Editor', () => {
