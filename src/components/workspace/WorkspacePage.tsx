@@ -16,11 +16,12 @@ import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
+import type { RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
-type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; content?: string };
+type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; assetVersionId?: string | null; assetMimeType?: string | null; source?: 'ai_director_shot' | 'manual'; shotId?: string; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; composition: string; lighting: string; focus: string; sound: string; action: string; continuityNotes: string[] }> };
@@ -104,6 +105,76 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
   const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
   const [sceneContinuityMessage, setSceneContinuityMessage] = useState('');
+
+  const handleShotSequenceReady = (sequence: RunwayProjectShotSequenceReady) => {
+    setActiveStoryboard((current) => {
+      if (!current || current.id !== sequence.storyboardId) return current;
+      const now = new Date().toISOString();
+      let sceneMatched = false;
+      const scenes = (current.details?.scenes || []).map((scene) => {
+        if (scene.id !== sequence.sceneId) return scene;
+        sceneMatched = true;
+        const project: SceneProjectData = scene.project || {
+          id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [],
+        };
+        const timeline: SceneProjectTimeline = project.timeline || {
+          duration: scene.duration, fps: 30, width: 1920, height: 1080, tracks: [],
+        };
+        const trackId = 'ai-director-shots-' + scene.id;
+        const existingTrack = timeline.tracks.find((track) => track.id === trackId);
+        const preservedManualClips = (existingTrack?.clips || []).filter((clip) => clip.source !== 'ai_director_shot');
+        let cursor = 0;
+        const generatedClips: SceneProjectClip[] = [...sequence.shots]
+          .sort((a, b) => a.shotIndex - b.shotIndex)
+          .map((shot) => {
+            const duration = Math.max(0.1, Math.min(3600, Number(shot.durationSeconds) || 0.1));
+            const clip: SceneProjectClip = {
+              id: 'director-' + shot.shotId + '-' + shot.assetId,
+              name: 'Shot ' + (shot.shotIndex + 1),
+              start: cursor,
+              duration,
+              assetId: shot.assetId,
+              assetVersionId: shot.assetVersionId,
+              assetMimeType: shot.mimeType,
+              source: 'ai_director_shot',
+              shotId: shot.shotId,
+            };
+            cursor += duration;
+            return clip;
+          });
+        const directorTrack: SceneProjectTrack = {
+          id: trackId,
+          type: 'video',
+          name: 'AI Director Shots',
+          clips: [...preservedManualClips, ...generatedClips],
+        };
+        const otherTracks = timeline.tracks
+          .filter((track) => track.id !== trackId)
+          .map((track) => ({
+            ...track,
+            clips: track.clips.filter((clip) => clip.source !== 'ai_director_shot'),
+          }));
+        return {
+          ...scene,
+          project: {
+            ...project,
+            timeline: {
+              ...timeline,
+              duration: Math.max(timeline.duration, cursor),
+              tracks: [...otherTracks, directorTrack],
+            },
+            updatedAt: now,
+          },
+        };
+      });
+      if (!sceneMatched) return current;
+      return {
+        ...current,
+        details: { ...current.details, scenes },
+        updatedAt: now,
+      };
+    });
+  };
   const [sceneStartingContextDraft, setSceneStartingContextDraft] = useState('');
   const activeStartingContext = (() => {
     if (!activeStoryboard || !activeSceneId) return '';
@@ -1322,22 +1393,22 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                                 <label className="text-[10px] text-[var(--vyra-text-muted)]">Duration (s)<input type="number" min="0.1" max={timeline.duration} step="0.1" value={clip.duration} onChange={(event) => updateProjectClip(track.id, clip.id, { duration: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
                               </div>
                               {track.type === 'text' && <textarea aria-label="Text clip content" value={clip.content || ''} onChange={(event) => updateProjectClip(track.id, clip.id, { content: event.target.value })} rows={2} className="w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" placeholder="Text shown in this clip" />}
-                              {track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">Media source linking will be enabled with the Media Library integration.</p>}
+                              {track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">Linked private Project Asset · {clip.assetMimeType || "video"} · playback is being connected</p>}
                             </div>
                           ))}
-                          {!track.clips.length && track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">No media clips. Import a source from My Media Library when asset linking is available.</p>}
+                          {!track.clips.length && track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">No media clips yet. Generated Director shots will appear here in production order.</p>}
                         </div>
                         <button type="button" onClick={() => removeProjectTrack(track.id)} aria-label={'Remove ' + track.name} className="rounded p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={14} /></button>
                       </div>
                     )) : <div className="px-4 py-8 text-center text-xs text-[var(--vyra-text-muted)]">Add a track to begin building this Scene independently.</div>}
                   </div>
-                  <p className="text-[11px] leading-5 text-[var(--vyra-text-muted)]">Track structure is saved with this Scene Project. Media placement, playback, and rendering will be connected in the next stage; no placeholder video is generated.</p>
+                  <p className="text-[11px] leading-5 text-[var(--vyra-text-muted)]">Generated Director shots are saved as linked Project Assets in this Scene Timeline. Playback and final Scene rendering are the next stage; no placeholder video is generated.</p>
                 </section>
               </div>
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
+          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
         </aside>
         <div className="hidden">
           <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={false} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
