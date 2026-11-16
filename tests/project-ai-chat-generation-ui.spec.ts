@@ -212,14 +212,17 @@ test('shot-by-shot approvals reserve each quoted estimate against one shared tot
 });
 
 
-test('shot repair resolves the next existing Director Asset and passes it for outgoing continuity inspection', () => {
+test('shot repair resolves all existing downstream Director Assets for ordered continuity re-inspection', () => {
   assert.ok(chat.includes('activeSceneDirectorShots'));
   assert.ok(chat.includes("from('vyral_assets')"));
   assert.ok(chat.includes("from('vyral_asset_versions')"));
-  assert.ok(chat.includes('nextShotAsset'));
-  assert.ok(chat.includes('outgoingTransitionVerification'));
+  assert.ok(chat.includes('downstreamShotAssets'));
+  assert.ok(chat.includes('downstreamTransitionVerifications'));
+  assert.ok(chat.includes('downstreamIndices'));
+  assert.ok(chat.includes('all available downstream shot boundaries were re-inspected'));
   assert.ok(workspace.includes('activeSceneDirectorShots:'));
   assert.ok(workspace.includes('shotIndex:'));
+  assert.ok(workspace.includes('.slice(0, 30)'));
 });
 
 
