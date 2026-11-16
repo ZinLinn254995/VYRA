@@ -125,24 +125,35 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         const existingTrack = timeline.tracks.find((track) => track.id === trackId);
         const preservedManualClips = (existingTrack?.clips || []).filter((clip) => clip.source !== 'ai_director_shot');
         let cursor = 0;
-        const generatedClips: SceneProjectClip[] = [...sequence.shots]
+        const incomingClips: SceneProjectClip[] = [...sequence.shots]
           .sort((a, b) => a.shotIndex - b.shotIndex)
-          .map((shot) => {
-            const duration = Math.max(0.1, Math.min(3600, Number(shot.durationSeconds) || 0.1));
-            const clip: SceneProjectClip = {
-              id: 'director-' + shot.shotId + '-' + shot.assetId,
-              name: 'Shot ' + (shot.shotIndex + 1),
-              start: cursor,
-              duration,
-              assetId: shot.assetId,
-              assetVersionId: shot.assetVersionId,
-              assetMimeType: shot.mimeType,
-              source: 'ai_director_shot',
-              shotId: shot.shotId,
-            };
-            cursor += duration;
-            return clip;
-          });
+          .map((shot) => ({
+            id: 'director-' + shot.shotId + '-' + shot.assetId,
+            name: 'Shot ' + (shot.shotIndex + 1),
+            start: 0,
+            duration: Math.max(0.1, Math.min(3600, Number(shot.durationSeconds) || 0.1)),
+            assetId: shot.assetId,
+            assetVersionId: shot.assetVersionId,
+            assetMimeType: shot.mimeType,
+            source: 'ai_director_shot' as const,
+            shotId: shot.shotId,
+          }));
+        const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === 'ai_director_shot');
+        const clipsToArrange = sequence.replaceShot
+          ? [
+              ...existingDirectorClips.filter((clip) => !sequence.shots.some((shot) => shot.shotId === clip.shotId)),
+              ...incomingClips,
+            ].sort((a, b) => {
+              const aIndex = Number(a.name.match(/^Shot (\\d+)/)?.[1] || 0);
+              const bIndex = Number(b.name.match(/^Shot (\\d+)/)?.[1] || 0);
+              return aIndex - bIndex;
+            })
+          : incomingClips;
+        const generatedClips: SceneProjectClip[] = clipsToArrange.map((clip) => {
+          const arranged = { ...clip, start: cursor };
+          cursor += arranged.duration;
+          return arranged;
+        });
         const directorTrack: SceneProjectTrack = {
           id: trackId,
           type: 'video',
