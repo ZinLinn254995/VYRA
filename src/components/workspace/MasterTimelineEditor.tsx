@@ -49,6 +49,8 @@ export type TimelineClip = {
   assetVersionId?: string;
   assetMimeType?: string;
   mediaKind?: 'video' | 'image' | 'audio';
+  /** Local source is durable and cloud ingestion must resume after editor remount. */
+  uploadPending?: boolean;
   isPlaceholder?: boolean;
 };
 
@@ -127,6 +129,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // Temporary local URLs let newly selected media play immediately while its
   // canonical Asset and immutable Version upload in the background.
   const localMediaObjectUrlsRef = useRef(new Map<string, string>());
+  const recoveringUploadKeysRef = useRef(new Set<string>());
   const localMediaUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!supabase) return;
@@ -165,6 +168,95 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   };
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
+
+  // Recover locally persisted Editor uploads after a reload/remount. The clip is
+  // already part of the saved timeline; this only finishes its canonical cloud Asset.
+  useEffect(() => {
+    if (!supabase || !vyralId || !value) return;
+    let cancelled = false;
+    const recover = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData.session?.user;
+      if (!user || cancelled) return;
+      localMediaUserIdRef.current = user.id;
+      const pending = (value.videoTracks || []).flatMap((track) => track.clips)
+        .concat((value.audioTracks || []).flatMap((track) => track.clips))
+        .filter((clip) => clip.uploadPending && clip.assetId && clip.assetVersionId && clip.mediaKind);
+      for (const clip of pending) {
+        const key = clip.assetId + ':' + clip.assetVersionId;
+        if (recoveringUploadKeysRef.current.has(key)) continue;
+        recoveringUploadKeysRef.current.add(key);
+        try {
+          const cached = await getVyralAssetLocalCopy(user.id, clip.assetId!, clip.assetVersionId!);
+          if (!cached || cancelled) continue;
+          const recoveredFile = new File([cached.blob], clip.name || 'recovered-media', {
+            type: cached.mimeType || clip.assetMimeType || 'application/octet-stream',
+            lastModified: cached.cachedAt,
+          });
+          const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
+            vyralId,
+            userId: user.id,
+            folderId: null,
+            file: recoveredFile,
+            assetId: clip.assetId,
+            metadata: { upload_source: 'creator_workspace', origin: 'project_editor', recovered_after_reload: true },
+          });
+          if (cancelled) continue;
+          const replace = (item: TimelineClip): TimelineClip => item.id !== clip.id ? item : {
+            ...item,
+            assetId: ingestion.assetId,
+            assetVersionId: ingestion.versionId,
+            assetMimeType: ingestion.mimeType,
+            uploadPending: false,
+            uploadPending: false,
+            duration: item.mediaKind === 'audio'
+              ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? item.duration)
+              : item.mediaKind === 'video'
+                ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? item.duration)
+                : item.duration,
+            sourceOut: item.mediaKind === 'audio'
+              ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? item.sourceOut ?? item.duration)
+              : item.mediaKind === 'video'
+                ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? item.sourceOut ?? item.duration)
+                : item.sourceOut,
+            waveform: ingestion.audioTechnicalMetadata?.waveformPeaks || item.waveform || [],
+          };
+          onChange({
+            sceneRanges: value.sceneRanges || {},
+            sceneInstances: value.sceneInstances || [],
+            videoTracks: (value.videoTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
+            transitions: value.transitions || {},
+            audioTracks: (value.audioTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
+            textTracks: value.textTracks || [],
+          });
+          try {
+            await registerVyralAssetInMediaLibrary({
+              assetId: ingestion.assetId,
+              userId: user.id,
+              fileName: recoveredFile.name,
+              mimeType: ingestion.mimeType,
+              sizeBytes: ingestion.sizeBytes,
+              storagePath: ingestion.storagePath,
+              sourceKind: 'vyral_asset',
+              universeId: vyralId,
+              thumbnailSource: recoveredFile,
+            });
+          } catch {
+            if (!cancelled) setMediaUploadError(recoveredFile.name + ' uploaded, but its Project Assets listing is still syncing.');
+          }
+          void removeVyralAssetLocalCopy(user.id, clip.assetId!, clip.assetVersionId!);
+        } catch (error) {
+          if (!cancelled) setMediaUploadError((clip.name || 'Media') + ' is saved locally. Cloud upload will retry when the Editor is reopened: ' +
+            (error instanceof Error ? error.message : 'Upload interrupted.'));
+        } finally {
+          recoveringUploadKeysRef.current.delete(key);
+        }
+      }
+    };
+    void recover();
+    return () => { cancelled = true; };
+  }, [vyralId, value, onChange]);
+
   const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
@@ -1419,6 +1511,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           assetMimeType: normalizedFile.type || (kind + '/octet-stream'),
           waveform: [],
           mediaKind: kind,
+          uploadPending: true,
         };
         const currentTracks = kind === 'audio' ? nextAudioTracks : nextVideoTracks;
         const placement = kind === 'audio'
