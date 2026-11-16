@@ -259,6 +259,7 @@ test('AI Chat never replaces a repaired Editor clip without final Scene continui
   assert.ok(chat.includes("(!repairRequest || result.finalSceneValidation?.status === 'verified')"));
   assert.ok(chat.includes('final continuity validation for the repaired Shot and every following Shot/boundary'));
   assert.ok(chat.includes('final continuity validation was not confirmed; the previous Editor clip was kept'));
+  assert.ok(chat.includes('const finalValidationReasons = result.finalSceneValidation?.reasons ?? []'));
 });
 
 
