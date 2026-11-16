@@ -356,3 +356,18 @@ test('repair history context is bounded to the most recent six events and four f
   assert.match(result.promptText, /finding-9-3/);
   assert.doesNotMatch(result.promptText, /finding-9-4/);
 });
+
+
+test('repair history is not attached when the active Master Editor selection is not a Scene', () => {
+  const result = buildRunwaySceneContinuityPrompt('Continue editing', {
+    page: 'storyboard-editor',
+    editorView: 'master',
+    activeSceneId: 'stale-scene',
+    selectedTimelineItem: { kind: 'audio-clip', id: 'audio-1' },
+    activeSceneRepairHistory: [{
+      shotIndex: 0, outcome: 'needs_review', createdAt: '2026-11-15T10:00:00.000Z',
+      baselineRevision: 'scene-rev-1', checkedBoundaryIndices: [], findings: ['old failure'], approvedCostUsd: 0.1,
+    }],
+  });
+  assert.doesNotMatch(result.promptText, /PAST SHOT REPAIR HISTORY/);
+});
