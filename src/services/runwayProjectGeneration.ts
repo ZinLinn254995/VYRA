@@ -495,6 +495,13 @@ export async function generateRunwayProjectShotSequence(
       !request.promptText.trim()) {
     throw new Error('A valid Scene shot plan, prompt and bounded generation budget are required.');
   }
+  if (request.visualVerification && (
+      !request.visualVerification.baselineRevision.trim() ||
+      !Array.isArray(request.visualVerification.anchors) ||
+      request.visualVerification.anchors.length === 0
+  )) {
+    throw new Error('Visual verification requires a creator-approved baseline revision and at least one visual anchor before paid generation.');
+  }
   const validation = validateCreativeProductionPlan({
     title: request.productionTitle,
     logline: request.logline,
@@ -559,6 +566,7 @@ export async function generateRunwayProjectShotSequence(
       });
       return {
         status: budgetExceeded ? 'budget_exceeded' : result.status === 'approval_declined' ? 'approval_declined' : 'partial',
+        visualVerificationStatus: 'not_configured',
         completedShots, stoppedAtShotIndex: shotIndex,
         stoppedStatus: budgetExceeded ? 'budget_exceeded' : result.status,
         ...('jobId' in result && result.jobId ? { stoppedJobId: result.jobId } : {}),
@@ -577,20 +585,24 @@ export async function generateRunwayProjectShotSequence(
         let inspectionComplete = false;
         let currentBaselineRevision = request.visualVerification.baselineRevision;
         try {
-          if (/^video\\//i.test(asset.mimeType)) {
+          if (/^video\//i.test(asset.mimeType)) {
             const inspection = await request.visualVerification.inspect({
               asset, shot, shotIndex, shotCount: request.scene.shots.length,
               scene: request.scene, signal: request.signal,
             });
-            observations = inspection.observations;
-            inspectionComplete = inspection.inspectionComplete;
+            observations = Array.isArray(inspection.observations) ? inspection.observations : [];
+            inspectionComplete = inspection.inspectionComplete === true && Array.isArray(inspection.observations);
           }
         } catch {
           // A failed vision pass is an unknown result, never a silent pass.
           inspectionComplete = false;
         }
         try {
-          currentBaselineRevision = await request.visualVerification.getCurrentBaselineRevision();
+          const latestRevision = await request.visualVerification.getCurrentBaselineRevision();
+          if (typeof latestRevision !== 'string' || !latestRevision.trim()) {
+            throw new Error('The current approved Scene baseline revision is unavailable.');
+          }
+          currentBaselineRevision = latestRevision;
         } catch {
           // If the current canon revision cannot be read, fail closed as an incomplete inspection.
           inspectionComplete = false;
