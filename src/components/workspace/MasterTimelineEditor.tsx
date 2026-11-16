@@ -599,7 +599,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
     const timelineStart = Math.max(0, Math.min(totalDuration, requestedStart ?? ((scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)));
     const audioPlan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
-    const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart);
+    const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart, value?.videoTracks || []);
     if (!audioPlan.length && !videoPlan.length) {
       setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
       setMasterPlaybackState('idle');
@@ -893,7 +893,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const readMediaDuration = (file: File, kind: 'video' | 'audio' | 'image'): Promise<number> => {
     if (kind === 'image') return Promise.resolve(5);
     return new Promise((resolve) => {
-      const element = document.createElement(kind);
+      const element = kind === 'video' ? document.createElement('video') : document.createElement('audio');
       const objectUrl = URL.createObjectURL(file);
       element.preload = 'metadata';
       element.onloadedmetadata = () => {
