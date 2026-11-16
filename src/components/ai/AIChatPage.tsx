@@ -2709,7 +2709,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: repairRequest
-            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed visual continuity checks. Its Editor clip has been replaced.'
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its shot-level and available incoming-boundary checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
             : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
@@ -2721,7 +2721,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }]);
         if (repairRequest) setPendingShotRepair(null); else setDraft('');
         setMediaGenerationStatus(repairRequest
-          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified. The matching Editor clip has been replaced; the rest of the sequence was preserved.'
+          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified against its approved shot-level and available incoming-boundary checks. The matching Editor clip has been replaced; downstream boundaries still need review.'
           : isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
