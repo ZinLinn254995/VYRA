@@ -110,7 +110,7 @@ test('shot prompt isolates one ordered shot and carries its continuity handoff',
 });
 
 
-const sequenceDb = {} as Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0];
+const sequenceDb = {} as unknown as Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0];
 const sequenceQuote = (cost: number) => ({
   id: 'quote-test', task: 'video' as const, quality: 'standard' as const,
   provider: 'runway', model: 'test-model', estimatedCredits: 1,
