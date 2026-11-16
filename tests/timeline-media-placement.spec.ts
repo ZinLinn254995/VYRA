@@ -125,10 +125,10 @@ test('bottom timeline toolbar exposes Image and Video sample actions that insert
   assert.match(editor, /const addSampleVisualClip = \(mediaKind: 'image' \| 'video'\)/);
   assert.match(editor, /isPlaceholder: true/);
   assert.match(editor, /const playheadTime = Math\.max\(0, \(scrollRef\.current\?\.scrollLeft \?\? 0\) \/ pixelsPerSecondRef\.current\)/);
-  assert.match(editor, /const containingClips = existingClips\.filter/);
+  assert.match(editor, /const insertionIndex = getScenesInsertionIndex/);
   assert.match(editor, /const shiftedTracks = currentTracks\.map/);
   assert.match(editor, /clips: \[\.\.\.track\.clips, sampleClip\]\.sort\(\(a, b\) => a\.start - b\.start\)/);
-  assert.match(editor, /let sceneInsertionTime = containingSceneClips\.length/);
+  assert.match(editor, /let sceneInsertionIndex = getScenesInsertionIndex/);
   assert.match(editor, /nextSceneInstances = shiftDirectorSceneClips\(nextSceneInstances, sceneInsertionTime, clipDuration\)/);
   assert.match(editor, /name: 'Scenes'/);
   assert.match(editor, /relative h-16 py-2/);
