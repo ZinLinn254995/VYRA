@@ -17,6 +17,7 @@ import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineE
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import type { RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
+import { buildDirectorShotTimelineClips } from '../../services/directorShotTimeline';
 import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
@@ -125,40 +126,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         const trackId = 'ai-director-shots-' + scene.id;
         const existingTrack = timeline.tracks.find((track) => track.id === trackId);
         const preservedManualClips = (existingTrack?.clips || []).filter((clip) => clip.source !== 'ai_director_shot');
-        let cursor = 0;
-        const incomingClips: SceneProjectClip[] = [...sequence.shots]
-          .sort((a, b) => a.shotIndex - b.shotIndex)
-          .map((shot) => ({
-            id: 'director-' + shot.shotId + '-' + shot.assetId,
-            name: 'Shot ' + (shot.shotIndex + 1),
-            start: 0,
-            duration: Math.max(0.1, Math.min(3600, Number(shot.durationSeconds) || 0.1)),
-            assetId: shot.assetId,
-            assetVersionId: shot.assetVersionId,
-            assetMimeType: shot.mimeType,
-            source: 'ai_director_shot' as const,
-            shotId: shot.shotId,
-          }));
         const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === 'ai_director_shot');
-        const generatedClips: SceneProjectClip[] = sequence.replaceShot
-          ? (() => {
-              const replaced = existingDirectorClips.map((clip) => {
-                const incoming = incomingClips.find((candidate) => candidate.shotId === clip.shotId);
-                return incoming ? { ...incoming, start: clip.start } : clip;
-              });
-              const appendAt = existingDirectorClips.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-              const missing = incomingClips
-                .filter((incoming) => !existingDirectorClips.some((clip) => clip.shotId === incoming.shotId))
-                .map((clip) => ({ ...clip, start: appendAt }));
-              const combined = [...replaced, ...missing].sort((a, b) => a.start - b.start);
-              cursor = combined.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
-              return combined;
-            })()
-          : incomingClips.map((clip) => {
-              const arranged = { ...clip, start: cursor };
-              cursor += arranged.duration;
-              return arranged;
-            });
+        const handoff = buildDirectorShotTimelineClips(existingDirectorClips, sequence.shots, sequence.replaceShot);
+        const generatedClips = handoff.clips as SceneProjectClip[];
+        const cursor = handoff.duration;
         const directorTrack: SceneProjectTrack = {
           id: trackId,
           type: 'video',
