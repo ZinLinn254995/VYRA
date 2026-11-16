@@ -456,6 +456,8 @@ export type RunwayProjectShotSequenceResult = {
     downstreamTransitionVerifications?: Array<{ previousShotIndex: number; currentShotIndex: number; verification: SceneVisualVerificationResult }>;
     repairPrompts?: string[];
   }>;
+  /** Exact failed handoff; currentShotIndex is the correct repair target for a boundary mismatch. */
+  failedTransitionBoundary?: { previousShotIndex: number; currentShotIndex: number; status: SceneVisualVerificationResult['status']; verification: SceneVisualVerificationResult };
   stoppedAtShotIndex: number | null;
   stoppedStatus: string | null;
   stoppedJobId?: string;
@@ -775,10 +777,20 @@ export async function generateRunwayProjectShotSequence(
       });
       // Do not generate later shots against an unverified handoff, and never
       // auto-regenerate a paid output. Return targeted repair guidance for review.
+      const failedDownstreamBoundary = downstreamTransitionVerifications.find((item) => item.verification.status !== 'consistent');
+      const failedTransitionBoundary = failedDownstreamBoundary
+        ? { ...failedDownstreamBoundary, status: failedDownstreamBoundary.verification.status }
+        : transitionVerification && transitionVerification.status !== 'consistent' && shotIndex > 0
+          ? { previousShotIndex: shotIndex - 1, currentShotIndex: shotIndex, status: transitionVerification.status, verification: transitionVerification }
+          : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' && shotIndex + 1 < request.scene.shots.length
+            ? { previousShotIndex: shotIndex, currentShotIndex: shotIndex + 1, status: outgoingTransitionVerification.status, verification: outgoingTransitionVerification }
+            : undefined;
       return {
         status: 'needs_review',
         visualVerificationStatus: 'needs_review',
-        completedShots, stoppedAtShotIndex: shotIndex,
+        completedShots,
+        ...(failedTransitionBoundary ? { failedTransitionBoundary } : {}),
+        stoppedAtShotIndex: shotIndex,
         stoppedStatus: downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream_shot_chain_needs_review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing_shot_transition_needs_review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
         stoppedJobId: result.jobId,
         approvedCostUsd,
