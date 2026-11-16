@@ -1018,6 +1018,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       const scale = pixelsPerSecondRef.current;
       const releaseDistancePx = 30;
       const lock = magneticScrollLockRef.current;
+      let magneticHoldActive = false;
 
       if (lock) {
         const delta = element.scrollLeft - lock.lastScrollLeft;
@@ -1031,16 +1032,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           }
           lock.lastScrollLeft = snappedScrollLeft;
           setTimelinePlayheadTime(lock.boundary);
-          return;
+          magneticHoldActive = true;
+        } else {
+          // The user has intentionally pulled far enough to break the magnetic
+          // hold. Resume free scrolling and allow a different nearby edge to win.
+          magneticScrollLockRef.current = null;
         }
-
-        // The user has intentionally pulled far enough to break the magnetic
-        // hold. Resume free scrolling and allow a different nearby edge to win.
-        magneticScrollLockRef.current = null;
       }
 
-      const playheadTime = Math.max(0, element.scrollLeft / scale);
-      const clipBoundaries = [
+      if (!magneticHoldActive) {
+        const playheadTime = Math.max(0, element.scrollLeft / scale);
+        const clipBoundaries = [
         ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
@@ -1068,7 +1070,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
           element.scrollLeft = snappedScrollLeft;
         }
-        setTimelinePlayheadTime(nearestBoundary);
+          setTimelinePlayheadTime(nearestBoundary);
+        }
       }
     }
 
