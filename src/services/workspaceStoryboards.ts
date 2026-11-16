@@ -19,16 +19,30 @@ export const mergeWorkspaceStoryboards = <T extends WorkspaceStoryboard>(
   local: T[],
   remote: T[],
 ): { storyboards: T[]; pending: T[] } => {
+  const isDeleted = (item: WorkspaceStoryboard): boolean => {
+    const details = item.details;
+    return Boolean(details && typeof details === 'object' &&
+      typeof (details as Record<string, unknown>).__vyraDeletedAt === 'string');
+  };
   const remoteById = new Map(remote.map((item) => [item.id, item]));
-  const merged = new Map(remote.map((item) => [item.id, item]));
+  const merged = new Map(remote.filter((item) => !isDeleted(item)).map((item) => [item.id, item]));
   const pending: T[] = [];
 
   for (const item of local) {
+    if (isDeleted(item)) {
+      merged.delete(item.id);
+      continue;
+    }
     if (!isPersistableStoryboardId(item.id)) {
       merged.set(item.id, item);
       continue;
     }
     const saved = remoteById.get(item.id);
+    // A cloud tombstone wins over stale local copies on every device.
+    if (saved && isDeleted(saved)) {
+      merged.delete(item.id);
+      continue;
+    }
     if (!saved || Date.parse(item.updatedAt) > Date.parse(saved.updatedAt)) {
       merged.set(item.id, item);
       pending.push(item);
