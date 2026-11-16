@@ -59,6 +59,7 @@ export type WorkspaceAiContext = {
     contextComplete: boolean;
     validationStatus: 'not_evaluated' | 'needs_review' | 'consistent' | 'creator_approved';
   } | null;
+  activeSceneDirectorShots?: Array<{ shotId: string; shotIndex: number; assetId: string; assetVersionId: string; mimeType: string }>;
   selectedTimelineItem?: {
     kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip';
     id: string;
