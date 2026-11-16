@@ -27,7 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
-import { placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
+import { mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
@@ -47,6 +47,7 @@ export type TimelineClip = {
   assetVersionId?: string;
   assetMimeType?: string;
   mediaKind?: 'video' | 'image' | 'audio';
+  isPlaceholder?: boolean;
 };
 
 export type TimelineTrack = {
@@ -545,13 +546,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     let sceneStart = 0;
     orderedScenes.forEach((scene, index) => {
       const instance = instances.find((item) => item.sceneId === scene.id);
-      if (instance?.videoClips?.length) {
-        for (const clip of instance.videoClips) {
-          if (clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')) {
-            clips.push({ ...clip, start: sceneStart + clip.start, mediaKind: 'video' });
-          }
+      const instanceClips = (instance?.videoClips || []).filter((clip) =>
+        clip.assetId && clip.assetVersionId &&
+        (clip.assetMimeType?.toLowerCase().startsWith('video/') || clip.assetMimeType?.toLowerCase().startsWith('image/')),
+      );
+      if (instanceClips.length) {
+        for (const clip of instanceClips) {
+          const mediaKind = clip.assetMimeType?.toLowerCase().startsWith('image/') ? 'image' : 'video';
+          clips.push({ ...clip, start: sceneStart + clip.start, mediaKind });
         }
-      } else if (instance?.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) {
+      } else if (instance?.assetId && instance.assetVersionId &&
+        (instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/'))) {
+        const mediaKind = instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video';
         const sourceIn = instance.videoSourceIn ?? 0;
         const sourceOut = instance.videoSourceOut ?? scene.duration;
         clips.push({
@@ -559,21 +565,40 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
           sourceIn, sourceOut, assetId: instance.assetId,
           assetVersionId: instance.assetVersionId, assetMimeType: instance.assetMimeType,
+          mediaKind,
+        });
+      } else {
+        // Keep the former Scene slot visible as an empty Video slot until
+        // the creator or AI Director supplies its first visual Asset.
+        clips.push({
+          id: 'video-slot-' + scene.id,
+          name: scene.title,
+          start: sceneStart,
+          duration: Math.max(0.1, sceneSegments[index]?.duration ?? scene.duration),
           mediaKind: 'video',
+          isPlaceholder: true,
         });
       }
       sceneStart += sceneSegments[index]?.duration ?? scene.duration;
     });
-    return clips.length ? { id: 'director-video-track', name: 'Video · AI Director', clips } : null;
+    return clips.length ? { id: 'director-video-track', name: 'Video', clips } : null;
   })();
-  const visibleVideoTracks = [
-    ...(directorVideoTrack ? [directorVideoTrack] : []),
-    ...(value?.videoTracks || []),
-  ];
-  const activeImageClip = [...(value?.videoTracks || [])].reverse().flatMap((track) => track.clips)
+  // Director output and uploaded Video/Image Assets share one visual layer.
+  // Additional rows appear only when clips overlap on the current bottom row.
+  const visibleVideoTracks = mergeTimelineVideoRows(
+    directorVideoTrack?.clips || [],
+    value?.videoTracks || [],
+  ) as TimelineTrack[];
+  const sceneTransitionMarkers = orderedScenes.slice(0, -1).map((scene, index) => {
+    const nextScene = orderedScenes[index + 1];
+    const key = scene.id + ':' + nextScene.id;
+    const boundary = sceneSegments.slice(0, index + 1).reduce((sum, segment) => sum + segment.duration, 0);
+    return { key, boundary, transition: value?.transitions?.[key] };
+  });
+  const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
-      clip.start <= timelinePlayheadTime && clip.start + clip.duration > timelinePlayheadTime &&
-      Boolean(clip.assetId && clip.assetVersionId));
+      !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
+      clip.start + clip.duration > timelinePlayheadTime && Boolean(clip.assetId && clip.assetVersionId));
   useEffect(() => {
     let cancelled = false;
     if (!supabase || !activeImageClip?.assetId || !activeImageClip.assetVersionId) {
@@ -969,7 +994,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           folderId: null,
           file: normalizedFile,
         });
-        const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+        const start = Math.max(0, ((scrollRef.current?.scrollLeft ?? 0) + viewportWidth / 2) / pixelsPerSecondRef.current);
         const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
@@ -1762,20 +1787,37 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                   </div>
                 ))}
               </div>
-              {visibleVideoTracks.map((track) => (
+              {visibleVideoTracks.map((track, trackIndex) => (
                 <div key={track.id} data-video-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/55">
                   {track.clips.map((clip) => {
                     const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
                     return (
                       <div key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
                         title={clip.name + ' · ' + clip.duration.toFixed(1) + 's'}
-                        className="absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15 px-2 text-[10px] font-medium text-[var(--vyra-text-primary)]"
+                        className={`absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border px-2 text-[10px] font-medium text-[var(--vyra-text-primary)] ${clip.isPlaceholder ? 'border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/70 text-[var(--vyra-text-secondary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`}
                         style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
                         {isImage ? <ImageIcon size={12} className="mr-1 shrink-0" /> : <Video size={12} className="mr-1 shrink-0" />}
                         <span className="truncate">{clip.name}</span>
                       </div>
                     );
                   })}
+                  {trackIndex === 0 && sceneTransitionMarkers.map(({ key, boundary, transition }) => (
+                    <button key={key} type="button" data-timeline-transition-key={key}
+                      title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
+                      aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
+                      aria-pressed={selectedTransitionKey === key}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedSceneIds([]);
+                        setSelectedTextClip(null);
+                        setSelectedAudioClip(null);
+                        setSelectedTransitionKey((current) => current === key ? null : key);
+                      }}
+                      className={`absolute top-1/2 z-10 grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border text-[11px] font-bold shadow-sm ${selectedTransitionKey === key ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]'}`}
+                      style={{ left: boundary * pixelsPerSecond }}>
+                      {transition ? '↔' : '+'}
+                    </button>
+                  ))}
                 </div>
               ))}
               {textTracks.map((track) => (
