@@ -414,6 +414,8 @@ export type RunwayProjectShotSequenceRequest = Omit<
   ) => Promise<{ confirmed: true; maxCostUsd: number } | { confirmed: false }>;
   /** When supplied, every generated output is inspected before the next shot is submitted. */
   visualVerification?: RunwayShotVisualVerificationAdapter;
+  /** A one-shot repair retains the original Scene and may inspect its incoming cut. */
+  repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset };
   onShotProgress?: (event: {
     shotId: string;
     shotIndex: number;
@@ -534,11 +536,18 @@ export async function generateRunwayProjectShotSequence(
     throw new Error('The Scene shot plan is incomplete: ' + validation.errors.join(' '));
   }
 
+  if (request.repair && (!Number.isInteger(request.repair.shotIndex) || request.repair.shotIndex < 0 || request.repair.shotIndex >= request.scene.shots.length)) {
+    throw new Error('A shot repair must target one existing shot in the approved Scene.');
+  }
+  if (request.repair?.previousShotAsset && request.repair.shotIndex === 0) {
+    throw new Error('The first shot cannot have a previous-shot repair reference.');
+  }
   const completedShots: RunwayProjectShotSequenceResult['completedShots'] = [];
   let approvedCostUsd = 0;
   let budgetExceeded = false;
   let verifiedShotCount = 0;
-  for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++) {
+  const shotIndices = request.repair ? [request.repair.shotIndex] : request.scene.shots.map((_shot, index) => index);
+  for (const shotIndex of shotIndices) {
     assertActive(request.signal);
     const shot = request.scene.shots[shotIndex];
     const promptText = buildRunwayProjectShotPrompt(request, request.scene, shot, shotIndex);
@@ -646,8 +655,10 @@ export async function generateRunwayProjectShotSequence(
     }
     let transitionVerification: SceneVisualVerificationResult | undefined;
     if (request.visualVerification && shotIndex > 0) {
-      const previousCompleted = completedShots[shotIndex - 1];
+      const previousCompleted = completedShots.find((completed) => completed.shotIndex === shotIndex - 1);
       const previousShot = request.scene.shots[shotIndex - 1];
+      const previousAsset = previousCompleted?.assets.find((asset) => /^video\\//i.test(asset.mimeType))
+        ?? (request.repair?.shotIndex === shotIndex ? request.repair.previousShotAsset : undefined);
       const previousAsset = previousCompleted?.assets.find((asset) => /^video\//i.test(asset.mimeType));
       const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
       let transitionObservations: SceneVisualObservation[] = [];
