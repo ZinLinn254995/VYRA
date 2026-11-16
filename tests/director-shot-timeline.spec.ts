@@ -68,8 +68,9 @@ test('repair handoff does not discard a previously verified downstream Shot when
 test('Project Editor wires the verified handoff into both Scene Timeline and Master Timeline persistence', async () => {
   const { readFileSync } = await import('node:fs');
   const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
+  const handoff = readFileSync(new URL('../src/services/directorShotTimeline.ts', import.meta.url), 'utf8');
   assert.ok(workspace.includes('buildDirectorShotTimelineClips(existingDirectorClips, sequence.shots, sequence.replaceShot)'));
-  assert.ok(workspace.includes("source: 'ai_director_shot'"));
+  assert.ok(handoff.includes("source: 'ai_director_shot' as const"));
   assert.ok(workspace.includes('const videoClips = generatedClips.map'));
   assert.ok(workspace.includes('videoClips,'));
   assert.ok(workspace.includes('sceneInstances: nextSceneInstances'));
