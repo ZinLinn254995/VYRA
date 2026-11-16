@@ -168,7 +168,7 @@ Deno.serve(async (request: Request) => {
   const decodedHash = await sha256(samples);
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
-    source: { asset_id: assetId, asset_version_id: versionId, sha256: sourceHash, size_bytes: original.byteLength, mime_type: mime },
+    source: { asset_id: assetId, asset_version_id: versionId, sha256: sourceHash, size_bytes: size, mime_type: mime },
     extractor: { name: 'VYRA pinned server-side raster extractor', version: '1.0.0' },
     decoded_image: {
       width, height, sample_format: 'uint8', channel_layout: 'RGBA', color_space: 'decoder-normalized',
