@@ -427,7 +427,7 @@ export type RunwayProjectShotSequenceReady = {
 
 export type RunwayProjectShotSequenceResult = {
   status: 'ready' | 'approval_declined' | 'budget_exceeded' | 'partial' | 'needs_review';
-  visualVerificationStatus: 'verified' | 'not_configured' | 'needs_review';
+  visualVerificationStatus: 'verified' | 'not_configured' | 'not_run' | 'partial' | 'needs_review';
   completedShots: Array<{
     shotId: string;
     shotIndex: number;
@@ -519,6 +519,7 @@ export async function generateRunwayProjectShotSequence(
   const completedShots: RunwayProjectShotSequenceResult['completedShots'] = [];
   let approvedCostUsd = 0;
   let budgetExceeded = false;
+  let verifiedShotCount = 0;
   for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++) {
     assertActive(request.signal);
     const shot = request.scene.shots[shotIndex];
@@ -568,7 +569,7 @@ export async function generateRunwayProjectShotSequence(
       });
       return {
         status: budgetExceeded ? 'budget_exceeded' : result.status === 'approval_declined' ? 'approval_declined' : 'partial',
-        visualVerificationStatus: 'not_configured',
+        visualVerificationStatus: !request.visualVerification ? 'not_configured' : verifiedShotCount > 0 ? 'partial' : 'not_run',
         completedShots, stoppedAtShotIndex: shotIndex,
         stoppedStatus: budgetExceeded ? 'budget_exceeded' : result.status,
         ...('jobId' in result && result.jobId ? { stoppedJobId: result.jobId } : {}),
@@ -644,6 +645,9 @@ export async function generateRunwayProjectShotSequence(
         stoppedJobId: result.jobId,
         approvedCostUsd,
       };
+    }
+    if (visualVerifications.length > 0 && visualVerifications.every((verification) => verification.status === 'consistent')) {
+      verifiedShotCount += 1;
     }
     request.onShotProgress?.({
       shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
