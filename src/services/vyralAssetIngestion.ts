@@ -295,9 +295,12 @@ export async function ingestVyralAsset(
   const assetType = classifyVyralAssetFile(file);
   const extension = file.name.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1]?.toLowerCase() ?? 'bin';
   const storagePath = input.userId + '/' + input.vyralId + '/' + assetId + '/v1/' + assetId + '.' + extension;
-  const bytes = await file.arrayBuffer();
+  // Web Crypto needs the complete file for an exact SHA-256 digest. Release that
+  // temporary buffer immediately afterwards; structural DNA only needs a bounded prefix.
+  let sourceBytes: ArrayBuffer | null = await file.arrayBuffer();
   assertNotAborted();
-  const sha256 = await sha256Hex(bytes);
+  const sha256 = await sha256Hex(sourceBytes);
+  sourceBytes = null;
   assertNotAborted();
   const rasterDna = assetType === 'image' && RASTER_MIMES.has(mimeType.toLowerCase());
   const audioTechnicalMetadata = assetType === 'audio' ? await extractAudioTechnicalMetadata(file, sha256, input.signal) : null;
@@ -354,10 +357,15 @@ export async function ingestVyralAsset(
       }
       dnaCommitted = true;
     } else {
+      const structurePrefix = new Uint8Array(
+        await file.slice(0, Math.min(file.size, 8 * 1024 * 1024)).arrayBuffer(),
+      );
+      assertNotAborted();
       const fileDna = await createVyralFileDnaV1({
         record_id: globalThis.crypto.randomUUID(),
         source: { asset_id: assetId, asset_version_id: versionId },
-        bytes: new Uint8Array(bytes), mime_type: mimeType, filename: file.name, include_payload: false,
+        bytes: structurePrefix, mime_type: mimeType, filename: file.name, include_payload: false,
+        source_sha256: sha256, source_size_bytes: file.size,
       });
       if (fileDna.record.file.sha256 !== sha256 || fileDna.record.file.size_bytes !== file.size) {
         throw new Error('Universal File DNA did not match the uploaded source bytes.');
