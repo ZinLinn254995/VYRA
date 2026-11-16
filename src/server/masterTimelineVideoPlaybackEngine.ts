@@ -111,7 +111,11 @@ export function startMasterTimelineVideoPlayback(
         video.load();
         if (video.readyState >= 1) onReady(new Event('loadedmetadata'));
       })
-      .catch(report);
+      .catch((error) => {
+        // A URL resolver may reject after its request has been superseded.
+        // Ignore that stale failure just as we ignore stale successful results.
+        if (!stopped && !controller.signal.aborted && token === loadToken) report(error);
+      });
   };
 
   const sync = (timelineTime: number) => {
