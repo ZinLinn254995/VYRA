@@ -85,6 +85,7 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /Adjust start point/);
   assert.match(editor, /Adjust end point/);
   assert.match(editor, /const snapTrimPointToPlayhead = \(time: number\)/);
+  assert.match(editor, /const playheadTime = \(\(viewport\?\.scrollLeft \?\? 0\) \+ \(viewport\?\.clientWidth \?\? viewportWidth\) \/ 2\) \/ scale/);
   assert.equal([...editor.matchAll(/snapTrimPointToPlayhead\(/g)].length, 7);
   assert.match(editor, /return Math\.abs\(time - playheadTime\) \* scale <= 10 \? playheadTime : time/);
   assert.match(editor, /updateVisualClipTiming\(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipStarts, rippleDelta\)/);
