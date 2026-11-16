@@ -2607,6 +2607,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ...(shot.visualVerifications ?? []).map((verification) => ({ verification, label: 'Shot ' + (shot.shotIndex + 1) })),
           ...(shot.transitionVerification ? [{ verification: shot.transitionVerification, label: 'Shot ' + shot.shotIndex + ' → Shot ' + (shot.shotIndex + 1) }] : []),
           ...(shot.outgoingTransitionVerification ? [{ verification: shot.outgoingTransitionVerification, label: 'Shot ' + (shot.shotIndex + 1) + ' outgoing boundary' }] : []),
+          ...(shot.downstreamShotVerifications ?? []).map((item) => ({
+            verification: item.verification,
+            label: 'Shot ' + (item.shotIndex + 1) + ' visual inspection',
+          })),
           ...(shot.downstreamTransitionVerifications ?? []).map((item) => ({
             verification: item.verification,
             label: 'Shot ' + (item.previousShotIndex + 1) + ' → Shot ' + (item.currentShotIndex + 1),
@@ -2625,6 +2629,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ...(failedShot.visualVerifications ?? []),
           ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
           ...(failedShot.outgoingTransitionVerification ? [failedShot.outgoingTransitionVerification] : []),
+          ...(failedShot.downstreamShotVerifications ?? []).map((item) => item.verification),
           ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
         ] : [];
         const baselineChangedDuringReview = failedShotVerifications.some((verification) =>
@@ -2689,6 +2694,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const verifications = [
             ...(failedShot.visualVerifications ?? []),
             ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
+            ...(failedShot.downstreamShotVerifications ?? []).map((item) => item.verification),
             ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
           ];
           onShotRepairHistory({
