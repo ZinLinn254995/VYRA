@@ -635,11 +635,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         ? { ...item, start, duration, sourceIn, sourceOut }
         : item),
     }));
-    let sceneStart = 0;
-    const sceneInstances = (value?.sceneInstances || []).map((instance, index) => {
-      const scene = orderedScenes.find((item) => item.id === instance.sceneId);
-      const currentSceneStart = sceneStart;
-      sceneStart += sceneSegments[index]?.duration ?? scene?.duration ?? 0;
+    const sceneInstances = (value?.sceneInstances || []).map((instance) => {
+      const sceneIndex = orderedScenes.findIndex((item) => item.id === instance.sceneId);
+      const currentSceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
+        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
       if (instance.videoClips?.some((item) => item.id === clip.id)) {
         return {
           ...instance,
@@ -1966,12 +1965,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 let nextSourceOut = initialSourceOut;
                                 if (edge === 'left') {
                                   const fixedEnd = initialStart + initialDuration;
-                                  nextClipStart = Math.max(previousEnd, Math.min(fixedEnd - minDuration, initialStart + delta));
+                                  const sourceStartBoundary = isImage ? 0 : Math.max(0, initialStart - initialSourceIn);
+                                  nextClipStart = Math.max(previousEnd, sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
                                   nextClipDuration = fixedEnd - nextClipStart;
                                   if (!isImage) nextSourceIn = initialSourceIn + (nextClipStart - initialStart);
                                 } else {
                                   const maxEnd = Number.isFinite(nextStart) ? nextStart : Number.POSITIVE_INFINITY;
-                                  nextClipDuration = Math.max(minDuration, Math.min(maxEnd - initialStart, initialDuration + delta));
+                                  const sourceDuration = isImage ? Number.POSITIVE_INFINITY : Math.max(minDuration, initialSourceOut - initialSourceIn);
+                                  const availableDuration = Math.max(minDuration, Math.min(maxEnd - initialStart, sourceDuration));
+                                  nextClipDuration = Math.max(minDuration, Math.min(availableDuration, initialDuration + delta));
                                   if (!isImage) nextSourceOut = initialSourceIn + nextClipDuration;
                                 }
                                 updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut);
