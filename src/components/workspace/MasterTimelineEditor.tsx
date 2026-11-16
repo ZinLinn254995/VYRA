@@ -702,8 +702,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     }));
     const sceneInstances = (value?.sceneInstances || []).map((instance) => {
       const sceneIndex = orderedScenes.findIndex((item) => item.id === instance.sceneId);
-      const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
-        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
       if (instance.videoClips?.length) {
         return { ...instance, videoClips: instance.videoClips.map((item) => ({ ...item, start: item.start + offset })) };
       }
@@ -765,7 +763,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     return () => { cancelled = true; };
   }, [activeImageClip?.assetId, activeImageClip?.assetVersionId]);
 
-  const timelineWidth = totalDuration * pixelsPerSecond;
+  const visualContentEnd = visibleVideoTracks.flatMap((track) => track.clips)
+    .reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+  const timelineDuration = Math.max(totalDuration, visualContentEnd);
+  const timelineWidth = timelineDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
     masterPlaybackRequestIdRef.current += 1;
     masterPlaybackSeekPendingRef.current = false;
@@ -985,7 +986,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const leadingSpace = viewportWidth / 2;
   // Adapt ruler spacing to zoom level so labels stay readable.
   const rulerStep = pixelsPerSecond >= 56 ? 1 : pixelsPerSecond >= 28 ? 2 : pixelsPerSecond >= 14 ? 5 : pixelsPerSecond >= 8 ? 10 : 20;
-  const rulerTicks = Array.from({ length: Math.floor(totalDuration / rulerStep) + 1 }, (_, index) => index * rulerStep);
+  const rulerTicks = Array.from({ length: Math.floor(timelineDuration / rulerStep) + 1 }, (_, index) => index * rulerStep);
   const formatRulerTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
