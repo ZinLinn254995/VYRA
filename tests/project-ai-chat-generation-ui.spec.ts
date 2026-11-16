@@ -190,3 +190,12 @@ test('uncertain repair jobs clear the retry action until recovery is checked', (
   assert.ok(chat.includes('Do not submit this job again.'));
   assert.ok(chat.includes('VYRA will not submit it again automatically.'));
 });
+
+
+test('continuity review exposes the saved candidate preview without replacing the Editor clip', () => {
+  assert.ok(chat.includes('const reviewPreviews: ProjectMediaPreview[] = []'));
+  assert.ok(chat.includes('Continuity review candidate'));
+  assert.ok(chat.includes('mediaAssets: reviewPreviews'));
+  assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
+  assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes.'));
+});
