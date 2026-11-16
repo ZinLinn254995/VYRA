@@ -168,9 +168,9 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           duration: clip.duration,
           sourceIn: 0,
           sourceOut: clip.duration,
-          assetId: clip.assetId,
-          assetVersionId: clip.assetVersionId,
-          assetMimeType: clip.assetMimeType,
+          assetId: clip.assetId!,
+          assetVersionId: clip.assetVersionId!,
+          assetMimeType: clip.assetMimeType!,
         }));
         const nextInstance = {
           ...(previousInstance || {
