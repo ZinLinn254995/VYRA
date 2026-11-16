@@ -567,17 +567,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           assetVersionId: instance.assetVersionId, assetMimeType: instance.assetMimeType,
           mediaKind,
         });
-      } else {
-        // Keep the former Scene slot visible as an empty Video slot until
-        // the creator or AI Director supplies its first visual Asset.
-        clips.push({
-          id: 'video-slot-' + scene.id,
-          name: scene.title,
-          start: sceneStart,
-          duration: Math.max(0.1, sceneSegments[index]?.duration ?? scene.duration),
-          mediaKind: 'video',
-          isPlaceholder: true,
-        });
       }
       sceneStart += sceneSegments[index]?.duration ?? scene.duration;
     });
