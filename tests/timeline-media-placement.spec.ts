@@ -92,13 +92,10 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary/);
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary \+ 0\.0001\s*:\s*item\.start >= edgeBoundary - 0\.0001/);
   assert.match(editor, /rippleIds\.has\(item\.id\) \? \{ \.\.\.item, start: rippleClipStarts\[item\.id\] \+ rippleDelta \}/);
-  assert.match(editor, /const normalizeTimelineOrigin = \(\) =>/);
-  assert.match(editor, /Math\.abs\(earliestStart\) < 0\.0001/);
-  assert.match(editor, /const offset = -earliestStart/);
-  assert.match(editor, /normalizeTimelineOrigin\(\);[\s\S]*releasePointerCapture/);
-  assert.match(editor, /sourceStartBoundary = isImage \? Number\.NEGATIVE_INFINITY/);
-  assert.match(editor, /audioTracks: shiftTracks\(value\?\.audioTracks \|\| \[\]\)/);
-  assert.match(editor, /textTracks: shiftTracks\(value\?\.textTracks \|\| \[\]\)/);
+  assert.doesNotMatch(editor, /normalizeTimelineOrigin/);
+  assert.match(editor, /sourceStartBoundary = isImage \? 0 : Math\.max\(0, initialStart - initialSourceIn\)/);
+  assert.doesNotMatch(editor, /audioTracks: shiftTracks\(value\?\.audioTracks/);
+  assert.doesNotMatch(editor, /textTracks: shiftTracks\(value\?\.textTracks/);
   assert.match(editor, /Transition controls follow the real timeline boundary/);
   assert.doesNotMatch(editor, /effect: 'dissolve', duration: 0\.5/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
