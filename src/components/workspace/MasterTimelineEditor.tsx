@@ -151,10 +151,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // distance across the repeated native scroll events that snapping produces.
   const magneticScrollLockRef = useRef<{
     boundary: number;
+    boundaries: number[];
     lastScrollLeft: number;
-    accumulatedDelta: number;
+    accumulatedDistance: number;
   } | null>(null);
-  const magneticReleasedBoundaryRef = useRef<number | null>(null);
+  const magneticReleasedClusterRef = useRef<{ boundaries: number[]; min: number; max: number } | null>(null);
   const masterPlaybackTickRef = useRef<(() => void) | null>(null);
   const masterPlaybackSeekPendingRef = useRef(false);
   useEffect(() => {
@@ -1010,23 +1011,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     }
     masterPlaybackProgrammaticScrollRef.current = null;
 
-    // Magnetic timeline scrolling: choose the nearest boundary on entry,
-    // then keep pulling it back while the user's cumulative scroll attempt is
-    // within the release distance. Accumulation is essential: snapping resets
-    // scrollLeft on every native event, so measuring only distance from the
-    // snapped position would make the magnet either weak or impossible to escape.
+    // Magnetic scrolling uses one stable, real clip boundary as its anchor.
+    // Track absolute attempted movement (not signed movement), because reversing
+    // direction must not cancel the user's effort to break away from the magnet.
     if (isMagneticEnabled && masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') {
       const scale = pixelsPerSecondRef.current;
-      const releaseDistancePx = 30;
+      const attractionDistancePx = 12;
+      const releaseDistancePx = 18;
       const lock = magneticScrollLockRef.current;
       let magneticHoldActive = false;
 
       if (lock) {
         const delta = element.scrollLeft - lock.lastScrollLeft;
-        lock.accumulatedDelta += delta;
+        lock.accumulatedDistance += Math.abs(delta);
         lock.lastScrollLeft = element.scrollLeft;
 
-        if (Math.abs(lock.accumulatedDelta) < releaseDistancePx) {
+        if (lock.accumulatedDistance < releaseDistancePx) {
           const snappedScrollLeft = Math.max(0, lock.boundary * scale);
           if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
             element.scrollLeft = snappedScrollLeft;
@@ -1035,76 +1035,85 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           setTimelinePlayheadTime(lock.boundary);
           magneticHoldActive = true;
         } else {
-          // The user has intentionally pulled far enough to break the magnetic
-          // hold. Resume free scrolling and allow a different nearby edge to win.
-          magneticReleasedBoundaryRef.current = lock.boundary;
+          // Release the complete nearby-boundary cluster, not just its anchor.
+          // This prevents the next almost-aligned row edge from immediately
+          // catching the playhead again.
+          magneticReleasedClusterRef.current = {
+            boundaries: [...lock.boundaries],
+            min: Math.min(...lock.boundaries),
+            max: Math.max(...lock.boundaries),
+          };
           magneticScrollLockRef.current = null;
         }
       }
 
       if (!magneticHoldActive) {
         const playheadTime = Math.max(0, element.scrollLeft / scale);
-        const releasedBoundary = magneticReleasedBoundaryRef.current;
+        const releasedCluster = magneticReleasedClusterRef.current;
         if (
-          releasedBoundary !== null &&
-          Math.abs(playheadTime - releasedBoundary) * scale > releaseDistancePx
+          releasedCluster &&
+          (playheadTime < releasedCluster.min - releaseDistancePx / scale ||
+            playheadTime > releasedCluster.max + releaseDistancePx / scale)
         ) {
-          magneticReleasedBoundaryRef.current = null;
+          magneticReleasedClusterRef.current = null;
         }
+
         const clipBoundaries = [
-        ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
-        ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
-        ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
-      ].filter((time) => Number.isFinite(time) && time >= 0).sort((a, b) => a - b);
+          ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+          ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+          ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
+        ].filter((time) => Number.isFinite(time) && time >= 0).sort((a, b) => a - b);
 
-      // Edges from different rows that nearly coincide form ONE magnetic target.
-      // Group width is capped at 24 screen pixels (the full width of a 12px
-      // attraction zone), so overlapping edge zones collapse into one target. The group's midpoint is used
-      // as its stable shared target.
-      const magneticTargets: Array<{ time: number; boundaries: number[] }> = [];
-      for (const boundary of clipBoundaries) {
-        const currentGroup = magneticTargets[magneticTargets.length - 1];
-        if (
-          currentGroup &&
-          (boundary - currentGroup.boundaries[0]) * scale <= 24
-        ) {
-          currentGroup.boundaries.push(boundary);
-          currentGroup.time = currentGroup.boundaries.reduce((sum, item) => sum + item, 0) / currentGroup.boundaries.length;
-        } else {
-          magneticTargets.push({ time: boundary, boundaries: [boundary] });
+        // Nearby row edges share one attraction zone. Keep the original edge
+        // times; never average them into a synthetic point between clips.
+        const magneticTargets: Array<{ boundaries: number[]; min: number; max: number }> = [];
+        for (const boundary of clipBoundaries) {
+          const currentGroup = magneticTargets[magneticTargets.length - 1];
+          if (currentGroup && (boundary - currentGroup.min) * scale <= 24) {
+            currentGroup.boundaries.push(boundary);
+            currentGroup.max = boundary;
+          } else {
+            magneticTargets.push({ boundaries: [boundary], min: boundary, max: boundary });
+          }
         }
-      }
 
-      // Choose the closest grouped target, with one fixed 12px attraction zone.
-      let nearestBoundary: number | null = null;
-      let nearestDistancePx = 12;
-      for (const target of magneticTargets) {
-        const distancePx = Math.abs(target.time - playheadTime) * scale;
-        const isRecentlyReleased =
-          magneticReleasedBoundaryRef.current !== null &&
-          target.boundaries.some((boundary) =>
-            Math.abs(boundary - magneticReleasedBoundaryRef.current!) * scale < 0.5
-          ) &&
-          distancePx <= releaseDistancePx;
-        if (!isRecentlyReleased && distancePx < nearestDistancePx) {
-          nearestDistancePx = distancePx;
-          nearestBoundary = target.time;
-        }
-      }
+        // Only the nearest real boundary can attract the playhead.
+        let nearestBoundary: number | null = null;
+        let nearestDistancePx = attractionDistancePx;
+        for (const target of magneticTargets) {
+          const isReleasedTarget = Boolean(
+            magneticReleasedClusterRef.current &&
+            target.boundaries.some((boundary) =>
+              magneticReleasedClusterRef.current!.boundaries.some((released) =>
+                Math.abs(boundary - released) * scale < 0.5
+              )
+            )
+          );
+          if (isReleasedTarget) continue;
 
-      if (nearestBoundary !== null) {
-        const snappedScrollLeft = Math.max(0, nearestBoundary * scale);
-        magneticReleasedBoundaryRef.current = null;
-        magneticScrollLockRef.current = {
-          boundary: nearestBoundary,
-          lastScrollLeft: snappedScrollLeft,
-          accumulatedDelta: 0,
-        };
-        if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
-          element.scrollLeft = snappedScrollLeft;
+          for (const boundary of target.boundaries) {
+            const distancePx = Math.abs(boundary - playheadTime) * scale;
+            if (distancePx < nearestDistancePx) {
+              nearestDistancePx = distancePx;
+              nearestBoundary = boundary;
+            }
+          }
         }
-        setTimelinePlayheadTime(nearestBoundary);
-      }
+
+        if (nearestBoundary !== null) {
+          const target = magneticTargets.find((item) => item.boundaries.includes(nearestBoundary!));
+          const snappedScrollLeft = Math.max(0, nearestBoundary * scale);
+          magneticScrollLockRef.current = {
+            boundary: nearestBoundary,
+            boundaries: target ? [...target.boundaries] : [nearestBoundary],
+            lastScrollLeft: snappedScrollLeft,
+            accumulatedDistance: 0,
+          };
+          if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
+            element.scrollLeft = snappedScrollLeft;
+          }
+          setTimelinePlayheadTime(nearestBoundary);
+        }
       }
     }
 
@@ -2237,7 +2246,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               const next = !enabled;
               if (!next) {
                 magneticScrollLockRef.current = null;
-                magneticReleasedBoundaryRef.current = null;
+                magneticReleasedClusterRef.current = null;
               }
               return next;
             });
