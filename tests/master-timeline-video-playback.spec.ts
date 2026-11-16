@@ -177,3 +177,45 @@ test('plays a mixed manual and AI Director clip sequence using each exact immuta
   assert.equal(seekIntoManualInsert[0].instanceId, 'scene-mixed:manual-insert');
   assert.equal(seekIntoManualInsert[0].sourceOffsetSeconds, 1.5);
 });
+
+test('plans uploaded Video Track clips at absolute timeline positions', () => {
+  const tracks = [{
+    id: 'video-track-1',
+    name: 'Video 1',
+    clips: [{
+      id: 'uploaded-video',
+      start: 3,
+      duration: 6,
+      sourceIn: 1,
+      sourceOut: 7,
+      assetId: 'uploaded-asset',
+      assetVersionId: 'uploaded-version',
+      assetMimeType: 'video/mp4',
+      mediaKind: 'video',
+    }],
+  }];
+  const plan = buildMasterTimelineVideoPlaybackPlan([], [], 5, tracks);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].instanceId, 'video-track-1:uploaded-video');
+  assert.equal(plan[0].timelineStartSeconds, 3);
+  assert.equal(plan[0].sourceOffsetSeconds, 3);
+  assert.equal(plan[0].playbackStartSeconds, 5);
+  assert.equal(plan[0].playbackEndSeconds, 9);
+});
+
+test('does not send Image Track clips to the Video decoder', () => {
+  const tracks = [{
+    id: 'video-track-1',
+    name: 'Video 1',
+    clips: [{
+      id: 'uploaded-image',
+      start: 0,
+      duration: 5,
+      assetId: 'image-asset',
+      assetVersionId: 'image-version',
+      assetMimeType: 'image/png',
+      mediaKind: 'image',
+    }],
+  }];
+  assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([], [], 0, tracks), []);
+});
