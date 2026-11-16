@@ -1465,6 +1465,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             userId: uploadUser.id,
             folderId: null,
             file: normalizedFile,
+            assetId: temporaryAssetId,
             metadata: { upload_source: 'creator_workspace', origin: 'project_editor' },
           });
           // Replace the temporary local reference with the canonical Project
