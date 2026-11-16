@@ -63,6 +63,7 @@ type AIChatPageProps = {
   initialSelectedAssets?: VyralChatAssetContext[];
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
   onShotSequenceReady?: (sequence: RunwayProjectShotSequenceReady) => void;
+  onShotRepairHistory?: (entry: { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; approvedCostUsd: number }) => void;
   workspaceContext?: WorkspaceAiContext | null;
   onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
   storyboardId?: string;
@@ -2682,6 +2683,29 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const targetedRepairPrepared = repairTargetShotIndex !== undefined && repairTargetShotPlan
           && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
+        if (repairRequest && failedShot && onShotRepairHistory) {
+          const candidate = failedShot.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+          const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === repairRequest.shotIndex);
+          const verifications = [
+            ...(failedShot.visualVerifications ?? []),
+            ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
+            ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
+          ];
+          onShotRepairHistory({
+            id: makeId(), createdAt: new Date().toISOString(), sceneId: activeDirectorScenePlan?.id ?? repairRequest.scene.id,
+            shotId: repairRequest.scene.shots[repairRequest.shotIndex]?.id ?? 'unknown',
+            shotIndex: repairRequest.shotIndex,
+            previousAssetId: original?.assetId ?? null, previousAssetVersionId: original?.assetVersionId ?? null,
+            candidateAssetId: candidate?.assetId ?? null, candidateAssetVersionId: candidate?.versionId ?? null,
+            outcome: 'needs_review',
+            baselineRevision: verifications[0]?.baselineRevision ?? visualVerification?.baselineRevision ?? null,
+            checkedBoundaryIndices: [
+              ...(failedShot.transitionVerification ? [repairRequest.shotIndex - 1] : []),
+              ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.previousShotIndex),
+            ].filter((index) => index >= 0),
+            approvedCostUsd: result.approvedCostUsd,
+          });
+        }
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
           const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
@@ -2741,6 +2765,22 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
+        if (repairRequest && onShotRepairHistory && 'completedShots' in result) {
+          const repairedShot = result.completedShots.find((shot) => shot.shotIndex === repairRequest.shotIndex);
+          const candidate = repairedShot?.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+          const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === repairRequest.shotIndex);
+          onShotRepairHistory({
+            id: makeId(), createdAt: new Date().toISOString(), sceneId: activeDirectorScenePlan?.id ?? repairRequest.scene.id,
+            shotId: repairRequest.scene.shots[repairRequest.shotIndex]?.id ?? 'unknown',
+            shotIndex: repairRequest.shotIndex,
+            previousAssetId: original?.assetId ?? null, previousAssetVersionId: original?.assetVersionId ?? null,
+            candidateAssetId: candidate?.assetId ?? null, candidateAssetVersionId: candidate?.versionId ?? null,
+            outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review',
+            baselineRevision: result.finalSceneValidation?.baselineRevision ?? repairedShot?.visualVerifications?.[0]?.baselineRevision ?? null,
+            checkedBoundaryIndices: result.finalSceneValidation?.checkedBoundaryIndices ?? [],
+            approvedCostUsd: result.approvedCostUsd,
+          });
+        }
         const repairVerificationScope = repairRequest && activeDirectorScenePlan
           ? [
               'shot-level',
