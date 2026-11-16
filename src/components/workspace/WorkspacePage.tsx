@@ -25,7 +25,8 @@ type SceneProjectClip = { id: string; name: string; start: number; duration: num
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; composition: string; lighting: string; focus: string; sound: string; action: string; continuityNotes: string[] }> };
-type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection };
+type SceneShotRepairHistoryEntry = { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; approvedCostUsd: number };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection; repairHistory?: SceneShotRepairHistoryEntry[] };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -236,6 +237,30 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         },
         updatedAt: now,
       };
+    });
+  };
+  const handleShotRepairHistory = (entry: SceneShotRepairHistoryEntry) => {
+    setActiveStoryboard((current) => {
+      if (!current || !current.details?.scenes?.some((scene) => scene.id === entry.sceneId)) return current;
+      const now = new Date().toISOString();
+      const scenes = (current.details.scenes || []).map((scene) => {
+        if (scene.id !== entry.sceneId) return scene;
+        const project: SceneProjectData = scene.project || {
+          id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [],
+        };
+        const history = project.repairHistory || [];
+        if (history.some((item) => item.id === entry.id)) return scene;
+        return {
+          ...scene,
+          project: {
+            ...project,
+            // Append-only: never replace or edit an earlier repair event.
+            repairHistory: [...history, entry].slice(-100),
+            updatedAt: now,
+          },
+        };
+      });
+      return { ...current, details: { ...current.details, scenes }, updatedAt: now };
     });
   };
   const [sceneStartingContextDraft, setSceneStartingContextDraft] = useState('');
@@ -1528,7 +1553,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
+          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
         </aside>
         <div className="hidden">
           <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={false} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
