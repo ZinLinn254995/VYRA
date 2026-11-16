@@ -2187,13 +2187,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Universe before retrying.');
           }
           pendingVyralUploadFilesRef.current.delete(clientDraftId);
-          let masterDnaMessage = 'Master DNA will update from the new Asset inventory.';
-          try {
-            const { data: masterResult, error: masterError } = await awaitForCurrentRequest(supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } }));
-            masterDnaMessage = !masterError && masterResult?.status === 'ready'
-              ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
-              : 'The Asset is ready. Master DNA is queued for its next synchronization.';
-          } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Universe workspace refreshes.'; }
+          let masterDnaMessage = 'Master DNA will update after exact Asset verification.';
+          if (ingested.dnaKind !== 'raster-v3' || ingested.exactVerificationStatus === 'passed') {
+            try {
+              const { data: masterResult, error: masterError } = await awaitForCurrentRequest(supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } }));
+              masterDnaMessage = !masterError && masterResult?.status === 'ready'
+                ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
+                : 'The Asset is ready. Master DNA is queued for its next synchronization.';
+            } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Universe workspace refreshes.'; }
+          } else {
+            masterDnaMessage = 'The Asset is saved. Exact DNA verification is still running; Master DNA will update after it passes.';
+          }
           assertRequestCurrent();
           assetUploadCompletionText = '\n\n**Asset saved to Universe:** ' + destination.name +
             '\n**Asset name:** ' + assetName +
