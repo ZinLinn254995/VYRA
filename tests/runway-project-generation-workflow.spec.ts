@@ -1,8 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { buildRunwayProjectShotPrompt } from '../src/services/runwayProjectGeneration';
+import { buildRunwayProjectShotPrompt, validateFinalSceneRepairCoverage } from '../src/services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
+import type { SceneVisualVerificationResult } from '../src/services/universeSceneVisualVerification';
+
+
+const visualResult = (
+  status: SceneVisualVerificationResult['status'] = 'consistent',
+  baselineRevision = 'scene-rev-1',
+): SceneVisualVerificationResult => ({
+  schemaVersion: 1,
+  mediaId: 'asset-test',
+  mediaKind: 'video',
+  baselineRevision,
+  status,
+  approvalRequired: true,
+  canonicalStateChanged: false,
+  coverage: { required: 1, matched: status === 'consistent' ? 1 : 0, mismatched: status === 'consistent' ? 0 : 1, unknown: 0 },
+  findings: [],
+  limitations: [],
+});
 
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
 const visualVerifier = readFileSync(new URL('../src/services/universeSceneVisualVerification.ts', import.meta.url), 'utf8');
@@ -205,4 +223,72 @@ test('final repair validation requires complete ordered shot and boundary covera
   assert.ok(workflow.includes('approved Scene baseline changed before final validation completed'));
   assert.ok(workflow.includes("finalSceneValidation?.status !== 'verified'"));
   assert.ok(workflow.includes("status: reasons.length === 0 ? 'verified' : 'needs_review'"));
+});
+
+
+test('final Scene repair validation passes only with every ordered downstream Shot and boundary', () => {
+  const result = validateFinalSceneRepairCoverage({
+    targetShotIndex: 1,
+    shotCount: 4,
+    baselineRevision: 'scene-rev-1',
+    latestBaselineRevision: 'scene-rev-1',
+    shotVerifications: [1, 2, 3].map((shotIndex) => ({ shotIndex, verification: visualResult() })),
+    boundaryVerifications: [0, 1, 2].map((previousShotIndex) => ({
+      previousShotIndex, currentShotIndex: previousShotIndex + 1, verification: visualResult(),
+    })),
+  });
+  assert.equal(result.status, 'verified');
+  assert.deepEqual(result.checkedShotIndices, [1, 2, 3]);
+  assert.deepEqual(result.expectedShotIndices, [1, 2, 3]);
+  assert.deepEqual(result.checkedBoundaryIndices, [0, 1, 2]);
+  assert.deepEqual(result.expectedBoundaryIndices, [0, 1, 2]);
+});
+
+test('final Scene repair validation fails closed when any downstream Shot is missing', () => {
+  const result = validateFinalSceneRepairCoverage({
+    targetShotIndex: 1,
+    shotCount: 4,
+    baselineRevision: 'scene-rev-1',
+    latestBaselineRevision: 'scene-rev-1',
+    shotVerifications: [1, 3].map((shotIndex) => ({ shotIndex, verification: visualResult() })),
+    boundaryVerifications: [0, 1, 2].map((previousShotIndex) => ({
+      previousShotIndex, currentShotIndex: previousShotIndex + 1, verification: visualResult(),
+    })),
+  });
+  assert.equal(result.status, 'needs_review');
+  assert.deepEqual(result.checkedShotIndices, [1, 3]);
+  assert.match(result.reasons.join(' '), /shots are missing/);
+});
+
+test('final Scene repair validation fails closed when any adjacent boundary is missing or non-adjacent', () => {
+  const result = validateFinalSceneRepairCoverage({
+    targetShotIndex: 1,
+    shotCount: 4,
+    baselineRevision: 'scene-rev-1',
+    latestBaselineRevision: 'scene-rev-1',
+    shotVerifications: [1, 2, 3].map((shotIndex) => ({ shotIndex, verification: visualResult() })),
+    boundaryVerifications: [
+      { previousShotIndex: 0, currentShotIndex: 1, verification: visualResult() },
+      { previousShotIndex: 1, currentShotIndex: 3, verification: visualResult() },
+    ],
+  });
+  assert.equal(result.status, 'needs_review');
+  assert.deepEqual(result.checkedBoundaryIndices, [0]);
+  assert.match(result.reasons.join(' '), /boundaries are missing/);
+});
+
+test('final Scene repair validation rejects stale or unavailable approved baselines', () => {
+  const base = {
+    targetShotIndex: 0,
+    shotCount: 1,
+    baselineRevision: 'scene-rev-1',
+    shotVerifications: [{ shotIndex: 0, verification: visualResult() }],
+    boundaryVerifications: [],
+  };
+  const stale = validateFinalSceneRepairCoverage({ ...base, latestBaselineRevision: 'scene-rev-2' });
+  assert.equal(stale.status, 'needs_review');
+  assert.match(stale.reasons.join(' '), /baseline changed/);
+  const unavailable = validateFinalSceneRepairCoverage({ ...base, latestBaselineRevision: null });
+  assert.equal(unavailable.status, 'needs_review');
+  assert.match(unavailable.reasons.join(' '), /could not be confirmed/);
 });
