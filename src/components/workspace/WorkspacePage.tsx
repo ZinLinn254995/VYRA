@@ -139,21 +139,25 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             shotId: shot.shotId,
           }));
         const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === 'ai_director_shot');
-        const clipsToArrange = sequence.replaceShot
-          ? [
-              ...existingDirectorClips.filter((clip) => !sequence.shots.some((shot) => shot.shotId === clip.shotId)),
-              ...incomingClips,
-            ].sort((a, b) => {
-              const aIndex = Number(a.name.match(/^Shot (\d+)/)?.[1] || 0);
-              const bIndex = Number(b.name.match(/^Shot (\d+)/)?.[1] || 0);
-              return aIndex - bIndex;
-            })
-          : incomingClips;
-        const generatedClips: SceneProjectClip[] = clipsToArrange.map((clip) => {
-          const arranged = { ...clip, start: cursor };
-          cursor += arranged.duration;
-          return arranged;
-        });
+        const generatedClips: SceneProjectClip[] = sequence.replaceShot
+          ? (() => {
+              const replaced = existingDirectorClips.map((clip) => {
+                const incoming = incomingClips.find((candidate) => candidate.shotId === clip.shotId);
+                return incoming ? { ...incoming, start: clip.start } : clip;
+              });
+              const appendAt = existingDirectorClips.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+              const missing = incomingClips
+                .filter((incoming) => !existingDirectorClips.some((clip) => clip.shotId === incoming.shotId))
+                .map((clip) => ({ ...clip, start: appendAt }));
+              const combined = [...replaced, ...missing].sort((a, b) => a.start - b.start);
+              cursor = combined.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+              return combined;
+            })()
+          : incomingClips.map((clip) => {
+              const arranged = { ...clip, start: cursor };
+              cursor += arranged.duration;
+              return arranged;
+            });
         const directorTrack: SceneProjectTrack = {
           id: trackId,
           type: 'video',
