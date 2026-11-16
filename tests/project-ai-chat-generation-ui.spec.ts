@@ -39,7 +39,7 @@ test('AI Chat invokes shot-by-shot generation only for the selected Scene in the
   assert.ok(chat.includes("workspaceContext.selectedTimelineItem?.kind === 'scene'"));
   assert.ok(chat.includes("workspaceContext?.page === 'scene-editor'"));
   assert.ok(chat.includes('const plannedShots = Array.isArray(direction?.shots) ? direction.shots : []'));
-  assert.ok(chat.includes("mediaTask === 'video' && directorScenePlan"));
+  assert.ok(chat.includes("effectiveMediaTask === 'video' && activeDirectorScenePlan"));
   assert.ok(chat.includes('maxTotalCostUsd: budget'));
   assert.ok(chat.includes('maxCostUsdPerShot: budget'));
   assert.ok(chat.includes('requestApproval: (quote, shot, shotIndex)'));
