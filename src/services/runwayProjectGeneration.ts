@@ -6,6 +6,13 @@ import {
   type CreativeScenePlan,
   type CreativeShotPlan,
 } from './creativeProductionPlanning';
+import {
+  evaluateSceneVisualVerification,
+  buildSceneVisualRepairPrompt,
+  type SceneVisualAnchor,
+  type SceneVisualObservation,
+  type SceneVisualVerificationResult,
+} from './universeSceneVisualVerification';
 
 
 type RunwayTask = Exclude<MediaTask, 'video-edit'>;
@@ -350,6 +357,25 @@ export async function recoverRunwayProjectMediaJob(
 }
 
 
+export type RunwayProjectOutputAsset = Awaited<ReturnType<typeof ingestRunwayProjectOutput>>['ingestion'];
+
+export type RunwayShotVisualVerificationAdapter = {
+  /** Immutable creator-approved Scene baseline revision captured before generation. */
+  baselineRevision: string;
+  anchors: SceneVisualAnchor[];
+  /** Inspect the ingested private video Asset using the configured vision adapter. */
+  inspect: (input: {
+    asset: RunwayProjectOutputAsset;
+    shot: CreativeShotPlan;
+    shotIndex: number;
+    shotCount: number;
+    scene: CreativeScenePlan;
+    signal?: AbortSignal;
+  }) => Promise<{ observations: SceneVisualObservation[]; inspectionComplete: boolean }>;
+  /** Read the latest approved baseline revision after inspection to detect stale results. */
+  getCurrentBaselineRevision: () => Promise<string>;
+};
+
 export type RunwayProjectShotSequenceRequest = Omit<
   RunwayProjectGenerationRequest,
   'input' | 'requestApproval' | 'maxCostUsd' | 'task'
@@ -371,6 +397,8 @@ export type RunwayProjectShotSequenceRequest = Omit<
     shot: CreativeShotPlan,
     shotIndex: number,
   ) => Promise<{ confirmed: true; maxCostUsd: number } | { confirmed: false }>;
+  /** When supplied, every generated output is inspected before the next shot is submitted. */
+  visualVerification?: RunwayShotVisualVerificationAdapter;
   onShotProgress?: (event: {
     shotId: string;
     shotIndex: number;
@@ -396,12 +424,15 @@ export type RunwayProjectShotSequenceReady = {
 };
 
 export type RunwayProjectShotSequenceResult = {
-  status: 'ready' | 'approval_declined' | 'budget_exceeded' | 'partial';
+  status: 'ready' | 'approval_declined' | 'budget_exceeded' | 'partial' | 'needs_review';
+  visualVerificationStatus: 'verified' | 'not_configured' | 'needs_review';
   completedShots: Array<{
     shotId: string;
     shotIndex: number;
     jobId: string;
-    assets: Awaited<ReturnType<typeof ingestRunwayProjectOutput>>['ingestion'][];
+    assets: RunwayProjectOutputAsset[];
+    visualVerifications?: SceneVisualVerificationResult[];
+    repairPrompts?: string[];
   }>;
   stoppedAtShotIndex: number | null;
   stoppedStatus: string | null;
@@ -538,11 +569,74 @@ export async function generateRunwayProjectShotSequence(
     if (!Array.isArray(shotAssets) || shotAssets.length === 0) {
       throw new Error('A completed shot did not return verified Project Assets.');
     }
-    completedShots.push({ shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets });
+    const visualVerifications: SceneVisualVerificationResult[] = [];
+    const repairPrompts: string[] = [];
+    if (request.visualVerification) {
+      for (const asset of shotAssets) {
+        let observations: SceneVisualObservation[] = [];
+        let inspectionComplete = false;
+        let currentBaselineRevision = request.visualVerification.baselineRevision;
+        try {
+          if (/^video\\//i.test(asset.mimeType)) {
+            const inspection = await request.visualVerification.inspect({
+              asset, shot, shotIndex, shotCount: request.scene.shots.length,
+              scene: request.scene, signal: request.signal,
+            });
+            observations = inspection.observations;
+            inspectionComplete = inspection.inspectionComplete;
+          }
+        } catch {
+          // A failed vision pass is an unknown result, never a silent pass.
+          inspectionComplete = false;
+        }
+        try {
+          currentBaselineRevision = await request.visualVerification.getCurrentBaselineRevision();
+        } catch {
+          // If the current canon revision cannot be read, fail closed as an incomplete inspection.
+          inspectionComplete = false;
+        }
+        const verification = evaluateSceneVisualVerification({
+          mediaId: asset.assetId,
+          mediaKind: 'video',
+          baselineRevision: request.visualVerification.baselineRevision,
+          currentBaselineRevision,
+          anchors: request.visualVerification.anchors,
+          observations,
+          inspectionComplete,
+        });
+        visualVerifications.push(verification);
+        repairPrompts.push(buildSceneVisualRepairPrompt(verification, shot));
+      }
+    }
+    completedShots.push({
+      shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets,
+      ...(request.visualVerification ? { visualVerifications, repairPrompts } : {}),
+    });
+    if (visualVerifications.some((verification) => verification.status !== 'consistent')) {
+      request.onShotProgress?.({
+        shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
+        status: 'visual-verification-needs-review', jobId: result.jobId,
+      });
+      // Do not generate later shots against an unverified handoff, and never
+      // auto-regenerate a paid output. Return targeted repair guidance for review.
+      return {
+        status: 'needs_review',
+        visualVerificationStatus: 'needs_review',
+        completedShots, stoppedAtShotIndex: shotIndex,
+        stoppedStatus: 'visual_verification_needs_review',
+        stoppedJobId: result.jobId,
+        approvedCostUsd,
+      };
+    }
     request.onShotProgress?.({
       shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
-      status: 'ready', jobId: result.jobId,
+      status: request.visualVerification ? 'visually-verified' : 'ready-unverified',
+      jobId: result.jobId,
     });
   }
-  return { status: 'ready', completedShots, stoppedAtShotIndex: null, stoppedStatus: null, approvedCostUsd };
+  return {
+    status: 'ready',
+    visualVerificationStatus: request.visualVerification ? 'verified' : 'not_configured',
+    completedShots, stoppedAtShotIndex: null, stoppedStatus: null, approvedCostUsd,
+  };
 }
