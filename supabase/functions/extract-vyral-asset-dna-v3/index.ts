@@ -105,7 +105,7 @@ Deno.serve(async (request: Request) => {
     const batch = pending.splice(0, pending.length);
     const outcomes = await Promise.allSettled(batch.map(async (tile) => {
       const { error } = await ctx.supabaseAdmin.storage.from(BUCKET).upload(
-        tile.path, new Blob([tile.bytes], { type: 'application/octet-stream' }),
+        tile.path, new Blob([tile.bytes.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
         { contentType: 'application/octet-stream', upsert: false, cacheControl: 'private, max-age=0' },
       );
       if (error) throw new Error(error.message);
