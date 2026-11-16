@@ -95,4 +95,8 @@ test('queued storyboard saves cannot recreate a deleted Project', async () => {
   assert.ok(workspace.includes('const queuedSave = storyboardSaveQueueRef.current.get(item.id)'));
   assert.ok(workspace.includes('if (queuedSave) await queuedSave.catch(() => undefined)'));
   assert.ok(workspace.includes('deletedStoryboardIdsRef.current.delete(item.id)'));
+  assert.ok(workspace.includes('pending.filter((item) => !deletedStoryboardIdsRef.current.has(item.id))'));
+  assert.ok(workspace.includes('pendingToUpload.map(async (item) => {'));
+  assert.ok(workspace.includes('await persistStoryboard(item)'));
+  assert.ok(workspace.includes('mergedStoryboards.filter((item) => !deletedStoryboardIdsRef.current.has(item.id))'));
 });
