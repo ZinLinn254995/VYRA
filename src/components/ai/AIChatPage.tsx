@@ -35,6 +35,7 @@ type PendingShotRepair = {
   shotIndex: number;
   previousShotAsset?: RunwayProjectOutputAsset;
   nextShotAsset?: RunwayProjectOutputAsset;
+  downstreamShotAssets?: Array<{ shotIndex: number; asset: RunwayProjectOutputAsset }>;
   promptText: string;
   productionTitle: string;
   logline: string;
@@ -2557,7 +2558,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           tone: repairRequest?.tone || direction?.tone || 'Unspecified',
           sceneIndex: repairRequest?.sceneIndex ?? direction?.sceneIndex,
           promptText: prompt,
-          ...(repairRequest ? { repair: { shotIndex: repairRequest.shotIndex, ...(repairRequest.previousShotAsset ? { previousShotAsset: repairRequest.previousShotAsset } : {}), ...(repairRequest.nextShotAsset ? { nextShotAsset: repairRequest.nextShotAsset } : {}) } } : {}),
+          ...(repairRequest ? { repair: { shotIndex: repairRequest.shotIndex, ...(repairRequest.previousShotAsset ? { previousShotAsset: repairRequest.previousShotAsset } : {}), ...(repairRequest.nextShotAsset ? { nextShotAsset: repairRequest.nextShotAsset } : {}), ...(repairRequest.downstreamShotAssets ? { downstreamShotAssets: repairRequest.downstreamShotAssets } : {}) } } : {}),
           sceneContext,
           signal: controller.signal,
           ...(visualVerification ? { visualVerification } : {}),
@@ -2605,6 +2606,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ...(shot.visualVerifications ?? []),
           ...(shot.transitionVerification ? [shot.transitionVerification] : []),
           ...(shot.outgoingTransitionVerification ? [shot.outgoingTransitionVerification] : []),
+          ...(shot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
         ].flatMap((verification) =>
           verification.findings.filter((finding) => finding.status !== 'match').map((finding) =>
             'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
@@ -2617,6 +2619,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ...(failedShot.visualVerifications ?? []),
           ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
           ...(failedShot.outgoingTransitionVerification ? [failedShot.outgoingTransitionVerification] : []),
+          ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
         ] : [];
         const baselineChangedDuringReview = failedShotVerifications.some((verification) =>
           verification.limitations.some((limitation) => limitation.includes('approved Scene baseline changed after inspection'))
@@ -2624,28 +2627,38 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const previousShotAsset = failedShot && failedShot.shotIndex > 0
           ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType)) ?? repairRequest?.previousShotAsset
           : undefined;
-        let nextShotAsset: RunwayProjectOutputAsset | undefined;
-        if (failedShot && failedShot.shotIndex + 1 < (activeDirectorScenePlan?.shots.length ?? 0)) {
-          const nextShot = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === failedShot.shotIndex + 1);
-          if (nextShot && projectSupabase) {
+        const downstreamShotAssets: Array<{ shotIndex: number; asset: RunwayProjectOutputAsset }> = [];
+        if (failedShot && projectSupabase) {
+          const downstreamIndices = (activeDirectorScenePlan?.shots ?? []).map((_shot, index) => index)
+            .filter((index) => index > failedShot.shotIndex);
+          for (const shotIndex of downstreamIndices) {
+            const existing = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === shotIndex);
+            if (!existing) continue;
             const [{ data: asset }, { data: version }] = await Promise.all([
               projectSupabase.from('vyral_assets').select('id,vyral_id,storage_path,mime_type,size_bytes,sha256')
-                .eq('id', nextShot.assetId).eq('vyral_id', storyboardUniverseId).eq('user_id', requestOwnerId).maybeSingle(),
+                .eq('id', existing.assetId).eq('vyral_id', storyboardUniverseId).eq('user_id', requestOwnerId).maybeSingle(),
               projectSupabase.from('vyral_asset_versions').select('id,storage_path,mime_type,size_bytes,sha256')
-                .eq('id', nextShot.assetVersionId).eq('asset_id', nextShot.assetId).eq('user_id', requestOwnerId).maybeSingle(),
+                .eq('id', existing.assetVersionId).eq('asset_id', existing.assetId).eq('user_id', requestOwnerId).maybeSingle(),
             ]);
-            if (asset && version && asset.id === nextShot.assetId && asset.vyral_id === storyboardUniverseId
-              && version.id === nextShot.assetVersionId && asset.storage_path === version.storage_path
-              && /^video\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
+            if (asset && version && asset.id === existing.assetId && asset.vyral_id === storyboardUniverseId
+              && version.id === existing.assetVersionId && asset.storage_path === version.storage_path
+              && /^video\\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
               && Number(version.size_bytes) > 0) {
-              nextShotAsset = {
-                assetId: asset.id, versionId: version.id, storagePath: version.storage_path,
-                mimeType: version.mime_type, sizeBytes: Number(version.size_bytes), sha256: version.sha256,
-              };
+              downstreamShotAssets.push({
+                shotIndex,
+                asset: {
+                  assetId: asset.id, versionId: version.id, storagePath: version.storage_path,
+                  mimeType: version.mime_type, sizeBytes: Number(version.size_bytes), sha256: version.sha256,
+                },
+              });
             }
           }
-          nextShotAsset = nextShotAsset ?? repairRequest?.nextShotAsset;
+          if (!downstreamShotAssets.length && repairRequest?.downstreamShotAssets?.length) {
+            downstreamShotAssets.push(...repairRequest.downstreamShotAssets);
+          }
         }
+        const nextShotAsset = downstreamShotAssets.find((item) => item.shotIndex === (failedShot?.shotIndex ?? -1) + 1)?.asset
+          ?? repairRequest?.nextShotAsset;
         const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
@@ -2665,6 +2678,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             storyboardId,
             ...(previousShotAsset ? { previousShotAsset } : {}),
             ...(nextShotAsset ? { nextShotAsset } : {}),
+            ...(downstreamShotAssets.length ? { downstreamShotAssets } : repairRequest?.downstreamShotAssets ? { downstreamShotAssets: repairRequest.downstreamShotAssets } : {}),
             promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED SHOT REPAIR:\n' + repairInstruction,
             originalPromptText: repairRequest?.originalPromptText ?? prompt,
             productionTitle: repairRequest?.productionTitle ?? direction?.productionTitle ?? workspaceContext?.activeStoryboard?.title ?? 'Project production',
@@ -2698,7 +2712,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? [
               'shot-level',
               ...(repairRequest.shotIndex > 0 ? ['incoming-boundary'] : []),
-              ...(repairRequest.shotIndex + 1 < activeDirectorScenePlan.shots.length ? ['outgoing-boundary'] : []),
+              ...(repairRequest.shotIndex + 1 < activeDirectorScenePlan.shots.length ? ['outgoing + downstream boundaries'] : []),
             ].join(', ')
           : 'shot-level';
         if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
@@ -2742,7 +2756,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: repairRequest
-            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ' + repairVerificationScope + ' checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ' + repairVerificationScope + ' checks. Its Editor clip has been replaced; all available downstream shot boundaries were re-inspected.'
             : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
@@ -2754,7 +2768,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }]);
         if (repairRequest) setPendingShotRepair(null); else setDraft('');
         setMediaGenerationStatus(repairRequest
-          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified against its approved ' + repairVerificationScope + ' checks. The matching Editor clip has been replaced; downstream boundaries still need review.'
+          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified against its approved ' + repairVerificationScope + ' checks. The matching Editor clip has been replaced; all available downstream boundaries were re-inspected.'
           : isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
