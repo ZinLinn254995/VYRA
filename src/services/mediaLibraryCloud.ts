@@ -702,7 +702,6 @@ async function runMediaLibraryThumbnailBackfill(
   userId: string,
 ): Promise<number> {
   const db = getDb();
-  const db = getDb();
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
   // Keep the PostgREST filter value free of fractional-second dots.
   const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
