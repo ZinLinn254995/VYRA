@@ -72,7 +72,7 @@ test('Project Editor wires the verified handoff into both Scene Timeline and Mas
   assert.ok(workspace.includes('buildDirectorShotTimelineClips(existingDirectorClips, sequence.shots, sequence.replaceShot)'));
   assert.ok(handoff.includes("source: 'ai_director_shot' as const"));
   assert.ok(workspace.includes('const videoClips = [...otherTracks, directorTrack]'));
-  assert.ok(workspace.includes('including manual clips preserved when an AI Director sequence is refreshed'));
+  assert.ok(workspace.includes('manual clips preserved when an AI Director sequence is refreshed'));
   assert.ok(workspace.includes(".filter((track) => track.type === 'video')"));
   assert.ok(workspace.includes("sourceIn: Math.max(0, clip.sourceIn ?? 0)"));
   assert.ok(workspace.includes('videoClips,'));
