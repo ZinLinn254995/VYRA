@@ -2328,38 +2328,42 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               <span className="sr-only">Delete</span>
             </button>
           </>
-        ) : toolbarItems.map(({ label, Icon }) => (
-          <button
-            key={label}
-            type="button"
-            title={label}
-            aria-label={label}
-            onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : label === 'Image' ? () => addSampleVisualClip('image') : label === 'Video' ? () => addSampleVisualClip('video') : label === 'Undo' ? undoTimeline : label === 'Redo' ? redoTimeline : undefined}
-            className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
-          >
-            <Icon size={22} strokeWidth={1.8} />
-          </button>
-        ))}
-                {!selectedTransitionKey && <button
-          type="button"
-          title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
-          aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
-          aria-pressed={isMagneticEnabled}
-          onClick={() => {
-            setIsMagneticEnabled((enabled) => {
-              const next = !enabled;
-              if (!next) {
-                magneticScrollLockRef.current = null;
-                magneticReleasedClusterRef.current = null;
-              }
-              return next;
-            });
-          }}
-          className={`order-1 grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
-        >
-          <Magnet size={22} strokeWidth={1.8} />
-          <span className="sr-only">Magnetic</span>
-        </button>}
+        ) : (
+          <>
+            {toolbarItems.map(({ label, Icon }) => (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                aria-label={label}
+                onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : label === 'Image' ? () => addSampleVisualClip('image') : label === 'Video' ? () => addSampleVisualClip('video') : label === 'Undo' ? undoTimeline : label === 'Redo' ? redoTimeline : undefined}
+                className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+              >
+                <Icon size={22} strokeWidth={1.8} />
+              </button>
+            ))}
+            {!isTextEditMode && <button
+              type="button"
+              title={isMagneticEnabled ? 'Turn magnetic snapping off' : 'Turn magnetic snapping on'}
+              aria-label={isMagneticEnabled ? 'Turn magnetic snapping off' : 'Turn magnetic snapping on'}
+              aria-pressed={isMagneticEnabled}
+              onClick={() => {
+                setIsMagneticEnabled((enabled) => {
+                  const next = !enabled;
+                  if (!next) {
+                    magneticScrollLockRef.current = null;
+                    magneticReleasedClusterRef.current = null;
+                  }
+                  return next;
+                });
+              }}
+              className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+            >
+              {isMagneticEnabled ? <Magnet size={22} strokeWidth={1.8} /> : <span className="relative grid place-items-center"><Magnet size={22} strokeWidth={1.8} /><Slash size={22} strokeWidth={1.8} className="absolute" /></span>}
+              <span className="sr-only">Magnetic</span>
+            </button>}
+          </>
+        )}
       </div>
     </nav>
   );
