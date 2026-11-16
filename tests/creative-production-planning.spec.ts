@@ -97,6 +97,7 @@ test('production planning instructions are connected to authenticated Project ch
   assert.match(planning, /propose_scene_mutation/);
   assert.match(planning, /propose_scene_batch_create/);
   assert.match(edge, /name: 'propose_scene_batch_create'/);
+  assert.ok(edge.includes('max_completion_tokens: 6000'));
   assert.ok(edge.includes("operation: 'scene.batch_create'"));
   assert.match(edge, /isSceneBatchCreate/);
   assert.match(edge, /createdScenes/);
