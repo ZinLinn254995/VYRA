@@ -626,7 +626,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const boundary = scenesRowBoundary;
     const legacySceneBoundary = sceneTransitionMarkers.find((item) => Math.abs(item.boundary - boundary) <= 0.001);
     const key = legacySceneBoundary?.key || (clip.id + ':' + nextClip.id);
-    return { key, boundary, rowIndex: entry.trackIndex, transition: value?.transitions?.[key] };
+    return { key, boundary, rowIndex: entry.trackIndex, clipId: clip.id, nextClipId: nextClip.id, transition: value?.transitions?.[key] };
   });
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
@@ -1873,10 +1873,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                 let sceneCardOffset = 0;
                 return (
                   <div key={track.id} data-video-track-id={track.id} className="relative flex h-16 items-center gap-0 py-2">
-                    {sceneStyleClips.map((clip, clipIndex) => {
+                    {sceneStyleClips.map((clip) => {
                       const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
                       const width = Math.max(24, clip.duration * pixelsPerSecond);
-                      const left = sceneCardOffset;
                       sceneCardOffset += width;
                       const isSelected = selectedVisualClipId === clip.id;
                       return (
@@ -1900,7 +1899,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                         </button>
                       );
                     })}
-                    {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex && !selectedVisualClipId).map(({ key, boundary, transition }) => (
+                    {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex && marker.clipId !== selectedVisualClipId && marker.nextClipId !== selectedVisualClipId).map(({ key, boundary, transition }) => (
                       <button key={key} type="button" data-timeline-transition-key={key}
                         title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
                         aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
