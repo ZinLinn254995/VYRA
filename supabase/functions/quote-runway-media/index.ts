@@ -41,7 +41,16 @@ function cleanInput(task: Task, value: unknown): Record<string, unknown> | null 
     const refs = result.referenceImages;
     const max = task === 'image' ? 16 : 4;
     if (!Array.isArray(refs) || refs.length > max || refs.some((ref) =>
-      !isRecord(ref) || typeof ref.uri !== 'string' || !ref.uri.startsWith('https://'))) return null;
+      !isRecord(ref) || typeof ref.uri !== 'string' || ref.uri.length > 2048 || !ref.uri.startsWith('https://'))) return null;
+    if (task === 'video') {
+      const roles = refs.map((ref) => isRecord(ref) ? ref.role : null);
+      if (roles.some((role) => !['first', 'last', 'reference'].includes(String(role)))) return null;
+      if (roles.filter((role) => role === 'first').length > 1 || roles.filter((role) => role === 'last').length > 1) return null;
+      result.referenceImages = refs.map((ref) => ({ uri: (ref as Record<string, unknown>).uri, role: (ref as Record<string, unknown>).role }));
+    } else {
+      // Image Router accepts URI-only references; do not forward video-only role hints.
+      result.referenceImages = refs.map((ref) => ({ uri: (ref as Record<string, unknown>).uri }));
+    }
   }
   if (result.referenceAudios !== undefined) {
     if (!Array.isArray(result.referenceAudios) || result.referenceAudios.length > 4 ||
