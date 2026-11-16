@@ -199,6 +199,53 @@ test('shot orchestrator stops before the next paid Shot when visual inspection f
   assert.equal(result.completedShots[0].visualVerifications?.[0].status, 'needs_review');
 });
 
+test('shot orchestrator completes the ordered sequence only after every Shot and handoff is visually verified', async () => {
+  const generated: number[] = [];
+  const inspected: number[] = [];
+  const transitions: Array<[string, string, number, number]> = [];
+  const approvals: number[] = [];
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    const shotIndex = generated.length;
+    generated.push(shotIndex);
+    const quote = sequenceQuote(0.2);
+    const approval = await mediaRequest.requestApproval(quote);
+    if (!approval.confirmed) return { status: 'approval_declined' as const, quote };
+    approvals.push(shotIndex);
+    return { status: 'ready' as const, quote, jobId: 'verified-job-' + shotIndex, assets: [sequenceAsset(shotIndex)] };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb,
+    sequenceRequest({
+      requestApproval: async (_quote, _shot, shotIndex) => ({ confirmed: true as const, maxCostUsd: 0.25 }),
+      visualVerification: {
+        baselineRevision: 'scene-rev-1',
+        anchors: [{ path: 'character.identity', expectedValue: 'A', scope: 'persistent', visibility: 'required' }],
+        inspect: async ({ asset, shotIndex }) => {
+          inspected.push(shotIndex);
+          return { inspectionComplete: true, observations: [] };
+        },
+        inspectTransition: async ({ previousAsset, currentAsset, previousShotIndex, currentShotIndex }) => {
+          transitions.push([previousAsset.assetId, currentAsset.assetId, previousShotIndex, currentShotIndex]);
+          return { inspectionComplete: true, observations: [] };
+        },
+        getCurrentBaselineRevision: async () => 'scene-rev-1',
+      },
+    }),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'ready');
+  assert.equal(result.visualVerificationStatus, 'verified');
+  assert.deepEqual(generated, [0, 1]);
+  assert.deepEqual(approvals, [0, 1]);
+  assert.deepEqual(inspected, [0, 1]);
+  assert.deepEqual(transitions, [['asset-0', 'asset-1', 0, 1]]);
+  assert.deepEqual(result.completedShots.map((shot) => shot.shotIndex), [0, 1]);
+  assert.ok(result.completedShots.every((shot) => shot.visualVerifications?.every((item) => item.status === 'consistent')));
+  assert.equal(result.completedShots[1].transitionVerification?.status, 'consistent');
+  assert.equal(result.approvedCostUsd, 0.5);
+});
+
 test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
   const calls: number[] = [];
   const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
