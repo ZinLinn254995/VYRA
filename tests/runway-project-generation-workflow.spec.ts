@@ -292,3 +292,20 @@ test('final Scene repair validation rejects stale or unavailable approved baseli
   assert.equal(unavailable.status, 'needs_review');
   assert.match(unavailable.reasons.join(' '), /could not be confirmed/);
 });
+
+
+test('final Scene repair validation rejects any non-consistent inspection even when another inspection of that Shot passed', () => {
+  const result = validateFinalSceneRepairCoverage({
+    targetShotIndex: 0,
+    shotCount: 1,
+    baselineRevision: 'scene-rev-1',
+    latestBaselineRevision: 'scene-rev-1',
+    shotVerifications: [
+      { shotIndex: 0, verification: visualResult() },
+      { shotIndex: 0, verification: visualResult('needs_review') },
+    ],
+    boundaryVerifications: [],
+  });
+  assert.equal(result.status, 'needs_review');
+  assert.match(result.reasons.join(' '), /did not pass visual continuity verification/);
+});
