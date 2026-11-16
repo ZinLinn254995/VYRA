@@ -28,6 +28,8 @@ export type VyralAssetIngestionResult = {
   mimeType: string;
   sizeBytes: number;
   dnaKind: 'raster-v3' | 'universal-file-v1';
+  /** Raster Assets are independently read back before upload completion; failures remain retryable. */
+  exactVerificationStatus: 'passed' | 'pending' | 'not_applicable';
   audioTechnicalMetadata?: { schemaVersion: 1; sourceSha256: string; durationSeconds: number; waveformPeaks: number[]; extraction: 'browser-audio-decode' };
   videoTechnicalMetadata?: VyralVideoTechnicalMetadata;
 };
@@ -55,7 +57,8 @@ export type VyralAssetIngestionPort = {
   uploadOriginal(path: string, file: File, mimeType: string): Promise<void>;
   createVersion(record: VyralAssetVersionInsert): Promise<string>;
   createFingerprint(input: { assetId: string; versionId: string; userId: string; sha256: string }): Promise<void>;
-  extractRasterDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
+  extractRasterDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string; dnaRecordId?: string }>;
+  verifyRasterDna(assetId: string, versionId: string, dnaRecordId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
   insertDna(record: VyralAssetDnaInsert): Promise<void>;
   hasDnaRecord(assetId: string, userId: string): Promise<boolean>;
   markReady(assetId: string, userId: string): Promise<void>;
@@ -310,6 +313,7 @@ export async function ingestVyralAsset(
   let versionId: string | null = null;
   let storageUploaded = false;
   let dnaCommitted = false;
+  let exactVerificationStatus: VyralAssetIngestionResult['exactVerificationStatus'] = 'not_applicable';
 
   try {
     await port.createAsset({
@@ -345,7 +349,7 @@ export async function ingestVyralAsset(
     if (rasterDna) {
       const extraction = await port.extractRasterDna(assetId, versionId, input.signal);
       assertNotAborted();
-      if (extraction.status !== 'extracted') {
+      if (extraction.status !== 'extracted' || !extraction.dnaRecordId) {
         const alreadyCommitted = await port.hasDnaRecord(assetId, input.userId);
         if (alreadyCommitted) {
           dnaCommitted = true;
@@ -356,6 +360,20 @@ export async function ingestVyralAsset(
         throw new Error('Required raster DNA v3 extraction failed: ' + (extraction.error || 'server extraction did not complete.'));
       }
       dnaCommitted = true;
+      // Verify the persisted DNA tiles against a fresh decode of the immutable source
+      // before any upload entry point reports the Asset as fully synchronized.
+      try {
+        const verification = await port.verifyRasterDna(assetId, versionId, extraction.dnaRecordId, input.signal);
+        assertNotAborted();
+        exactVerificationStatus = verification.status === 'passed' ? 'passed' : 'pending';
+        if (exactVerificationStatus !== 'passed') {
+          console.warn('[vyral-dna-v3] Upload succeeded, but exact readback remains pending.', verification.error ?? verification.status);
+        }
+      } catch (verificationError) {
+        if (input.signal?.aborted) throw verificationError;
+        exactVerificationStatus = 'pending';
+        console.warn('[vyral-dna-v3] Upload succeeded, but exact readback could not complete and will be retried.', verificationError);
+      }
     } else {
       const structurePrefix = new Uint8Array(
         await file.slice(0, Math.min(file.size, 8 * 1024 * 1024)).arrayBuffer(),
@@ -404,7 +422,7 @@ export async function ingestVyralAsset(
     }
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
-      sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
+      sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1', exactVerificationStatus,
       ...(audioTechnicalMetadata ? { audioTechnicalMetadata } : {}),
       ...(videoTechnicalMetadata ? { videoTechnicalMetadata } : {}),
     };
@@ -525,7 +543,9 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       const { data, error } = await db.functions.invoke('extract-vyral-asset-dna-v3', {
         body: { assetId, versionId }, signal,
       });
-      if (!error && data?.status === 'extracted') return { status: 'extracted' };
+      if (!error && data?.status === 'extracted' && typeof data?.dnaRecordId === 'string') {
+        return { status: 'extracted', dnaRecordId: data.dnaRecordId };
+      }
       let detail = data?.error ?? error?.message ?? 'Server-side DNA extraction did not complete.';
       const response = (error as { context?: Response } | null)?.context;
       if (response && typeof response.clone === 'function') {
@@ -534,6 +554,14 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
           if (typeof payload?.error === 'string') detail = payload.error;
         } catch { /* Keep the SDK error when response is not JSON. */ }
       }
+      return { status: data?.status ?? 'failed', error: detail };
+    },
+    async verifyRasterDna(assetId, versionId, dnaRecordId, signal) {
+      const { data, error } = await db.functions.invoke('verify-vyral-dna-v3', {
+        body: { assetId, versionId, dnaRecordId }, signal,
+      });
+      if (!error && data?.status === 'passed' && data?.originalBytesUnchanged === true) return { status: 'passed' };
+      const detail = data?.error ?? error?.message ?? 'Exact DNA readback has not passed yet.';
       return { status: data?.status ?? 'failed', error: detail };
     },
     async insertDna(record) {
