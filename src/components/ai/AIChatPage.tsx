@@ -26,6 +26,7 @@ import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetInge
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
+import { buildSceneVisualInspectionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
@@ -56,6 +57,7 @@ type AIChatPageProps = {
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 type VyralVisionImage = { mimeType: 'image/jpeg'; data: string; width: number; height: number };
+type VyralVisionVideoFrame = VyralVisionImage & { assetId: string; assetName: string; frameTimeMs: number };
 
 const createVyralVisionPreview = async (pngBytes: Uint8Array): Promise<VyralVisionImage> => {
   const pngBuffer = new ArrayBuffer(pngBytes.byteLength);
@@ -134,7 +136,7 @@ const extractSelectedVideoFrames = async (
   assetId: string,
   assetName: string,
   maxFrames: number,
-): Promise<(VyralVisionImage & { assetId: string; assetName: string })[]> => {
+): Promise<VyralVisionVideoFrame[]> => {
   if (maxFrames <= 0) return [];
   const objectUrl = URL.createObjectURL(source);
   const video = document.createElement('video');
@@ -159,7 +161,7 @@ const extractSelectedVideoFrames = async (
     const timestamps = Array.from({ length: frameCount }, (_, index) =>
       frameCount === 1 ? 0 : Math.min(Math.max(0, duration - 0.05), duration * index / frameCount)
     ).filter((time, index, all) => all.indexOf(time) === index);
-    const frames: (VyralVisionImage & { assetId: string; assetName: string })[] = [];
+    const frames: VyralVisionVideoFrame[] = [];
     for (const time of timestamps) {
       if (Math.abs(video.currentTime - time) > 0.02) {
         await new Promise<void>((resolve, reject) => {
@@ -186,7 +188,7 @@ const extractSelectedVideoFrames = async (
       const preview = await createSelectedAssetVisionPreview(frameBlob);
       const minutes = Math.floor(time / 60).toString().padStart(2, '0');
       const seconds = Math.floor(time % 60).toString().padStart(2, '0');
-      frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}` });
+      frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}`, frameTimeMs: Math.round(time * 1000) });
     }
     return frames;
   } finally {
@@ -202,6 +204,58 @@ const canonicalizeAttachmentJson = (value: unknown): string => {
   if (Array.isArray(value)) return '[' + value.map(canonicalizeAttachmentJson).join(',') + ']';
   const record = value as Record<string, unknown>;
   return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + canonicalizeAttachmentJson(record[key])).join(',') + '}';
+};
+
+const collectSceneVisualAnchors = (state: Record<string, unknown>): SceneVisualAnchor[] => {
+  const anchors: SceneVisualAnchor[] = [];
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 12) throw new Error('The approved Scene state is too deeply nested for visual verification.');
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const entries = Object.entries(value as Record<string, unknown>);
+      if (!entries.length) {
+        if (path) anchors.push({ path, expectedValue: {}, scope: 'persistent', visibility: 'required' });
+        return;
+      }
+      for (const [key, child] of entries) {
+        if (!/^[A-Za-z0-9_$-]+$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key)) {
+          throw new Error('The approved Scene state contains a visual anchor with an unsupported path.');
+        }
+        visit(child, path ? path + '.' + key : key, depth + 1);
+      }
+      return;
+    }
+    if (!path) return;
+    canonicalizeAttachmentJson(value);
+    const temporary = /(^|\\.)(pose|position|expression|camera|framing|lighting|motion|blocking|screenDirection|screen_direction)(\\.|$)/i.test(path);
+    anchors.push({
+      path, expectedValue: value,
+      scope: temporary ? 'scene_state' : 'persistent',
+      visibility: 'required',
+    });
+    if (anchors.length > 120) throw new Error('The approved Scene state contains too many visual anchors for one shot inspection.');
+  };
+  visit(state, '', 0);
+  return anchors;
+};
+
+const getSceneVisualBaselineRevision = async (
+  context: WorkspaceAiContext | null | undefined,
+  sceneId: string,
+): Promise<string> => {
+  const continuity = context?.activeSceneId === sceneId ? context.sceneContinuity : null;
+  if (!continuity || !continuity.contextComplete || continuity.entrySnapshotStale
+    || continuity.validationStatus !== 'creator_approved' || !continuity.currentEntryState) {
+    throw new Error('A current creator-approved Scene entry state is required for visual verification.');
+  }
+  const baseline = canonicalizeAttachmentJson({
+    sceneId,
+    previousSceneId: continuity.previousSceneId,
+    currentEntryState: continuity.currentEntryState,
+    intendedChanges: continuity.intendedChanges,
+    validationStatus: continuity.validationStatus,
+  });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baseline));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
 const inspectVyralAttachment = async (file: File) => {
@@ -353,6 +407,8 @@ const inspectVyralAttachment = async (file: File) => {
 };
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, onShotSequenceReady, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
+  const workspaceContextRef = useRef(workspaceContext);
+  workspaceContextRef.current = workspaceContext;
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -2332,6 +2388,65 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           shots: plannedShots,
         }
         : null;
+      let visualVerification: Parameters<typeof generateRunwayProjectShotSequence>[1]['visualVerification'];
+      const visualBaseline = workspaceContext?.activeSceneId === selectedSceneId
+        ? workspaceContext.sceneContinuity : null;
+      if (mediaTask === 'video' && directorScenePlan && visualBaseline?.contextComplete
+        && !visualBaseline.entrySnapshotStale && visualBaseline.validationStatus === 'creator_approved'
+        && visualBaseline.currentEntryState) {
+        const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState);
+        if (anchors.length) {
+          const baselineRevision = await getSceneVisualBaselineRevision(workspaceContext, selectedSceneId!);
+          visualVerification = {
+            baselineRevision,
+            anchors,
+            getCurrentBaselineRevision: () => getSceneVisualBaselineRevision(workspaceContextRef.current, selectedSceneId!),
+            inspect: async ({ asset, shot, shotIndex, shotCount, scene, signal }) => {
+              if (!supabase || !/^video\\//i.test(asset.mimeType)) {
+                return { observations: [], inspectionComplete: false };
+              }
+              const { data: signed, error: signedError } = await supabase.storage
+                .from('vyral-assets').createSignedUrl(asset.storagePath, 300);
+              if (signedError || !signed?.signedUrl) throw new Error('The private generated shot could not be opened for visual inspection.');
+              const response = await fetch(signed.signedUrl, {
+                cache: 'no-store', redirect: 'error', ...(signal ? { signal } : {}),
+              });
+              if (!response.ok) throw new Error('The generated shot could not be downloaded for visual inspection.');
+              const blob = await response.blob();
+              if (blob.size <= 0 || blob.size > 128 * 1024 * 1024) {
+                throw new Error('The generated shot exceeds the safe visual inspection size limit.');
+              }
+              const frames = await extractSelectedVideoFrames(blob, asset.assetId, 'Shot ' + (shotIndex + 1), 4);
+              if (!frames.length) return { observations: [], inspectionComplete: false };
+              const accessToken = await getCurrentAccessToken();
+              if (!accessToken) throw new Error('The signed-in session is unavailable for AI Vision inspection.');
+              const vision = await aiService.generateResponse({
+                messages: [{
+                  role: 'user',
+                  content: buildSceneVisualInspectionPrompt({
+                    sceneTitle: scene.title,
+                    shotIndex,
+                    shotCount,
+                    shotPurpose: shot.purpose,
+                    shotAction: shot.action,
+                    anchors,
+                    frameTimesMs: frames.map((frame) => frame.frameTimeMs),
+                  }),
+                }],
+                accessToken,
+                signal,
+                visionImages: frames.map(({ mimeType, data, assetId, assetName }) => ({
+                  mimeType, data, assetId, assetName,
+                })),
+              });
+              if (vision.status !== 'success') throw new Error(vision.errorMessage || 'AI Vision could not inspect the generated shot.');
+              return parseSceneVisualInspection(
+                vision.content, anchors, frames.map((frame) => frame.frameTimeMs),
+              );
+            },
+          };
+        }
+      }
       const onGenerationProgress = (progress: Parameters<NonNullable<Parameters<typeof generateRunwayProjectMedia>[1]['onProgress']>>[0]) => {
         if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
         else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
@@ -2366,6 +2481,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           promptText: prompt,
           sceneContext,
           signal: controller.signal,
+          ...(visualVerification ? { visualVerification } : {}),
           onProgress: onGenerationProgress,
           onShotProgress: (event) => setMediaGenerationStatus('Shot ' + (event.shotIndex + 1) + ' of ' + event.shotCount + ' · ' + event.status + (event.jobId ? ' · Job ' + event.jobId : '')),
           requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose),
@@ -2392,6 +2508,34 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMediaGenerationStatus('Shot sequence paused at Shot ' + stoppedShot + ' (' + (result.stoppedStatus ?? 'pending') + '). ' +
           completed + ' earlier shot(s) are saved in Project Assets.' +
           (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
+      } else if ('completedShots' in result && result.status === 'needs_review') {
+        const linkedShots = result.completedShots.flatMap((shot) => {
+          const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
+          const shotPlan = directorScenePlan?.shots[shot.shotIndex];
+          return asset && shotPlan ? [{
+            shotId: shot.shotId, shotIndex: shot.shotIndex, durationSeconds: shotPlan.durationSeconds,
+            assetId: asset.assetId, assetVersionId: asset.versionId, mimeType: asset.mimeType,
+          }] : [];
+        });
+        if (linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && directorScenePlan && storyboardId) {
+          onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+        }
+        const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
+        const findings = result.completedShots.flatMap((shot) => (shot.visualVerifications ?? []).flatMap((verification) =>
+          verification.findings.filter((finding) => finding.status !== 'match').map((finding) =>
+            'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
+          )
+        ));
+        const detail = findings.length ? findings.join('\\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
+        setMessages((previous) => [...previous, {
+          id: makeId(), role: 'assistant', status: 'success',
+          content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+            '. The generated Asset is saved in Project Assets and linked to the Editor for review.\\n\\n' +
+            detail + (repair.length ? '\\n\\n' + repair.join('\\n\\n') : '') +
+            '\\n\\nNo later shots were generated and no automatic paid regeneration was attempted.',
+        }]);
+        setMediaGenerationStatus('Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+          '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.');
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
         if ('completedShots' in result && directorScenePlan && storyboardId) {
@@ -2435,11 +2579,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           content: (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
-            generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\\n\\n' + summary,
+            generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.' +
+            (isShotSequence && result.visualVerificationStatus === 'verified'
+              ? ' All generated shots also passed the required sampled-frame visual continuity checks; creator approval is still required.'
+              : isShotSequence ? ' Visual continuity was not automatically verified because no current creator-approved Scene baseline was available.' : '') +
+            '\\n\\n' + summary,
         }]);
         setDraft('');
         setMediaGenerationStatus(isShotSequence
-          ? 'Completed. All planned shots are saved in Project Assets. ' + (shotSequenceLinkMessage || 'Open the Scene to review its timeline links.')
+          ? 'Completed. All planned shots are saved in Project Assets. ' +
+            (result.visualVerificationStatus === 'verified'
+              ? 'Sampled-frame visual continuity checks passed; creator review is still required. '
+              : 'Visual continuity remains unverified because no approved baseline was available. ') +
+            (shotSequenceLinkMessage || 'Open the Scene to review its timeline links.')
           : 'Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
         setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
