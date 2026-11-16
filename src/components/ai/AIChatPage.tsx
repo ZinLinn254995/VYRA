@@ -34,6 +34,7 @@ type PendingShotRepair = {
   scene: CreativeScenePlan;
   shotIndex: number;
   previousShotAsset?: RunwayProjectOutputAsset;
+  nextShotAsset?: RunwayProjectOutputAsset;
   promptText: string;
   productionTitle: string;
   logline: string;
@@ -2556,7 +2557,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           tone: repairRequest?.tone || direction?.tone || 'Unspecified',
           sceneIndex: repairRequest?.sceneIndex ?? direction?.sceneIndex,
           promptText: prompt,
-          ...(repairRequest ? { repair: { shotIndex: repairRequest.shotIndex, ...(repairRequest.previousShotAsset ? { previousShotAsset: repairRequest.previousShotAsset } : {}) } } : {}),
+          ...(repairRequest ? { repair: { shotIndex: repairRequest.shotIndex, ...(repairRequest.previousShotAsset ? { previousShotAsset: repairRequest.previousShotAsset } : {}), ...(repairRequest.nextShotAsset ? { nextShotAsset: repairRequest.nextShotAsset } : {}) } } : {}),
           sceneContext,
           signal: controller.signal,
           ...(visualVerification ? { visualVerification } : {}),
@@ -2603,6 +2604,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const findings = result.completedShots.flatMap((shot) => [
           ...(shot.visualVerifications ?? []),
           ...(shot.transitionVerification ? [shot.transitionVerification] : []),
+          ...(shot.outgoingTransitionVerification ? [shot.outgoingTransitionVerification] : []),
         ].flatMap((verification) =>
           verification.findings.filter((finding) => finding.status !== 'match').map((finding) =>
             'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
@@ -2614,6 +2616,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const failedShotVerifications = failedShot ? [
           ...(failedShot.visualVerifications ?? []),
           ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
+          ...(failedShot.outgoingTransitionVerification ? [failedShot.outgoingTransitionVerification] : []),
         ] : [];
         const baselineChangedDuringReview = failedShotVerifications.some((verification) =>
           verification.limitations.some((limitation) => limitation.includes('approved Scene baseline changed after inspection'))
@@ -2621,6 +2624,28 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const previousShotAsset = failedShot && failedShot.shotIndex > 0
           ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType)) ?? repairRequest?.previousShotAsset
           : undefined;
+        let nextShotAsset: RunwayProjectOutputAsset | undefined;
+        if (failedShot && failedShot.shotIndex + 1 < (activeDirectorScenePlan?.shots.length ?? 0)) {
+          const nextShot = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === failedShot.shotIndex + 1);
+          if (nextShot && projectSupabase) {
+            const [{ data: asset }, { data: version }] = await Promise.all([
+              projectSupabase.from('vyral_assets').select('id,vyral_id,storage_path,mime_type,size_bytes,sha256')
+                .eq('id', nextShot.assetId).eq('vyral_id', storyboardUniverseId).eq('user_id', requestOwnerId).maybeSingle(),
+              projectSupabase.from('vyral_asset_versions').select('id,storage_path,mime_type,size_bytes,sha256')
+                .eq('id', nextShot.assetVersionId).eq('asset_id', nextShot.assetId).eq('user_id', requestOwnerId).maybeSingle(),
+            ]);
+            if (asset && version && asset.id === nextShot.assetId && asset.vyral_id === storyboardUniverseId
+              && version.id === nextShot.assetVersionId && asset.storage_path === version.storage_path
+              && /^video\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
+              && Number(version.size_bytes) > 0) {
+              nextShotAsset = {
+                assetId: asset.id, versionId: version.id, storagePath: version.storage_path,
+                mimeType: version.mime_type, sizeBytes: Number(version.size_bytes), sha256: version.sha256,
+              };
+            }
+          }
+          nextShotAsset = nextShotAsset ?? repairRequest?.nextShotAsset;
+        }
         const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
@@ -2639,6 +2664,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
             storyboardId,
             ...(previousShotAsset ? { previousShotAsset } : {}),
+            ...(nextShotAsset ? { nextShotAsset } : {}),
             promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED SHOT REPAIR:\n' + repairInstruction,
             originalPromptText: repairRequest?.originalPromptText ?? prompt,
             productionTitle: repairRequest?.productionTitle ?? direction?.productionTitle ?? workspaceContext?.activeStoryboard?.title ?? 'Project production',
