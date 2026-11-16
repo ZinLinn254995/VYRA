@@ -80,7 +80,8 @@
     "test:vyral-asset-restore-action": "node --import tsx --test tests/vyral-asset-restore-action.spec.ts",
     "test:media-library-cloud": "node --import tsx --test tests/media-library-cloud.spec.ts",
     "test:ai-chat-history": "node --import tsx --test tests/ai-chat-history.spec.ts",
-    "test:scene-visual-verification": "node --import tsx --test tests/universe-scene-visual-verification.spec.ts"
+    "test:scene-visual-verification": "node --import tsx --test tests/universe-scene-visual-verification.spec.ts",
+    "test:shot-orchestrator": "node --import tsx --test tests/runway-project-generation-workflow.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
