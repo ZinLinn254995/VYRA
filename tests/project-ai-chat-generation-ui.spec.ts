@@ -92,6 +92,9 @@ test('Master Editor preview schedules each generated Scene shot Asset in order',
   assert.ok(videoPlanner.includes("instance.id + ':' + clip.id"));
   assert.ok(videoPlanner.includes('clipStart = sceneStart + clip.start'));
   assert.ok(videoPlanner.includes('assetVersionId: clip.assetVersionId'));
+  assert.ok(videoPlanner.includes('if (Array.isArray(instance.videoClips))'));
+  assert.ok(workspace.includes('if (patch.project?.timeline)'));
+  assert.ok(workspace.includes('details.masterTimeline = { ...master, sceneInstances: nextInstances }'));
 });
 
 test('Project Editor navigation stays above its video preview and Scene management remains in Editor', () => {
