@@ -60,7 +60,7 @@ function collectEvidence(value: unknown, depth = 0): string[] {
 export async function buildRunwayProjectConsistencyContext(
   db: ProjectContextDb,
   input: { userId: string; targetVyralId: string; promptText: string },
-): Promise<{ promptText: string; assetCount: number; selectedAssetCount: number; mode: 'broad' | 'targeted' | 'fallback' }> {
+): Promise<{ promptText: string; assetCount: number; selectedAssetCount: number; mode: 'broad' | 'targeted' | 'fallback'; referenceImages: Array<{ uri: string }> }> {
   const { data: rows, error } = await db.from('vyral_assets')
     .select('id,name,asset_type,mime_type,metadata,storage_path')
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
