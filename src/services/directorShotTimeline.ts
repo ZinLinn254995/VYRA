@@ -54,7 +54,7 @@ export function buildDirectorShotTimelineClips(
     let shiftAfter = 0;
     const replaced = orderedExisting.map((clip) => {
       const shiftedStart = clip.start + shiftAfter;
-      const candidate = replacementByShot.get(clip.shotId);
+      const candidate = clip.shotId ? replacementByShot.get(clip.shotId) : undefined;
       if (!candidate) return { ...clip, start: shiftedStart };
       const replacementClip = { ...candidate, start: shiftedStart };
       // Keep the Director sequence contiguous: if a repaired Shot changes
