@@ -79,7 +79,7 @@ test('completed Director shots are linked to the selected Scene Project timeline
   assert.ok(workspace.includes("'ai-director-shots-' + scene.id"));
   assert.ok(shotTimeline.includes("source: 'ai_director_shot' as const"));
   assert.ok(workspace.includes('assetVersionId: clip.assetVersionId!'));
-  assert.ok(workspace.includes('assetMimeType: clip.assetMimeType!'));
+  assert.ok(workspace.includes('assetMimeType: clip.assetMimeType'));
   assert.ok(workspace.includes('preservedManualClips'));
   assert.ok(workspace.includes('Generated Director shots are saved as linked Project Assets in this Scene Timeline'));
   assert.ok(workspace.includes('Linked private Project Asset'));
@@ -91,7 +91,7 @@ test('Master Editor preview schedules each generated Scene shot Asset in order',
   assert.ok(workspace.includes('assetId: videoClips[0]?.assetId'));
   assert.ok(workspace.includes('videoSourceOut: videoClips[0]?.sourceOut'));
   assert.ok(workspace.includes('assetId: videoClips[0]?.assetId'));
-  assert.ok(workspace.includes('const videoClips = generatedClips.map'));
+  assert.ok(workspace.includes('const videoClips = [...otherTracks, directorTrack]'));
   assert.ok(masterEditor.includes('videoClips?: TimelineClip[]'));
   assert.ok(masterEditor.includes('instance.videoClips?.some((clip)'));
   assert.ok(videoPlanner.includes('Array.isArray(instance.videoClips)'));
@@ -175,7 +175,7 @@ test('shot repair handoff replaces only the matching Editor clip and preserves t
   assert.ok(shotTimeline.includes('shiftAfter += replacementClip.duration - clip.duration;'));
   assert.ok(shotTimeline.includes('const appendAt = orderedExisting.reduce'));
   assert.ok(shotTimeline.includes('clips = [...replaced, ...missing].sort((a, b) => a.start - b.start);'));
-  assert.ok(workspace.includes('const videoClips = generatedClips.map'));
+  assert.ok(workspace.includes('const videoClips = [...otherTracks, directorTrack]'));
 });
 
 
