@@ -739,12 +739,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       videoTracks,
       textTracks: shiftTracks(value?.textTracks || []),
     });
-    const scrollElement = scrollRef.current;
-    if (scrollElement) {
-      requestAnimationFrame(() => {
-        scrollElement.scrollLeft = Math.max(0, scrollElement.scrollLeft + offset * pixelsPerSecondRef.current);
-      });
-    }
   };
 
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
@@ -2062,7 +2056,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                   const fixedEnd = initialStart + initialDuration;
                                   // Images have no source-in limit and may extend left of 00:00.
                                   // Videos remain bounded by the actual source media available before sourceIn.
-                                  const sourceStartBoundary = isImage ? Number.NEGATIVE_INFINITY : Math.max(0, initialStart - initialSourceIn);
+                                  const sourceStartBoundary = isImage ? Number.NEGATIVE_INFINITY : initialStart - initialSourceIn;
                                   nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
                                   nextClipDuration = fixedEnd - nextClipStart;
                                   rippleDelta = nextClipStart - initialStart;
