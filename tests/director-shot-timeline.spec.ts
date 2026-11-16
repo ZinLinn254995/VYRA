@@ -98,4 +98,6 @@ test('queued storyboard saves cannot recreate a deleted Project', async () => {
   assert.ok(workspace.includes('pending.filter((item) => !deletedStoryboardIdsRef.current.has(item.id))'));
   assert.ok(workspace.includes('pendingToUpload.map((item) => persistStoryboard(item))'));
   assert.ok(workspace.includes('mergedStoryboards.filter((item) => !deletedStoryboardIdsRef.current.has(item.id))'));
+  assert.ok(workspace.includes('__vyraDeletedAt: new Date().toISOString()'));
+  assert.ok(workspace.includes(".update({ details: deletionDetails, updated_at: deletionDetails.__vyraDeletedAt })"));
 });
