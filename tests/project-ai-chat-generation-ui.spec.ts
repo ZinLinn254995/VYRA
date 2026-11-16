@@ -228,6 +228,6 @@ test('shot repair resolves all existing downstream Director Assets for ordered c
 
 test('successful repair status reports the actual incoming and outgoing verification scope', () => {
   assert.ok(chat.includes('repairVerificationScope'));
-  assert.ok(chat.includes("'outgoing-boundary'"));
+  assert.ok(chat.includes("'outgoing + downstream boundaries'"));
   assert.ok(chat.includes("'incoming-boundary'"));
 });
