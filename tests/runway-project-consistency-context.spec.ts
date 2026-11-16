@@ -253,6 +253,39 @@ test('Master Editor selected Scene uses its own approved continuity state', () =
   assert.doesNotMatch(result.promptText, /Stale description should not appear/);
 });
 
+test('selected Scene shot plan is carried into the generation prompt in order', () => {
+  const result = buildRunwaySceneContinuityPrompt('Create this Scene.', {
+    page: 'scene-editor',
+    activeSceneId: 'scene-shot-plan',
+    activeSceneTitle: 'Warehouse fight',
+    continuityRuntime: {
+      sceneIds: ['scene-shot-plan'],
+      scenes: [{
+        id: 'scene-shot-plan', title: 'Warehouse fight',
+        creativeDirection: {
+          productionTitle: 'Night Shift', logline: 'A confrontation turns into an escape.',
+          purpose: 'Show the first reversal.', location: 'Abandoned warehouse',
+          characters: ['A', 'B'], entryState: 'A stands by the loading door.',
+          action: 'A and B fight, then B escapes.', exitState: 'B exits through the loading door.',
+          shots: [
+            { id: 'shot-1', purpose: 'Establish geography', durationSeconds: 4, framing: 'Wide', cameraAngle: 'Eye level', cameraMovement: 'Slow push', composition: 'Both fighters and door visible', lighting: 'Cool overhead light', focus: 'Deep focus', sound: 'Warehouse hum', action: 'A and B face each other', continuityNotes: ['Door stays behind A'] },
+            { id: 'shot-2', purpose: 'Counterattack', durationSeconds: 6, framing: 'Medium', cameraAngle: 'Low', cameraMovement: 'Lateral track', composition: 'Keep both bodies readable', lighting: 'Hard side light', focus: 'Shift to B', sound: 'Footwork and impact', action: 'B counters A', continuityNotes: ['Preserve screen direction'] },
+          ],
+        },
+      }],
+      ledger: { scenes: {} },
+    },
+  });
+  assert.match(result.promptText, /CREATOR-APPROVED AI DIRECTOR SHOT PLAN/);
+  assert.match(result.promptText, /Warehouse fight/);
+  assert.match(result.promptText, /ORDERED SHOT-BY-SHOT GENERATION DIRECTION/);
+  assert.ok(result.promptText.indexOf('Establish geography') < result.promptText.indexOf('Counterattack'));
+  assert.match(result.promptText, /composition\/blocking: Keep both bodies readable/);
+  assert.match(result.promptText, /lighting: Hard side light/);
+  assert.match(result.promptText, /sound: Footwork and impact/);
+  assert.match(result.promptText, /exact order/);
+});
+
 test('Master Editor non-Scene selection never invents Scene-specific canon', () => {
   const result = buildRunwaySceneContinuityPrompt('Adjust this audio clip.', {
     page: 'storyboard-editor',
