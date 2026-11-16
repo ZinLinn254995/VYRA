@@ -450,7 +450,7 @@ export async function ingestGeneratedVyralAsset(
 export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngestionPort {
   return {
     async createAsset(record) {
-      const { error } = await db.from('vyral_assets').insert(record);
+      const { error } = await db.from('vyral_assets').upsert(record, { onConflict: 'id' });
       if (error) throw error;
     },
     async uploadOriginal(path, file, mimeType) {
@@ -459,16 +459,30 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
         return;
       }
       const { error } = await db.storage.from('vyral-assets').upload(path, file, {
-        contentType: mimeType, upsert: false, cacheControl: '3600',
+        contentType: mimeType, upsert: true, cacheControl: '3600',
       });
       if (error) throw error;
     },
     async createVersion(record) {
+      const { data: existing, error: lookupError } = await db.from('vyral_asset_versions')
+        .select('id,sha256').eq('asset_id', record.asset_id).eq('version_number', record.version_number).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing?.id) {
+        if (existing.sha256 !== record.sha256) throw new Error('The pending Asset Version belongs to different source bytes.');
+        return existing.id as string;
+      }
       const { data, error } = await db.from('vyral_asset_versions').insert(record).select('id').single();
       if (error || !data?.id) throw error ?? new Error('Could not create the original Asset Version.');
       return data.id as string;
     },
     async createFingerprint({ assetId, versionId, userId, sha256 }) {
+      const { data: existing, error: lookupError } = await db.from('vyral_fingerprints').select('id,value')
+        .eq('asset_id', assetId).eq('asset_version_id', versionId).eq('fingerprint_kind', 'cryptographic').maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing?.id) {
+        if (existing.value !== sha256) throw new Error('The pending Asset fingerprint does not match the selected file.');
+        return;
+      }
       const { error } = await db.from('vyral_fingerprints').insert({
         asset_id: assetId, asset_version_id: versionId, user_id: userId,
         fingerprint_kind: 'cryptographic', algorithm: 'SHA-256', value: sha256,
@@ -492,6 +506,10 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       return { status: data?.status ?? 'failed', error: detail };
     },
     async insertDna(record) {
+      const { data: existing, error: lookupError } = await db.from('vyral_dna_records')
+        .select('id').eq('asset_id', record.asset_id).eq('user_id', record.user_id).limit(1);
+      if (lookupError) throw lookupError;
+      if (existing?.length) return;
       const { error } = await db.from('vyral_dna_records').insert(record);
       if (error) throw error;
     },
