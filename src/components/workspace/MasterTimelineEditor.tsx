@@ -872,6 +872,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         context,
         resolveAssetUrl: async (assetId, assetVersionId, signal) => {
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+          const localUrl = localMediaObjectUrlsRef.current.get(assetId + ':' + assetVersionId);
+          if (localUrl) return localUrl;
           const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           return result.signedUrl;
@@ -895,6 +897,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           video: masterVideoPreviewRef.current,
           resolveAssetUrl: async (assetId, assetVersionId, signal) => {
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            const localUrl = localMediaObjectUrlsRef.current.get(assetId + ':' + assetVersionId);
+            if (localUrl) return localUrl;
             const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
             return result.signedUrl;
