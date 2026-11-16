@@ -150,6 +150,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const masterPlaybackTickRef = useRef<(() => void) | null>(null);
   const masterPlaybackSeekPendingRef = useRef(false);
   useEffect(() => {
+    if (selectedSceneIds.length || selectedTransitionKey || selectedTextClip || selectedAudioClip) {
+      setSelectedVisualClipId(null);
+    }
+  }, [selectedSceneIds, selectedTransitionKey, selectedTextClip, selectedAudioClip]);
+
+  useEffect(() => {
     if (!onSelectionChange) return;
     if (selectedTextClip) {
       const track = (value?.textTracks || []).find((item) => item.id === selectedTextClip.trackId);
