@@ -369,12 +369,26 @@ export const createVyralFileDnaV1 = async (input: {
   extractor?: { name: string; version: string };
   include_payload?: boolean;
   chunk_size?: number;
+  /** Precomputed full-source digest for bounded-memory structural inspection. */
+  source_sha256?: string;
+  /** Original file size when bytes contains only a bounded inspection prefix. */
+  source_size_bytes?: number;
 }): Promise<{ record: VyralFileDnaRecord; entries: VyralFileDnaEntry[] }> => {
   if (!isObject(input) || typeof input.record_id !== 'string' || !SAFE_ID.test(input.record_id)) {
     throw new Error('File DNA record ID is invalid.');
   }
   validateSource(input.source);
   if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength <= 0) throw new Error('File DNA requires non-empty binary source bytes.');
+  const sourceSizeBytes = input.source_size_bytes ?? input.bytes.byteLength;
+  if (!Number.isSafeInteger(sourceSizeBytes) || sourceSizeBytes < input.bytes.byteLength) {
+    throw new Error('File DNA source size is invalid.');
+  }
+  if (input.source_sha256 !== undefined && !SHA256.test(input.source_sha256)) {
+    throw new Error('File DNA precomputed SHA-256 is invalid.');
+  }
+  if (input.include_payload && (sourceSizeBytes !== input.bytes.byteLength || input.source_sha256 !== undefined)) {
+    throw new Error('Exact reconstruction payloads require the complete source bytes.');
+  }
   if (!isText(input.mime_type) || input.mime_type.length > 255) throw new Error('File DNA MIME type is invalid.');
   const extractor = input.extractor ?? { name: 'vyra-file-dna', version: '1.0.0' };
   if (!isObject(extractor) || !isText(extractor.name) || !isText(extractor.version)) throw new Error('File DNA extractor identity is invalid.');
@@ -401,11 +415,11 @@ export const createVyralFileDnaV1 = async (input: {
     record_id: input.record_id,
     source: { ...input.source },
     file: {
-      size_bytes: input.bytes.byteLength,
+      size_bytes: sourceSizeBytes,
       mime_type: input.mime_type.trim().toLowerCase(),
       extension,
       format_signature: detectSignature(input.bytes),
-      sha256: await sha256(input.bytes),
+      sha256: input.source_sha256 ?? await sha256(input.bytes),
     },
     structure: analyzeVyralFileStructureV1(input.bytes, input.mime_type, input.filename),
     extractor: { ...extractor },
@@ -416,6 +430,11 @@ export const createVyralFileDnaV1 = async (input: {
       chunks,
     },
   };
+  if (sourceSizeBytes > input.bytes.byteLength) {
+    record.structure?.notes.unshift(
+      'Structural inspection used the first ' + input.bytes.byteLength + ' bytes of the ' + sourceSizeBytes + '-byte source; the full-file SHA-256 verifies the complete original.',
+    );
+  }
   validateVyralFileDnaV1Record(record);
   return { record, entries };
 };
