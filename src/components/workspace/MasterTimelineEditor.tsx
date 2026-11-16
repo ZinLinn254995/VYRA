@@ -1303,7 +1303,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         nextVideoTracks = nextVideoTracks.map((track) => ({
           ...track,
           name: 'Scenes',
-          clips: track.clips.map((clip) => startById.has(clip.id) ? { ...clip, start: startById.get(clip.id)! } : clip),
+          clips: [...track.clips, ...(index === 0 ? [sampleClip] : [])]
+            .map((clip) => startById.has(clip.id) ? { ...clip, start: startById.get(clip.id)! } : clip)
+            .sort((a, b) => a.start - b.start),
         }));
         nextSceneInstances = nextSceneInstances.map((instance) => {
           const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
