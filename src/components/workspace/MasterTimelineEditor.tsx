@@ -173,9 +173,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // already part of the saved timeline; this only finishes its canonical cloud Asset.
   useEffect(() => {
     if (!supabase || !vyralId || !value) return;
+    const db = supabase;
     let cancelled = false;
     const recover = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await db.auth.getSession();
       const user = sessionData.session?.user;
       if (!user || cancelled) return;
       localMediaUserIdRef.current = user.id;
@@ -193,7 +194,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             type: cached.mimeType || clip.assetMimeType || 'application/octet-stream',
             lastModified: cached.cachedAt,
           });
-          const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
+          const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db), {
             vyralId,
             userId: user.id,
             folderId: null,
@@ -207,7 +208,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             assetId: ingestion.assetId,
             assetVersionId: ingestion.versionId,
             assetMimeType: ingestion.mimeType,
-            uploadPending: false,
             uploadPending: false,
             duration: item.mediaKind === 'audio'
               ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? item.duration)
