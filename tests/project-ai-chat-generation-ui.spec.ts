@@ -241,6 +241,8 @@ test('continuity findings identify both sides of a failed handoff and never repa
   assert.ok(chat.includes('buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)'));
   assert.ok(chat.includes('The earlier repair target will not be regenerated.'));
   assert.ok(chat.includes("finding.status === 'mismatch'"));
+  assert.ok(chat.includes('const actionableShotVerification = failedShot?.visualVerifications?.find((verification) =>'));
+  assert.ok(chat.includes('buildSceneVisualRepairPrompt(actionableShotVerification, repairTargetShotPlan)'));
   assert.ok(chat.includes('No paid repair was offered'));
   assert.ok(chat.includes('Review quote & repair Shot'));
 });
