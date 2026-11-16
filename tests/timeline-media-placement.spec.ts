@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
+import { mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
 
 const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
   id, name: id, start, duration, assetId: 'asset-' + id, assetVersionId: 'version-' + id, assetMimeType: mime,
@@ -43,4 +43,26 @@ test('rejects a MIME type that does not match the requested layer', () => {
 
 test('rejects invalid timeline intervals', () => {
   assert.throws(() => placeTimelineMediaClip([], clip('invalid', -1, 2), 'video', idFactory()), /valid non-negative values/);
+});
+
+
+test('merges Director and uploaded Video/Image clips into one shared Video row when intervals do not overlap', () => {
+  const director = [clip('director-1', 0, 4), clip('director-2', 4, 3)];
+  const uploaded: TimelineMediaTrackRow[] = [
+    { id: 'uploaded-1', name: 'Video 1', clips: [clip('image-1', 7, 5, 'image/png')] },
+  ];
+  const rows = mergeTimelineVideoRows(director, uploaded);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'Video 1');
+  assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'director-2', 'image-1']);
+});
+
+test('adds an extra shared Video row only when the bottom row overlaps', () => {
+  const director = [clip('director-1', 0, 5)];
+  const uploaded: TimelineMediaTrackRow[] = [
+    { id: 'uploaded-1', name: 'Video 1', clips: [clip('manual-video', 3, 2)] },
+  ];
+  const rows = mergeTimelineVideoRows(director, uploaded);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.clips.map((item) => item.id)), [['director-1'], ['manual-video']]);
 });
