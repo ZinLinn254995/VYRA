@@ -2573,6 +2573,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMediaGenerationStatus('Shot sequence paused at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
           ': the approved total budget would be exceeded. ' + completed + ' earlier shot(s) remain saved in Project Assets.');
       } else if ('completedShots' in result && result.status === 'partial') {
+        if (repairRequest) setPendingShotRepair(null);
         const completed = result.completedShots.length;
         const stoppedShot = (result.stoppedAtShotIndex ?? 0) + 1;
         setMediaGenerationStatus('Shot sequence paused at Shot ' + stoppedShot + ' (' + (result.stoppedStatus ?? 'pending') + '). ' +
@@ -2633,10 +2634,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.');
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
-        if ('completedShots' in result && directorScenePlan && storyboardId) {
+        if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
           const linkedShots = result.completedShots.flatMap((shot) => {
             const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
-            const shotPlan = directorScenePlan.shots[shot.shotIndex];
+            const shotPlan = activeDirectorScenePlan.shots[shot.shotIndex];
             return asset && shotPlan ? [{
               shotId: shot.shotId,
               shotIndex: shot.shotIndex,
