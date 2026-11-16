@@ -2633,12 +2633,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success',
           content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
-            '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n' +
+            (repairRequest
+              ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
+              : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
             detail + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
             '\n\nNo later shots were generated and no automatic paid regeneration was attempted.',
         }]);
         setMediaGenerationStatus('Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
-          '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.');
+          (repairRequest
+            ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
+            : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
         if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
