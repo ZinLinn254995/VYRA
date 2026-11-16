@@ -2346,10 +2346,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       return;
     }
     if (!storyboardId || !storyboardUniverseId || !supabase) {
-    const projectSupabase = supabase;
       setMediaGenerationStatus('Open a Project before creating media.');
       return;
     }
+    const projectSupabase = supabase;
     if (!isAuthenticated) { onLoginRequired(); return; }
     if (!prompt) { setMediaGenerationStatus('Describe the media you want to create first.'); textareaRef.current?.focus(); return; }
     const effectiveMediaTask = repairRequest ? 'video' : mediaTask;
