@@ -2299,8 +2299,8 @@ async function createSceneBatchProposal(
     return safeToolError('The production plan is incomplete or exceeds the supported Scene batch limits.');
   }
   const normalizedPlan: CreativeProductionPlan = {
-    title: rawPlan.title.trim(), logline: rawPlan.logline.trim(), requestedDurationSeconds: rawPlan.requestedDurationSeconds,
-    genre: rawPlan.genre.trim(), tone: rawPlan.tone.trim(), scenes: [],
+    title: String(rawPlan.title).trim(), logline: String(rawPlan.logline).trim(), requestedDurationSeconds: rawPlan.requestedDurationSeconds,
+    genre: String(rawPlan.genre).trim(), tone: String(rawPlan.tone).trim(), scenes: [],
   };
   for (const [sceneIndex, rawScene] of rawPlan.scenes.entries()) {
     if (!isPlainRecord(rawScene) || !isText(rawScene.id, 80) || !isText(rawScene.title, 100) || !isText(rawScene.purpose, 1000) ||
@@ -2321,15 +2321,15 @@ async function createSceneBatchProposal(
         return safeToolError('Scene ' + (sceneIndex + 1) + ', shot ' + (shotIndex + 1) + ' is incomplete or exceeds the supported limits.');
       }
       shots.push({
-        id: rawShot.id.trim(), purpose: rawShot.purpose.trim(), durationSeconds: rawShot.durationSeconds,
-        framing: rawShot.framing.trim(), cameraAngle: rawShot.cameraAngle.trim(), cameraMovement: rawShot.cameraMovement.trim(),
-        action: rawShot.action.trim(), continuityNotes: rawShot.continuityNotes.map((value: string) => value.trim()),
+        id: String(rawShot.id).trim(), purpose: String(rawShot.purpose).trim(), durationSeconds: rawShot.durationSeconds,
+        framing: String(rawShot.framing).trim(), cameraAngle: String(rawShot.cameraAngle).trim(), cameraMovement: String(rawShot.cameraMovement).trim(),
+        action: String(rawShot.action).trim(), continuityNotes: rawShot.continuityNotes.map((value: string) => value.trim()),
       });
     }
     normalizedPlan.scenes.push({
-      id: rawScene.id.trim(), title: rawScene.title.trim(), purpose: rawScene.purpose.trim(), durationSeconds: rawScene.durationSeconds,
-      location: rawScene.location.trim(), characters: rawScene.characters.map((value: string) => value.trim()),
-      entryState: rawScene.entryState.trim(), action: rawScene.action.trim(), exitState: rawScene.exitState.trim(), shots,
+      id: String(rawScene.id).trim(), title: String(rawScene.title).trim(), purpose: String(rawScene.purpose).trim(), durationSeconds: rawScene.durationSeconds,
+      location: String(rawScene.location).trim(), characters: rawScene.characters.map((value: string) => value.trim()),
+      entryState: String(rawScene.entryState).trim(), action: String(rawScene.action).trim(), exitState: String(rawScene.exitState).trim(), shots,
     });
   }
   const validation = validateCreativeProductionPlan(normalizedPlan);
