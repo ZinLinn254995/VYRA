@@ -144,7 +144,7 @@ test('shot boundary asset selection uses valid case-insensitive video MIME match
 
 
 test('approved repair targets exactly one original shot and re-checks its incoming boundary', () => {
-  assert.ok(workflow.includes('repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset }'));
+  assert.ok(workflow.includes('repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset; nextShotAsset?: RunwayProjectOutputAsset }'));
   assert.ok(workflow.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
   assert.ok(workflow.includes('const shotIndices = request.repair ? [request.repair.shotIndex]'));
   assert.ok(workflow.includes('request.repair.shotIndex >= request.scene.shots.length'));
@@ -157,3 +157,18 @@ test('approved repair targets exactly one original shot and re-checks its incomi
 
 
 
+
+
+test('shot repair verifies the outgoing cut against the next existing shot before replacement', () => {
+  assert.ok(workflow.includes('request.repair.nextShotAsset'));
+  assert.ok(workflow.includes('outgoingTransitionVerification'));
+  assert.ok(workflow.includes('outgoing_shot_transition_needs_review'));
+  assert.ok(workflow.includes('previousAsset: currentAsset, currentAsset: nextAsset'));
+  assert.ok(workflow.includes('shotIndex + 1 < request.scene.shots.length'));
+  assert.ok(workflow.includes('&& !request.repair.nextShotAsset'));
+});
+
+test('the final repaired shot has no outgoing boundary requirement', () => {
+  assert.ok(workflow.includes('shotIndex + 1 < request.scene.shots.length'));
+  assert.ok(workflow.includes('request.repair?.shotIndex === shotIndex'));
+});
