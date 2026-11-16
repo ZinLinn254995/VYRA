@@ -12,7 +12,7 @@ export const CREATIVE_PRODUCTION_PLANNING_INSTRUCTION = [
   'PROJECT BRIEF: user intent, requested duration and format, audience, genre, tone, explicit constraints, and assumptions that are safe to fill.',
   'STORY DESIGN: logline, dramatic question, character goals and motivations, conflict, stakes, emotional progression, turning point, climax, and ending.',
   'SCENE PLAN: an ordered list of scenes. For each scene define scene purpose, location/time, duration, participating characters, entry state, key action, exit state, emotional beat, and transition into the next scene. Scene durations must add up plausibly to the requested total duration.',
-  'SHOT PLAN: for each scene, define ordered shots with shot purpose, approximate duration, framing/shot size, camera angle, camera movement, subject blocking/action, composition, lighting, focus/depth, and the information or emotion the shot must communicate. Vary shots intentionally; do not vary camera angles randomly.',
+  'SHOT PLAN: for each scene, define ordered shots with shot purpose, approximate duration, framing/shot size, camera angle, camera movement, composition and blocking, lighting, focus/depth, sound/dialogue intent, action, and the information or emotion the shot must communicate. Vary shots intentionally; do not vary camera angles randomly.',
   'CONTINUITY PLAN: track each character’s position, facing, screen direction, pose, wardrobe, props, injuries, emotion, and physical condition; track location geography, lighting/time, and object positions. Every scene exit state must inform the next scene entry state. Record intentional changes explicitly.',
   'SOUND AND EDIT PLAN: dialogue or silence, ambience, music intent, sound effects, cut/transition choice, pacing, and any motivated slow motion or hold.',
   'GENERATION PLAN: identify which approved Project Assets are required as visual references, which shots can share references, what new reference/keyframe assets are needed, and which provider capabilities are actually available. Never imply a provider accepts a conditioning mode unless verified.',
@@ -29,8 +29,12 @@ export type CreativeShotPlan = {
   framing: string;
   cameraAngle: string;
   cameraMovement: string;
+  composition: string;
+  lighting: string;
+  focus: string;
+  sound: string;
   action: string;
-  continuityNotes: string[];
+  continuityNotes: string;
 };
 
 export type CreativeScenePlan = {
@@ -90,13 +94,19 @@ export function validateCreativeProductionPlan(
     if (!scene.entryState.trim() || !scene.exitState.trim()) errors.push(`Scene ${sceneIndex + 1} needs entry and exit continuity states.`);
     if (!scene.shots.length) errors.push(`Scene ${sceneIndex + 1} needs at least one shot.`);
     const shotIds = new Set<string>();
+    let totalShotDurationSeconds = 0;
     for (const [shotIndex, shot] of scene.shots.entries()) {
       if (!shot.id.trim() || shotIds.has(shot.id)) errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} must have a unique ID.`);
       shotIds.add(shot.id);
       if (!finitePositive(shot.durationSeconds)) errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} needs a positive duration.`);
-      if (![shot.purpose, shot.framing, shot.cameraAngle, shot.cameraMovement, shot.action].every((value) => value.trim())) {
+      else totalShotDurationSeconds += shot.durationSeconds;
+      if (![shot.purpose, shot.framing, shot.cameraAngle, shot.cameraMovement, shot.composition, shot.lighting, shot.focus, shot.sound, shot.action].every((value) => value.trim())) {
         errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} is missing direction details.`);
       }
+    }
+    if (finitePositive(scene.durationSeconds) && scene.shots.length > 0 &&
+        Math.abs(totalShotDurationSeconds - scene.durationSeconds) > durationToleranceSeconds) {
+      errors.push(`Scene ${sceneIndex + 1} shot durations (${totalShotDurationSeconds}s) do not match its duration (${scene.durationSeconds}s).`);
     }
   }
   if (finitePositive(plan.requestedDurationSeconds) &&
