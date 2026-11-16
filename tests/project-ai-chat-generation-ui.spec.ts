@@ -298,3 +298,10 @@ test('shot repair history records verified and review outcomes without mutating 
   assert.ok(workspace.includes('Append-only: never replace or edit an earlier repair event.'));
   assert.ok(workspace.includes('onShotRepairHistory={handleShotRepairHistory}'));
 });
+
+test('AI Director Project deletion writes a cloud tombstone instead of removing the row', () => {
+  assert.ok(chat.includes(".select('id,updated_at,details')"));
+  assert.ok(chat.includes('__vyraDeletedAt: deletedAt'));
+  assert.ok(chat.includes(".update({ details: { ...details, __vyraDeletedAt: deletedAt }, updated_at: deletedAt })"));
+  assert.ok(!chat.includes(".delete()\\n              .eq('id', draft.storyboardId)"));
+});
