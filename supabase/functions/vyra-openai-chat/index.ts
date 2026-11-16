@@ -15,7 +15,7 @@ import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingActi
 import { parseVyralAssetRestorePendingPlan, validateVyralAssetRestorePendingAction, parseVyralAssetRestoreConfirmation } from '../../../src/server/vyralAssetRestoreAction.ts';
 import { buildSceneStateProposalInstruction, buildSceneVisualContinuityInstruction } from '../../../src/services/universeSceneStatePrompt.ts';
 import { CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION } from '../../../src/services/creativeDirectorIntelligence.ts';
-import { CREATIVE_PRODUCTION_PLANNING_INSTRUCTION } from '../../../src/services/creativeProductionPlanning.ts';
+import { CREATIVE_PRODUCTION_PLANNING_INSTRUCTION, validateCreativeProductionPlan, type CreativeProductionPlan } from '../../../src/services/creativeProductionPlanning.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -333,6 +333,52 @@ const GLOBAL_READ_TOOLS = [
           scene_ids: { type: 'array', minItems: 1, maxItems: 80, items: { type: 'string' } },
         },
         required: ['storyboard_id', 'scene_ids'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'propose_scene_batch_create',
+      description: 'Prepare one approval preview that creates every Scene in an approved Creative Director production plan. Use only after the user approves the treatment. No Scene is created until this single batch preview is approved.',
+      parameters: {
+        type: 'object',
+        properties: {
+          storyboard_id: { type: 'string' },
+          production_plan: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' }, logline: { type: 'string' },
+              requestedDurationSeconds: { type: 'number' }, genre: { type: 'string' }, tone: { type: 'string' },
+              scenes: { type: 'array', minItems: 1, maxItems: 12, items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' }, title: { type: 'string' }, purpose: { type: 'string' },
+                  durationSeconds: { type: 'number' }, location: { type: 'string' },
+                  characters: { type: 'array', items: { type: 'string' } },
+                  entryState: { type: 'string' }, action: { type: 'string' }, exitState: { type: 'string' },
+                  shots: { type: 'array', minItems: 1, maxItems: 24, items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' }, purpose: { type: 'string' }, durationSeconds: { type: 'number' },
+                      framing: { type: 'string' }, cameraAngle: { type: 'string' },
+                      cameraMovement: { type: 'string' }, action: { type: 'string' },
+                      continuityNotes: { type: 'array', items: { type: 'string' } },
+                    },
+                    required: ['id','purpose','durationSeconds','framing','cameraAngle','cameraMovement','action','continuityNotes'],
+                    additionalProperties: false,
+                  } },
+                },
+                required: ['id','title','purpose','durationSeconds','location','characters','entryState','action','exitState','shots'],
+                additionalProperties: false,
+              } },
+            },
+            required: ['title','logline','requestedDurationSeconds','genre','tone','scenes'],
+            additionalProperties: false,
+          },
+        },
+        required: ['storyboard_id','production_plan'],
         additionalProperties: false,
       },
     },
@@ -2231,6 +2277,108 @@ async function createSceneMutationProposal(
   };
 }
 
+
+async function createSceneBatchProposal(
+  admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string,
+): Promise<Record<string, unknown>> {
+  if (!sessionId) return safeToolError('A verified chat session is required before preparing Scene creation.');
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(rawArguments || '{}');
+    if (!isPlainRecord(parsed)) return safeToolError('Invalid Scene batch arguments.');
+    args = parsed;
+  } catch { return safeToolError('Invalid Scene batch arguments.'); }
+  if (Object.keys(args).some((key) => !['storyboard_id', 'production_plan'].includes(key)) ||
+      !isUuid(args.storyboard_id) || !isPlainRecord(args.production_plan)) return safeToolError('The Scene batch arguments are invalid.');
+  const rawPlan = args.production_plan;
+  const isText = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+  if (!isText(rawPlan.title, 180) || !isText(rawPlan.logline, 1200) || !isText(rawPlan.genre, 80) || !isText(rawPlan.tone, 160) ||
+      typeof rawPlan.requestedDurationSeconds !== 'number' || !Number.isFinite(rawPlan.requestedDurationSeconds) ||
+      rawPlan.requestedDurationSeconds < 0.2 || rawPlan.requestedDurationSeconds > 3600 ||
+      !Array.isArray(rawPlan.scenes) || rawPlan.scenes.length < 1 || rawPlan.scenes.length > 12) {
+    return safeToolError('The production plan is incomplete or exceeds the supported Scene batch limits.');
+  }
+  const normalizedPlan: CreativeProductionPlan = {
+    title: rawPlan.title.trim(), logline: rawPlan.logline.trim(), requestedDurationSeconds: rawPlan.requestedDurationSeconds,
+    genre: rawPlan.genre.trim(), tone: rawPlan.tone.trim(), scenes: [],
+  };
+  for (const [sceneIndex, rawScene] of rawPlan.scenes.entries()) {
+    if (!isPlainRecord(rawScene) || !isText(rawScene.id, 80) || !isText(rawScene.title, 100) || !isText(rawScene.purpose, 1000) ||
+        typeof rawScene.durationSeconds !== 'number' || !Number.isFinite(rawScene.durationSeconds) || rawScene.durationSeconds < 0.2 || rawScene.durationSeconds > 300 ||
+        !isText(rawScene.location, 300) || !Array.isArray(rawScene.characters) || rawScene.characters.length > 20 ||
+        !rawScene.characters.every((value) => isText(value, 120)) || !isText(rawScene.entryState, 1200) ||
+        !isText(rawScene.action, 1600) || !isText(rawScene.exitState, 1200) ||
+        !Array.isArray(rawScene.shots) || rawScene.shots.length < 1 || rawScene.shots.length > 24) {
+      return safeToolError('Scene ' + (sceneIndex + 1) + ' is incomplete or exceeds the supported limits.');
+    }
+    const shots = [];
+    for (const [shotIndex, rawShot] of rawScene.shots.entries()) {
+      if (!isPlainRecord(rawShot) || !isText(rawShot.id, 80) || !isText(rawShot.purpose, 500) ||
+          typeof rawShot.durationSeconds !== 'number' || !Number.isFinite(rawShot.durationSeconds) || rawShot.durationSeconds < 0.1 || rawShot.durationSeconds > 300 ||
+          !isText(rawShot.framing, 120) || !isText(rawShot.cameraAngle, 120) || !isText(rawShot.cameraMovement, 160) ||
+          !isText(rawShot.action, 1200) || !Array.isArray(rawShot.continuityNotes) || rawShot.continuityNotes.length > 12 ||
+          !rawShot.continuityNotes.every((value) => isText(value, 300))) {
+        return safeToolError('Scene ' + (sceneIndex + 1) + ', shot ' + (shotIndex + 1) + ' is incomplete or exceeds the supported limits.');
+      }
+      shots.push({
+        id: rawShot.id.trim(), purpose: rawShot.purpose.trim(), durationSeconds: rawShot.durationSeconds,
+        framing: rawShot.framing.trim(), cameraAngle: rawShot.cameraAngle.trim(), cameraMovement: rawShot.cameraMovement.trim(),
+        action: rawShot.action.trim(), continuityNotes: rawShot.continuityNotes.map((value: string) => value.trim()),
+      });
+    }
+    normalizedPlan.scenes.push({
+      id: rawScene.id.trim(), title: rawScene.title.trim(), purpose: rawScene.purpose.trim(), durationSeconds: rawScene.durationSeconds,
+      location: rawScene.location.trim(), characters: rawScene.characters.map((value: string) => value.trim()),
+      entryState: rawScene.entryState.trim(), action: rawScene.action.trim(), exitState: rawScene.exitState.trim(), shots,
+    });
+  }
+  const validation = validateCreativeProductionPlan(normalizedPlan);
+  if (!validation.valid) return safeToolError('The production plan did not pass validation: ' + validation.errors.join(' '));
+  const { data: storyboard, error } = await admin.from('vyral_storyboards')
+    .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
+  if (error) return safeToolError('The parent Storyboard could not be verified.');
+  if (!storyboard) return safeToolError('That Storyboard is not available in your account.');
+  const details = isPlainRecord(storyboard.details) ? storyboard.details : {};
+  const scenes = Array.isArray(details.scenes) ? details.scenes : [];
+  if (scenes.length + normalizedPlan.scenes.length > 80) return safeToolError('This Storyboard does not have enough remaining Scene slots for the complete plan.');
+  const now = new Date().toISOString();
+  const createdScenes = normalizedPlan.scenes.map((scene, index) => ({
+    id: crypto.randomUUID(), title: scene.title, description: scene.purpose.slice(0, 1000), duration: scene.durationSeconds, transition: 'Fade',
+    project: {
+      id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [],
+      creativeDirection: {
+        schemaVersion: 1, source: 'ai_director_plan', productionTitle: normalizedPlan.title, logline: normalizedPlan.logline,
+        genre: normalizedPlan.genre, tone: normalizedPlan.tone, sceneIndex: index + 1, sceneCount: normalizedPlan.scenes.length,
+        purpose: scene.purpose, location: scene.location, characters: scene.characters, entryState: scene.entryState,
+        action: scene.action, exitState: scene.exitState, shots: scene.shots,
+      },
+    },
+  }));
+  const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
+  const plan = {
+    id: crypto.randomUUID(), operation: 'scene.batch_create', target: { storyboardId: String(storyboard.id) },
+    parameters: { expectedUpdatedAt: String(storyboard.updated_at), createdScenes, productionTitle: normalizedPlan.title,
+      requestedDurationSeconds: normalizedPlan.requestedDurationSeconds, totalSceneDurationSeconds: validation.totalSceneDurationSeconds },
+    summary: 'Create ' + createdScenes.length + ' Scenes for “' + String(storyboard.title) + '” — ' + normalizedPlan.title,
+    createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
+  };
+  const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
+    p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
+    p_capability_id: 'scene.create', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+  });
+  if (pendingError || !pending) return safeToolError('VYRA could not securely save this Scene batch preview. No changes were made.');
+  return {
+    ok: true, requiresApproval: true, actionId: pending.id, status: pending.status, summary: plan.summary,
+    productionTitle: normalizedPlan.title, requestedDurationSeconds: normalizedPlan.requestedDurationSeconds,
+    totalSceneDurationSeconds: validation.totalSceneDurationSeconds,
+    scenes: createdScenes.map((scene) => ({ title: scene.title, duration: scene.duration })),
+    message: 'Preview only. No Scenes have been created. Approve this one batch to add the complete Scene sequence.',
+    expiresAt: pending.expires_at ?? expiresAt.toISOString(),
+  };
+}
+
+
 async function applyPendingStoryboardApprovalLegacy(
   admin: any,
   userId: string,
@@ -2288,10 +2436,11 @@ async function applyPendingStoryboardApprovalLegacy(
   const sceneId = target.sceneId;
   const isSceneUpdate = pending.capability_id === 'scene.update';
   const isSceneReorder = pending.capability_id === 'scene.reorder';
-  const isSceneCreate = pending.capability_id === 'scene.create';
+  const isSceneBatchCreate = pending.capability_id === 'scene.create' && plan.operation === 'scene.batch_create';
+  const isSceneCreate = pending.capability_id === 'scene.create' && !isSceneBatchCreate;
   const isSceneDuplicate = pending.capability_id === 'scene.duplicate';
   const isSceneDelete = pending.capability_id === 'scene.delete';
-  const isSceneMutation = isSceneCreate || isSceneDuplicate || isSceneDelete;
+  const isSceneMutation = isSceneCreate || isSceneBatchCreate || isSceneDuplicate || isSceneDelete;
   const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
   const isTimelineTransitionUpdate = pending.capability_id === 'timeline.add_transition';
   const transitionKey = target.transitionKey;
@@ -2408,14 +2557,29 @@ async function applyPendingStoryboardApprovalLegacy(
     if (!current) return await fail('STALE_STORYBOARD', 'This Storyboard changed after the Scene preview. Please prepare a fresh preview.');
     const details = current.details && typeof current.details === 'object' && !Array.isArray(current.details) ? current.details as Record<string, unknown> : {};
     const scenes = Array.isArray(details.scenes) ? details.scenes : [];
-    const sourceIndex = isSceneCreate ? -1 : scenes.findIndex((item) => item && typeof item === 'object' && !Array.isArray(item) && (item as Record<string, unknown>).id === sceneId);
-    if (!isSceneCreate && sourceIndex < 0) return await fail('SCENE_NOT_FOUND', 'That Scene no longer exists in this Storyboard. No change was made.');
+    const sourceIndex = isSceneCreate || isSceneBatchCreate ? -1 : scenes.findIndex((item) => item && typeof item === 'object' && !Array.isArray(item) && (item as Record<string, unknown>).id === sceneId);
+    if (!isSceneCreate && !isSceneBatchCreate && sourceIndex < 0) return await fail('SCENE_NOT_FOUND', 'That Scene no longer exists in this Storyboard. No change was made.');
     let nextScenes: Array<Record<string, unknown>>;
     if (isSceneCreate) {
       if (scenes.length >= 80) return await fail('SCENE_LIMIT_REACHED', 'This Storyboard reached the 80 Scene limit. No Scene was created.');
       const created = parameters.createdScene as Record<string, unknown>;
-      if (scenes.some((item) => item && typeof item === 'object' && (item as Record<string, unknown>).id === created.id)) return await fail('SCENE_CREATE_ID', 'The proposed Scene ID already exists. Please prepare a new preview.');
+      if (!isPlainRecord(created) || !isUuid(created.id) || scenes.some((item) => item && typeof item === 'object' && (item as Record<string, unknown>).id === created.id)) return await fail('SCENE_CREATE_ID', 'The proposed Scene ID is invalid or already exists. Please prepare a new preview.');
       nextScenes = [...scenes as Array<Record<string, unknown>>, created];
+    } else if (isSceneBatchCreate) {
+      const created = Array.isArray(parameters.createdScenes) ? parameters.createdScenes as Array<Record<string, unknown>> : [];
+      if (!created.length || created.length > 12 || scenes.length + created.length > 80) return await fail('SCENE_BATCH_LIMIT', 'The approved Scene batch is empty or exceeds the Storyboard Scene limit. No Scenes were created.');
+      const existingIds = new Set((scenes as Array<Record<string, unknown>>).map((item) => String(item?.id ?? '')));
+      const batchIds = new Set<string>();
+      for (const item of created) {
+        if (!isPlainRecord(item) || !isUuid(item.id) || existingIds.has(item.id) || batchIds.has(item.id) ||
+            typeof item.title !== 'string' || !item.title.trim() ||
+            typeof item.duration !== 'number' || !Number.isFinite(item.duration) || item.duration < 0.2 || item.duration > 300 ||
+            !isPlainRecord(item.project) || !isUuid(item.project.id) || !isPlainRecord(item.project.creativeDirection)) {
+          return await fail('SCENE_BATCH_INVALID', 'The approved Scene batch failed its final integrity check. No Scenes were created.');
+        }
+        batchIds.add(item.id);
+      }
+      nextScenes = [...scenes as Array<Record<string, unknown>>, ...created];
     } else if (isSceneDuplicate) {
       if (scenes.length >= 80) return await fail('SCENE_LIMIT_REACHED', 'This Storyboard reached the 80 Scene limit. No duplicate was created.');
       const duplicate = parameters.duplicatedScene as Record<string, unknown>;
@@ -3294,6 +3458,7 @@ for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityI
 const PROPOSAL_CAPABILITY_TOOLS = {
   'storyboard.propose_update': 'propose_storyboard_update',
   'scene.propose_update': 'propose_scene_update',
+  'scene.propose_batch_create': 'propose_scene_batch_create',
   'scene.propose_mutation': 'propose_scene_mutation',
   'scene.propose_reorder': 'propose_scene_reorder',
   'timeline.propose_edit': 'propose_master_timeline_edit',
@@ -3390,6 +3555,10 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['storyboard_id', 'field', 'value'].includes(key)) &&
           ['title', 'topic'].includes(String(input.field)) && typeof input.value === 'string';
       }
+      if (capabilityId === 'scene.propose_batch_create') {
+        return Object.keys(input).every((key) => ['storyboard_id', 'production_plan'].includes(key)) &&
+          isUuid(input.storyboard_id) && isPlainRecord(input.production_plan);
+      }
       if (capabilityId === 'scene.propose_update') {
         return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'field', 'value'].includes(key)) &&
           isUuid(input.scene_id) && ['title', 'description', 'transition', 'duration'].includes(String(input.field));
@@ -3453,6 +3622,9 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       }
       if (capabilityId === 'storyboard.propose_update') {
         return await createStoryboardUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      }
+      if (capabilityId === 'scene.propose_batch_create') {
+        return await createSceneBatchProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
       }
       if (capabilityId === 'scene.propose_update') {
         return await createSceneUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
