@@ -766,18 +766,54 @@ async function runMediaLibraryThumbnailBackfill(
       if (uploadError) { await scheduleRetry(row); continue; }
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
-      const { data: updatedRow, error: updateError } = await db.from('media_library_items')
-        .update({ metadata })
-        .eq('id', row.id).eq('user_id', userId)
-        .is('metadata->thumbnail_path', null)
-        .select('id')
-        .maybeSingle();
-      // The row may have been deleted or another process may have attached a
-      // thumbnail after the initial query. Remove our object unless this update
-      // actually claimed the row, so a race cannot leave an orphaned thumbnail.
+      const { data: updatedRow, error: updateError } = await applyUniverseScope(
+        db.from('media_library_items')
+          .update({ metadata })
+          .eq('id', row.id).eq('user_id', userId)
+          .is('metadata->thumbnail_path', null)
+          .select('id')
+          .maybeSingle(),
+        universeId,
+      );
       if (updateError || !updatedRow) {
-        await db.storage.from('vyral-assets').remove([thumbnailPath]);
-        await scheduleRetry(row);
+        // A network error can happen after Postgres committed the update. Read
+        // the row before deleting the object: removing a possibly-referenced
+        // thumbnail would turn a transient response failure into broken media.
+        let latestMetadata: Record<string, unknown> | null | undefined;
+        let couldVerifyRow = false;
+        try {
+          const { data: latestRow, error: readError } = await applyUniverseScope(
+            db.from('media_library_items').select('metadata')
+              .eq('id', row.id).eq('user_id', userId),
+            universeId,
+          ).maybeSingle();
+          if (!readError) {
+            couldVerifyRow = true;
+            latestMetadata = latestRow?.metadata as Record<string, unknown> | null | undefined;
+          }
+        } catch {
+          // Keep the uploaded object when attachment state is uncertain.
+        }
+        if (latestMetadata?.thumbnail_path === thumbnailPath) {
+          generated += 1;
+          continue;
+        }
+        // If the row could not be read, retain the object rather than risk
+        // deleting a thumbnail whose metadata update actually committed.
+        if (!couldVerifyRow) continue;
+        const { error: removeError } = await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        if (removeError) {
+          // Persist orphan cleanup so a temporary Storage failure is recoverable.
+          await db.from('media_library_storage_cleanup_jobs').insert({
+            user_id: userId,
+            bucket_id: 'vyral-assets',
+            storage_paths: [thumbnailPath],
+            attempts: 0,
+            next_attempt_at: new Date().toISOString(),
+            last_error: 'Unclaimed thumbnail cleanup failed: ' + removeError.message.slice(0, 700),
+          });
+        }
+        if (latestMetadata && latestMetadata.thumbnail_path == null) await scheduleRetry(row);
         continue;
       }
       generated += 1;
