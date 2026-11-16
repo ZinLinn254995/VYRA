@@ -2683,7 +2683,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           asset.assetId + ' · ' + asset.mimeType).join('\\n');
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
-          content: (isShotSequence
+          content: repairRequest
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed visual continuity checks. Its Editor clip has been replaced.'
+            : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
             generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.' +
