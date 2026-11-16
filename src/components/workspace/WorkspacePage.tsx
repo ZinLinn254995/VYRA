@@ -1100,7 +1100,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           const videoClips = patch.project.timeline.tracks
             .filter((track) => track.type === 'video')
             .flatMap((track) => track.clips)
-            .filter((clip) => Boolean(clip.assetId && clip.assetVersionId && /^video\\//i.test(clip.assetMimeType || '')))
+            .filter((clip): clip is SceneProjectClip & { assetId: string; assetVersionId: string; assetMimeType: string } => Boolean(clip.assetId && clip.assetVersionId && /^video\\//i.test(clip.assetMimeType || '')))
             .sort((a, b) => a.start - b.start)
             .map((clip) => ({
               id: clip.id,
