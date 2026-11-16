@@ -106,6 +106,8 @@ type Props = {
   onSceneDelete: (sceneId: string) => void;
   onSelectionChange?: (selection: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null) => void;
   onImagePreviewChange?: (preview: { url: string; alt: string } | null) => void;
+  videoPreviewRef?: React.RefObject<HTMLVideoElement>;
+  onTextPreviewOverlaysChange?: (overlays: MasterTimelineTextOverlay[]) => void;
 };
 
 const toolbarItems = [
@@ -123,7 +125,7 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange, onImagePreviewChange }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange, onImagePreviewChange, videoPreviewRef, onTextPreviewOverlaysChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedVisualClipId, setSelectedVisualClipId] = useState<string | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
@@ -286,7 +288,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const masterPreviewTextSignatureRef = useRef('');
   const masterAudioContextRef = useRef<AudioContext | null>(null);
   const masterPlaybackHandleRef = useRef<AudioPlaybackHandle | null>(null);
-  const masterVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const localMasterVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const masterVideoPreviewRef = videoPreviewRef || localMasterVideoPreviewRef;
   const masterVideoPlaybackHandleRef = useRef<MasterTimelineVideoPlaybackHandle | null>(null);
   const masterPlaybackRequestIdRef = useRef(0);
   const masterPlaybackFrameRef = useRef<number | null>(null);
@@ -1380,6 +1383,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       setAudioPreviewError(error instanceof Error ? error.message : 'Audio preview is unavailable.');
     } finally { setAudioPreviewLoading(false); }
   };
+  useEffect(() => {
+    onTextPreviewOverlaysChange?.(masterPreviewTextOverlays);
+    return () => onTextPreviewOverlaysChange?.([]);
+  }, [masterPreviewTextOverlays, onTextPreviewOverlaysChange]);
   useEffect(() => {
     if (audioPreviewClipKey && audioPreviewClipKey !== selectedAudioClipKey) stopAudioPreview();
   }, [audioPreviewClipKey, selectedAudioClipKey]);
@@ -2617,29 +2624,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <input ref={mediaFileInputRef} type="file" accept="video/*,image/*,audio/*" multiple className="hidden" onChange={handleMediaFilesSelected} aria-label="Upload Video, Image or Audio files" />
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
-      {(value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) || Boolean(instance.videoClips?.some((clip) => clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')))) || value?.videoTracks?.some((track) => track.clips.some((clip) => clip.assetMimeType?.toLowerCase().startsWith('video/')))) && (
-        <div className="w-full shrink-0 px-3 pt-2">
-          <div className="relative mx-auto aspect-video max-h-48 w-full max-w-3xl overflow-hidden rounded-xl bg-black">
-            <video
-              ref={masterVideoPreviewRef}
-              playsInline
-              preload="none"
-              className={`h-full w-full object-contain ${imagePreviewUrl ? 'hidden' : ''}`}
-              aria-label="Master Timeline Video preview"
-              onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
-            />
-            {masterPreviewTextOverlays.length > 0 && (
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1 px-4 pb-4" aria-live="off">
-                {masterPreviewTextOverlays.map((overlay) => (
-                  <p key={overlay.trackId + ':' + overlay.clipId} className="max-w-full whitespace-pre-wrap rounded bg-black/60 px-3 py-1 text-center text-sm font-semibold text-white shadow-sm">
-                    {overlay.content}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
       {masterPlaybackError && <span className="sr-only" role="status">{masterPlaybackError}</span>}
       <div className="relative min-h-0 w-full flex-1">
