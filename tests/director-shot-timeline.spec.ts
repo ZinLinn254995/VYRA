@@ -105,6 +105,9 @@ test('queued storyboard saves cannot recreate a deleted Project', async () => {
   assert.ok(workspace.includes(".insert(payload)"));
   assert.ok(workspace.includes('Never use upsert here'));
   assert.ok(!workspace.includes(".upsert({\n        id: item.id, user_id: authData.user.id"));
+  assert.ok(workspace.includes('const ownerStorageKey = storyboardStorageKeyRef.current'));
+  assert.ok(workspace.includes('if (storyboardStorageKeyRef.current !== ownerStorageKey) return;'));
+  assert.ok(workspace.includes('storyboardStorageKeyRef.current === ownerStorageKey && storyboardSaveQueueRef.current.get(item.id) === saveTask'));
 });
 
 test('Project Editor autosaves every confirmed edit and restores the saved Project when reopened', async () => {
