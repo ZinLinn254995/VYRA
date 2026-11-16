@@ -63,7 +63,7 @@ type AIChatPageProps = {
   initialSelectedAssets?: VyralChatAssetContext[];
   onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
   onShotSequenceReady?: (sequence: RunwayProjectShotSequenceReady) => void;
-  onShotRepairHistory?: (entry: { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; approvedCostUsd: number }) => void;
+  onShotRepairHistory?: (entry: { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number }) => void;
   workspaceContext?: WorkspaceAiContext | null;
   onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
   storyboardId?: string;
@@ -2391,6 +2391,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         editorView: workspaceContext.editorView,
         selectedTimelineItem: workspaceContext.selectedTimelineItem,
         selectedSceneIds: workspaceContext.selectedSceneIds,
+        activeSceneRepairHistory: workspaceContext.activeSceneRepairHistory,
       } : null;
       const selectedSceneId = repairRequest?.scene.id ?? (workspaceContext?.editorView === 'master'
         ? workspaceContext.selectedTimelineItem?.kind === 'scene' ? workspaceContext.selectedTimelineItem.id : null
@@ -2727,6 +2728,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               ...(failedShot.shotIndex === historyShotIndex && failedShot.transitionVerification ? [historyShotIndex - 1] : []),
               ...(failedShot.downstreamTransitionVerifications ?? []).map((item) => item.previousShotIndex),
             ].filter((index) => index >= 0),
+            findings: [...findings, ...finalValidationReasons].filter(Boolean).slice(0, 20),
             approvedCostUsd: result.approvedCostUsd,
           });
         }
@@ -2802,6 +2804,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review',
             baselineRevision: result.finalSceneValidation?.baselineRevision ?? repairedShot?.visualVerifications?.[0]?.baselineRevision ?? null,
             checkedBoundaryIndices: result.finalSceneValidation?.checkedBoundaryIndices ?? [],
+            findings: result.finalSceneValidation?.reasons ?? [],
             approvedCostUsd: result.approvedCostUsd,
           });
         }
