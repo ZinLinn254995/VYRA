@@ -2581,6 +2581,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ': the approved total budget would be exceeded. ' + completed + ' earlier shot(s) remain saved in Project Assets.');
       } else if ('completedShots' in result && result.status === 'partial') {
         if (repairRequest) setPendingShotRepair(null);
+        if (repairRequest) setPendingShotRepair(null);
         const completed = result.completedShots.length;
         const stoppedShot = (result.stoppedAtShotIndex ?? 0) + 1;
         setMediaGenerationStatus('Shot sequence paused at Shot ' + stoppedShot + ' (' + (result.stoppedStatus ?? 'pending') + '). ' +
@@ -2709,8 +2710,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           : 'Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
         if (repairRequest) setPendingShotRepair(null);
+        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
       } else if (result.status === 'reconciliation_required') {
+        if (repairRequest) setPendingShotRepair(null);
         if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('Provider outcome needs reconciliation. Job ID: ' + result.jobId + '. VYRA will not submit it again automatically.');
       } else {
