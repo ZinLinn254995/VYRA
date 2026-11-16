@@ -1525,7 +1525,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
-      {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/'))) && (
+      {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) || Boolean(instance.videoClips?.some((clip) => clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')))) && (
         <div className="w-full shrink-0 px-3 pt-2">
           <div className="relative mx-auto aspect-video max-h-48 w-full max-w-3xl overflow-hidden rounded-xl bg-black">
             <video
