@@ -137,6 +137,101 @@ const sequenceRequest = (overrides: Partial<Parameters<typeof import('../src/ser
   ...overrides,
 });
 
+const createSequenceLifecycleDb = (
+  onInvoke?: (name: string, body: Record<string, unknown>) => void,
+) => {
+  const invocations: string[] = [];
+  const targetVyralId = 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d';
+  const quoteId = '11111111-1111-4111-8111-111111111111';
+  const jobId = '22222222-2222-4222-8222-222222222222';
+  const db = {
+    auth: { getUser: async () => ({ data: { user: { id: 'creator-1' } }, error: null }) },
+    from: (table: string) => {
+      const query: any = {
+        select: () => query,
+        eq: () => query,
+        in: () => query,
+        order: () => query,
+        limit: () => query,
+        maybeSingle: async () => ({
+          data: table === 'vyrals' ? {
+            id: targetVyralId, user_id: 'creator-1',
+            metadata: { universe_scope: 'storyboard', storyboard_id: 'project-1' },
+          } : null,
+          error: null,
+        }),
+        then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+          Promise.resolve({ data: [], error: null }).then(resolve, reject),
+      };
+      return query;
+    },
+    functions: {
+      invoke: async (name: string, options: { body: Record<string, unknown> }) => {
+        invocations.push(name);
+        onInvoke?.(name, options.body);
+        if (name === 'quote-runway-media') return { data: { quote: {
+          id: quoteId, task: 'video', quality: 'standard', provider: 'runway',
+          model: 'mock-provider-model', estimatedCredits: 10, estimatedCostUsd: 0.2,
+          expiresAt: '2099-01-01T00:00:00.000Z', requestFingerprint: 'a'.repeat(64),
+        } }, error: null };
+        if (name === 'create-runway-media-job') return { data: { job: { id: jobId, targetVyralId } }, error: null };
+        if (name === 'submit-runway-media-job') return { data: { job: { status: 'submitted', providerTaskId: 'mock-task-1' } }, error: null };
+        return { data: {}, error: null };
+      },
+    },
+  };
+  return { db: db as unknown as Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectShotSequence>[0], invocations };
+};
+
+test('real shot sequence lifecycle obtains creator approval before reserving or submitting a paid job', async () => {
+  const { db, invocations } = createSequenceLifecycleDb();
+  const approvals: Array<{ shotId: string; shotIndex: number; estimate: number }> = [];
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    db,
+    sequenceRequest({
+      requestApproval: async (quote, shot, shotIndex) => {
+        approvals.push({ shotId: shot.id, shotIndex, estimate: quote.estimatedCostUsd });
+        return { confirmed: false as const };
+      },
+    }),
+  );
+  assert.equal(result.status, 'approval_declined');
+  assert.deepEqual(approvals, [{ shotId: 'shot-wide', shotIndex: 0, estimate: 0.2 }]);
+  assert.deepEqual(invocations, ['quote-runway-media']);
+  assert.equal(result.completedShots.length, 0);
+  assert.equal(result.approvedCostUsd, 0);
+});
+
+test('real shot sequence lifecycle submits only the approved first Shot and remains resumable on cancellation', async () => {
+  const controller = new AbortController();
+  const { db, invocations } = createSequenceLifecycleDb((name) => {
+    if (name === 'submit-runway-media-job') controller.abort();
+  });
+  const approvals: number[] = [];
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    db,
+    sequenceRequest({
+      signal: controller.signal,
+      requestApproval: async (_quote, _shot, shotIndex) => {
+        approvals.push(shotIndex);
+        return { confirmed: true as const, maxCostUsd: 0.25 };
+      },
+    }),
+  );
+  assert.equal(result.status, 'partial');
+  assert.equal(result.stoppedStatus, 'submitted_pending');
+  assert.equal(result.stoppedAtShotIndex, 0);
+  assert.deepEqual(approvals, [0]);
+  assert.deepEqual(invocations, [
+    'quote-runway-media',
+    'approve-runway-media-quote',
+    'create-runway-media-job',
+    'submit-runway-media-job',
+  ]);
+  assert.equal(result.completedShots.length, 0);
+  assert.equal(result.approvedCostUsd, 0.25);
+});
+
 test('shot orchestrator executes real sequence control flow with an offline media adapter', async () => {
   const calls: number[] = [];
   const prompts: string[] = [];
