@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   Video,
   LoaderCircle,
+  Magnet,
   Pause,
   Play,
   AlignCenter,
@@ -135,6 +136,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const [audioPreviewError, setAudioPreviewError] = useState('');
   const [audioPreviewClipKey, setAudioPreviewClipKey] = useState<string | null>(null);
   const [masterPlaybackState, setMasterPlaybackState] = useState<'idle' | 'loading' | 'playing' | 'paused'>('idle');
+  const [isMagneticEnabled, setIsMagneticEnabled] = useState(true);
   const [masterPlaybackError, setMasterPlaybackError] = useState('');
   const [masterPreviewTextOverlays, setMasterPreviewTextOverlays] = useState<MasterTimelineTextOverlay[]>([]);
   const masterPreviewTextSignatureRef = useRef('');
@@ -1015,7 +1017,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     // within the release distance. Accumulation is essential: snapping resets
     // scrollLeft on every native event, so measuring only distance from the
     // snapped position would make the magnet either weak or impossible to escape.
-    if (masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') {
+    if (isMagneticEnabled && masterPlaybackState !== 'playing' && masterPlaybackState !== 'loading') {
       const scale = pixelsPerSecondRef.current;
       const releaseDistancePx = 30;
       const lock = magneticScrollLockRef.current;
@@ -1120,6 +1122,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // Magnetic trim snapping: the playhead is fixed at the viewport center.
   // Snap within 10 screen pixels so the behavior stays consistent at every zoom level.
   const snapTrimPointToPlayhead = (time: number) => {
+    if (!isMagneticEnabled) return time;
     const scale = pixelsPerSecondRef.current;
     const playheadTime = (scrollRef.current?.scrollLeft ?? 0) / scale;
     return Math.abs(time - playheadTime) * scale <= 10 ? playheadTime : time;
@@ -2128,6 +2131,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
         <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel media loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
           {masterPlaybackState === 'loading' ? <LoaderCircle size={22} className="animate-spin" /> : masterPlaybackState === 'playing' ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
+        </button>
+        <button
+          type="button"
+          title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
+          aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
+          aria-pressed={isMagneticEnabled}
+          onClick={() => {
+            setIsMagneticEnabled((enabled) => {
+              const next = !enabled;
+              if (!next) {
+                magneticScrollLockRef.current = null;
+                magneticReleasedBoundaryRef.current = null;
+              }
+              return next;
+            });
+          }}
+          className={`grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
+        >
+          <Magnet size={22} strokeWidth={1.8} />
+          <span className="sr-only">Magnetic</span>
         </button>
         {selectedTransitionKey ? (
           <>
