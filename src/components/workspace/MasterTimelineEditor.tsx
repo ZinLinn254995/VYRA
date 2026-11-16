@@ -128,6 +128,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // canonical Asset and immutable Version upload in the background.
   const localMediaObjectUrlsRef = useRef(new Map<string, string>());
   const localMediaUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) localMediaUserIdRef.current = data.session?.user?.id ?? null;
+    }).catch(() => { if (!cancelled) localMediaUserIdRef.current = null; });
+    return () => { cancelled = true; };
+  }, []);
   const resolveLocalMediaUrl = async (assetId: string, versionId: string): Promise<string | null> => {
     const key = assetId + ':' + versionId;
     const activeUrl = localMediaObjectUrlsRef.current.get(key);
@@ -829,10 +837,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
         .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
     });
-    /* local-first image lookup above; cloud lookup is the fallback */
     return () => { cancelled = true; };
-    /* legacy cloud lookup removed */
-    void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId });
   }, [activeImageClip?.assetId, activeImageClip?.assetVersionId]);
 
   const visualContentEnd = visibleVideoTracks.flatMap((track) => track.clips)
