@@ -74,6 +74,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const lastOpenedUniverseRequestRef = useRef<number | null>(null);
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
+  const deletedStoryboardIdsRef = useRef<Set<string>>(new Set());
   const storyboardStorageKeyRef = useRef(storageKey);
   const suggestionRequestIdRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
@@ -746,6 +747,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       // Workspace stays mounted across navigation and auth changes. Clear every
       // owner-bound editor surface before painting the next account's workspace.
       storyboardStorageKeyRef.current = storageKey;
+      deletedStoryboardIdsRef.current.clear();
       suggestionRequestIdRef.current += 1;
       lastStoryboardSyncAtRef.current = 0;
       setActiveStoryboard(null);
@@ -830,7 +832,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const persistStoryboard = async (item: Storyboard) => {
     const client = supabase;
-    if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id)) return;
+    if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id) || deletedStoryboardIdsRef.current.has(item.id)) return;
 
     // Serialize writes per Storyboard so a slower older snapshot cannot
     // overwrite a newer Editor/AI update in the cloud.
@@ -957,9 +959,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setIsDeletingStoryboard(true);
     const item = storyboardToDelete;
     const client = supabase;
+    // Block new writes and drain any queued save before deleting, otherwise a
+    // late upsert could recreate a Project that the creator just removed.
+    deletedStoryboardIdsRef.current.add(item.id);
+    const queuedSave = storyboardSaveQueueRef.current.get(item.id);
+    if (queuedSave) await queuedSave.catch(() => undefined);
     if (isAuthenticated && client && isPersistableStoryboardId(item.id)) {
       const { data: authData, error: authError } = await client.auth.getUser();
       if (authError || !authData.user) {
+        deletedStoryboardIdsRef.current.delete(item.id);
         setCloudSyncMessage('Sign in again before deleting this Storyboard.');
         setIsDeletingStoryboard(false);
         return;
@@ -967,6 +975,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const { error: deleteError } = await client.from('vyral_storyboards')
         .delete().eq('id', item.id).eq('user_id', authData.user.id);
       if (deleteError) {
+        deletedStoryboardIdsRef.current.delete(item.id);
         setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
         setIsDeletingStoryboard(false);
         return;
