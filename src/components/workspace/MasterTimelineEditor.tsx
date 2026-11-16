@@ -169,6 +169,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
 
+  const pendingUploadSignature = [...(value?.videoTracks || []), ...(value?.audioTracks || [])]
+    .flatMap((track) => track.clips)
+    .filter((clip) => clip.uploadPending && clip.assetId && clip.assetVersionId)
+    .map((clip) => clip.assetId + ':' + clip.assetVersionId).sort().join('|');
+
   // Recover locally persisted Editor uploads after a reload/remount. The clip is
   // already part of the saved timeline; this only finishes its canonical cloud Asset.
   useEffect(() => {
@@ -255,7 +260,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     };
     void recover();
     return () => { cancelled = true; };
-  }, [vyralId, value, onChange]);
+  }, [vyralId, pendingUploadSignature]);
 
   const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
