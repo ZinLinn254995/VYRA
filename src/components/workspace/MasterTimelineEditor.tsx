@@ -1029,6 +1029,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const remainingSeconds = seconds % 60;
     return String(minutes).padStart(2, '0') + ':' + String(remainingSeconds).padStart(2, '0');
   };
+  // Magnetic trim snapping: the playhead is fixed at the viewport center.
+  // Snap within 10 screen pixels so the behavior stays consistent at every zoom level.
+  const snapTrimPointToPlayhead = (time: number) => {
+    const scale = pixelsPerSecondRef.current;
+    const playheadTime = (scrollRef.current?.scrollLeft ?? 0) / scale;
+    return Math.abs(time - playheadTime) * scale <= 10 ? playheadTime : time;
+  };
 
   const selectedScenes = orderedScenes.filter((scene) => selectedSceneIds.includes(scene.id));
   const transitionOptions = [
@@ -2280,13 +2287,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                   // Permit a temporary negative timeline start while revealing earlier source media.
                                   // The clip is rebased to 00:00 on pointer-up; sourceIn=0 is the true media boundary.
                                   const sourceStartBoundary = isImage ? Number.NEGATIVE_INFINITY : initialStart - initialSourceIn;
-                                  nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
+                                  const requestedStart = snapTrimPointToPlayhead(initialStart + delta);
+                                  nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, requestedStart));
                                   nextClipDuration = fixedEnd - nextClipStart;
                                   rippleDelta = nextClipStart - initialStart;
                                   if (!isImage) nextSourceIn = initialSourceIn + rippleDelta;
                                 } else {
                                   const sourceDuration = isImage ? Number.POSITIVE_INFINITY : Math.max(minDuration, initialSourceOut - initialSourceIn);
-                                  nextClipDuration = Math.max(minDuration, Math.min(sourceDuration, initialDuration + delta));
+                                  const requestedEnd = snapTrimPointToPlayhead(initialStart + initialDuration + delta);
+                                  nextClipDuration = Math.max(minDuration, Math.min(sourceDuration, requestedEnd - initialStart));
                                   rippleDelta = nextClipDuration - initialDuration;
                                   if (!isImage) nextSourceOut = initialSourceIn + nextClipDuration;
                                 }
@@ -2360,11 +2369,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                         .reduce((start, itemClip) => Math.min(start, itemClip.start), Number.POSITIVE_INFINITY);
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
-                        nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimumDuration, initialStart + delta));
+                        const requestedStart = snapTrimPointToPlayhead(initialStart + delta);
+                        nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimumDuration, requestedStart));
                         nextDuration = fixedEnd - nextStart;
                       } else {
                         const maxEnd = Number.isFinite(nextStartBoundary) ? nextStartBoundary : Number.POSITIVE_INFINITY;
-                        nextDuration = Math.max(minimumDuration, Math.min(maxEnd - initialStart, initialDuration + delta));
+                        const requestedEnd = snapTrimPointToPlayhead(initialStart + initialDuration + delta);
+                        nextDuration = Math.max(minimumDuration, Math.min(maxEnd - initialStart, requestedEnd - initialStart));
                       }
                       const nextTracks = (value?.textTracks || []).map((item) => item.id !== track.id ? item : {
                         ...item,
@@ -2415,11 +2426,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
                         const sourceStartBoundary = initialStart - Number(handle.dataset.initialSourceIn || 0);
-                        nextStart = Math.max(previousEnd, sourceStartBoundary, Math.min(fixedEnd - minimum, initialStart + delta));
+                        const requestedStart = snapTrimPointToPlayhead(initialStart + delta);
+                        nextStart = Math.max(previousEnd, sourceStartBoundary, Math.min(fixedEnd - minimum, requestedStart));
                         nextDuration = fixedEnd - nextStart;
                         nextSourceIn += nextStart - initialStart;
                       } else {
-                        nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, initialDuration + delta));
+                        const requestedEnd = snapTrimPointToPlayhead(initialStart + initialDuration + delta);
+                        nextDuration = Math.max(minimum, Math.min(nextBoundary - initialStart, requestedEnd - initialStart));
                       }
                       const nextTracks = (value?.audioTracks || []).map((item) => item.id !== track.id ? item : { ...item, clips: item.clips.map((entry) => entry.id === clip.id ? { ...entry, start: nextStart, duration: nextDuration, sourceIn: nextSourceIn } : entry) });
                       commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: nextTracks, videoTracks: value?.videoTracks || [], textTracks: value?.textTracks || [] });
