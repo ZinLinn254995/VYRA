@@ -895,22 +895,19 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           createdAt: row.created_at as string, updatedAt: row.updated_at as string,
         }));
         const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
-        let syncFailed = false;
         // Route merge uploads through the same per-Project queue as ordinary
         // saves so Delete can drain every write before removing the cloud row.
         const pendingToUpload = pending.filter((item) => !deletedStoryboardIdsRef.current.has(item.id));
         if (pendingToUpload.length) {
-          const results = await Promise.all(pendingToUpload.map(async (item) => {
-            await persistStoryboard(item);
-            return !deletedStoryboardIdsRef.current.has(item.id);
-          }));
+          await Promise.all(pendingToUpload.map((item) => persistStoryboard(item)));
           if (cancelled) return;
-          syncFailed = results.some((saved) => !saved);
         }
         if (cancelled) return;
         lastStoryboardSyncAtRef.current = Date.now();
         setStoryboards(mergedStoryboards.filter((item) => !deletedStoryboardIdsRef.current.has(item.id)));
-        if (!syncFailed) setCloudSyncMessage('');
+        // persistStoryboard owns the status message for queued uploads. Only
+        // clear it here when this sync did not need to upload any local rows.
+        if (!pendingToUpload.length) setCloudSyncMessage('');
       } catch {
         if (!cancelled) setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
       } finally {
