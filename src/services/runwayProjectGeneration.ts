@@ -454,6 +454,7 @@ export type RunwayProjectShotSequenceResult = {
     transitionVerification?: SceneVisualVerificationResult;
     outgoingTransitionVerification?: SceneVisualVerificationResult;
     downstreamTransitionVerifications?: Array<{ previousShotIndex: number; currentShotIndex: number; verification: SceneVisualVerificationResult }>;
+    downstreamShotVerifications?: Array<{ shotIndex: number; verification: SceneVisualVerificationResult }>;
     repairPrompts?: string[];
   }>;
   /** Exact failed handoff; currentShotIndex is the correct repair target for a boundary mismatch. */
@@ -716,9 +717,45 @@ export async function generateRunwayProjectShotSequence(
       if (!suppliedDownstream.some((item) => item.shotIndex === shotIndex + 1) && request.repair.nextShotAsset) {
         suppliedDownstream.push({ shotIndex: shotIndex + 1, asset: request.repair.nextShotAsset });
       }
+      const downstreamShotVerifications: NonNullable<RunwayProjectShotSequenceResult['completedShots'][number]['downstreamShotVerifications']> = [];
       for (const currentShotIndex of expectedDownstreamIndices) {
         const nextShot = request.scene.shots[currentShotIndex];
         const nextAsset = suppliedDownstream.find((item) => item.shotIndex === currentShotIndex)?.asset;
+        const nextShotAnchors = request.visualVerification.getAnchorsForShot?.(nextShot, currentShotIndex, request.scene)
+          ?? request.visualVerification.anchors;
+        let shotObservations: SceneVisualObservation[] = [];
+        let shotInspectionComplete = false;
+        let shotBaselineRevision = request.visualVerification.baselineRevision;
+        try {
+          if (nextAsset && /^video\\//i.test(nextAsset.mimeType)) {
+            const inspection = await request.visualVerification.inspect({
+              asset: nextAsset, shot: nextShot, shotIndex: currentShotIndex,
+              shotCount: request.scene.shots.length, scene: request.scene,
+              anchors: nextShotAnchors, signal: request.signal,
+            });
+            shotObservations = Array.isArray(inspection.observations) ? inspection.observations : [];
+            shotInspectionComplete = inspection.inspectionComplete === true && Array.isArray(inspection.observations);
+          }
+        } catch (error) {
+          if (request.signal?.aborted) throw error;
+          shotInspectionComplete = false;
+        }
+        try {
+          const latestRevision = await request.visualVerification.getCurrentBaselineRevision();
+          if (typeof latestRevision !== 'string' || !latestRevision.trim()) throw new Error('The approved Scene baseline revision is unavailable.');
+          shotBaselineRevision = latestRevision;
+        } catch {
+          shotInspectionComplete = false;
+        }
+        const shotVerification = evaluateSceneVisualVerification({
+          mediaId: nextAsset?.assetId ?? nextShot.id, mediaKind: 'video',
+          baselineRevision: request.visualVerification.baselineRevision,
+          currentBaselineRevision: shotBaselineRevision,
+          anchors: nextShotAnchors, observations: shotObservations,
+          inspectionComplete: shotInspectionComplete,
+        });
+        downstreamShotVerifications.push({ shotIndex: currentShotIndex, verification: shotVerification });
+        repairPrompts.push(buildSceneVisualRepairPrompt(shotVerification, nextShot));
         let observations: SceneVisualObservation[] = [];
         let inspectionComplete = false;
         let currentBaselineRevision = request.visualVerification.baselineRevision;
@@ -766,14 +803,17 @@ export async function generateRunwayProjectShotSequence(
       ...(transitionVerification ? { transitionVerification } : {}),
       ...(outgoingTransitionVerification ? { outgoingTransitionVerification } : {}),
       ...(downstreamTransitionVerifications.length ? { downstreamTransitionVerifications } : {}),
+      ...(downstreamShotVerifications.length ? { downstreamShotVerifications } : {}),
     });
+    const downstreamShotFailed = downstreamShotVerifications.some((item) => item.verification.status !== 'consistent');
     if (visualVerifications.some((verification) => verification.status !== 'consistent')
       || (transitionVerification && transitionVerification.status !== 'consistent')
       || (outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent')
+      || downstreamShotFailed
       || downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent')) {
       request.onShotProgress?.({
         shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
-        status: downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream-shot-chain-needs-review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing-shot-transition-needs-review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
+        status: downstreamShotFailed ? 'downstream-shot-visual-needs-review' : downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream-shot-chain-needs-review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing-shot-transition-needs-review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
       });
       // Do not generate later shots against an unverified handoff, and never
       // auto-regenerate a paid output. Return targeted repair guidance for review.
@@ -791,7 +831,7 @@ export async function generateRunwayProjectShotSequence(
         completedShots,
         ...(failedTransitionBoundary ? { failedTransitionBoundary } : {}),
         stoppedAtShotIndex: shotIndex,
-        stoppedStatus: downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream_shot_chain_needs_review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing_shot_transition_needs_review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
+        stoppedStatus: downstreamShotFailed ? 'downstream_shot_visual_needs_review' : downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream_shot_chain_needs_review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing_shot_transition_needs_review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
         stoppedJobId: result.jobId,
         approvedCostUsd,
       };
