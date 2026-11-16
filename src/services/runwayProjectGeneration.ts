@@ -352,7 +352,7 @@ export async function recoverRunwayProjectMediaJob(
 
 export type RunwayProjectShotSequenceRequest = Omit<
   RunwayProjectGenerationRequest,
-  'input' | 'requestApproval'
+  'input' | 'requestApproval' | 'maxCostUsd' | 'task'
 > & {
   scene: CreativeScenePlan;
   productionTitle: string;
