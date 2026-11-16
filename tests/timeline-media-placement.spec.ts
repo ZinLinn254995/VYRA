@@ -91,7 +91,7 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /position: 'absolute', left: clip\.start \* pixelsPerSecond/);
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary/);
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary \+ 0\.0001\s*:\s*item\.start >= edgeBoundary - 0\.0001/);
-  assert.match(editor, /rippleIds\.has\(item\.id\) \? \{ \.\.\.item, start: item\.start \+ rippleDelta \}/);
+  assert.match(editor, /rippleIds\.has\(item\.id\) \? \{ \.\.\.item, start: rippleClipStarts\[item\.id\] \+ rippleDelta \}/);
   assert.match(editor, /Transition controls follow the real timeline boundary/);
   assert.doesNotMatch(editor, /effect: 'dissolve', duration: 0\.5/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
