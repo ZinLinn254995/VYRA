@@ -1058,15 +1058,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       ].filter((time) => Number.isFinite(time) && time >= 0).sort((a, b) => a - b);
 
       // Edges from different rows that nearly coincide form ONE magnetic target.
-      // Group width is capped at 12 screen pixels, so stacked attraction zones
-      // cannot combine into a wider sticky area. The group's midpoint is used
+      // Group width is capped at 24 screen pixels (the full width of a 12px
+      // attraction zone), so overlapping edge zones collapse into one target. The group's midpoint is used
       // as its stable shared target.
       const magneticTargets: Array<{ time: number; boundaries: number[] }> = [];
       for (const boundary of clipBoundaries) {
         const currentGroup = magneticTargets[magneticTargets.length - 1];
         if (
           currentGroup &&
-          (boundary - currentGroup.boundaries[0]) * scale <= 12
+          (boundary - currentGroup.boundaries[0]) * scale <= 24
         ) {
           currentGroup.boundaries.push(boundary);
           currentGroup.time = currentGroup.boundaries.reduce((sum, item) => sum + item, 0) / currentGroup.boundaries.length;
