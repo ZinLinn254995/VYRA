@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
 import { StoryboardUniverseTab } from './StoryboardUniverseTab';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
@@ -92,6 +92,10 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [sceneVideoPreviewError, setSceneVideoPreviewError] = useState('');
   const [sceneVideoPreviewSourceIn, setSceneVideoPreviewSourceIn] = useState(0);
   const [sceneVideoPreviewSourceOut, setSceneVideoPreviewSourceOut] = useState<number | null>(null);
+  const [masterTimelineImagePreview, setMasterTimelineImagePreview] = useState<{ url: string; alt: string } | null>(null);
+  const handleMasterTimelineImagePreviewChange = useCallback((preview: { url: string; alt: string } | null) => {
+    setMasterTimelineImagePreview((current) => current?.url === preview?.url && current?.alt === preview?.alt ? current : preview);
+  }, []);
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
@@ -1716,8 +1720,18 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                 <>
                   <div className="profile-storyboard-preview">
                     <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                      <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                      {masterTimelineImagePreview ? (
+                        <img
+                          src={masterTimelineImagePreview.url}
+                          alt={masterTimelineImagePreview.alt}
+                          className="absolute inset-0 z-10 h-full w-full bg-black object-contain"
+                        />
+                      ) : (
+                        <>
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
+                          <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="grid h-12 grid-cols-3 items-center bg-[var(--vyra-bg-surface)] px-3">
@@ -1810,6 +1824,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       if (activeSceneId === sceneId) setActiveSceneId(null);
                     }}
                     onSelectionChange={(selection) => setSelectedTimelineItem((current) => JSON.stringify(current) === JSON.stringify(selection) ? current : selection)}
+                    onImagePreviewChange={handleMasterTimelineImagePreviewChange}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
