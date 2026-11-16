@@ -221,3 +221,10 @@ test('shot repair resolves the next existing Director Asset and passes it for ou
   assert.ok(workspace.includes('activeSceneDirectorShots:'));
   assert.ok(workspace.includes('shotIndex:'));
 });
+
+
+test('successful repair status reports the actual incoming and outgoing verification scope', () => {
+  assert.ok(chat.includes('repairVerificationScope'));
+  assert.ok(chat.includes("'outgoing-boundary'"));
+  assert.ok(chat.includes("'incoming-boundary'"));
+});
