@@ -2237,12 +2237,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           </div>
         </div>
         {!isTextEditMode && (
-          <div className="pointer-events-none absolute right-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-end gap-2">
+          <div className="pointer-events-none absolute right-4 top-[4.5rem] z-40 flex flex-col items-end gap-2">
             {mediaUploadError && <div role="status" className="max-w-56 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2 text-xs text-[var(--vyra-text-primary)] shadow-lg">{mediaUploadError}</div>}
             <button type="button" disabled={mediaUploadBusy || !vyralId} onClick={() => mediaFileInputRef.current?.click()}
               title="Upload Video, Image or Audio" aria-label="Upload Video, Image or Audio"
-              className="pointer-events-auto grid size-12 place-items-center rounded-full border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white shadow-lg transition-transform hover:scale-105 disabled:cursor-wait disabled:opacity-60">
-              {mediaUploadBusy ? <LoaderCircle size={22} className="animate-spin" /> : <Plus size={24} strokeWidth={2} />}
+              className="pointer-events-auto grid size-10 place-items-center rounded-md border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white shadow-sm transition-colors hover:brightness-105 disabled:cursor-wait disabled:opacity-60">
+              {mediaUploadBusy ? <LoaderCircle size={20} className="animate-spin" /> : <Plus size={22} strokeWidth={2} />}
             </button>
           </div>
         )}
