@@ -2687,6 +2687,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           : [];
         const hasActionableBoundaryMismatch = failedBoundary?.verification.findings.some((finding) => finding.status === 'mismatch') === true;
         const hasActionableDownstreamShotMismatch = failedDownstreamShot?.verification.findings.some((finding) => finding.status === 'mismatch') === true;
+        const actionableShotVerification = failedShot?.visualVerifications?.find((verification) =>
+          verification.findings.some((finding) => finding.status === 'mismatch')
+        );
         const repairInstruction = failedBoundary
           ? hasActionableBoundaryMismatch && repairTargetShotPlan
             ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)
@@ -2695,7 +2698,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ? hasActionableDownstreamShotMismatch && repairTargetShotPlan
               ? buildSceneVisualRepairPrompt(failedDownstreamShot.verification, repairTargetShotPlan)
               : undefined
-            : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
+            : actionableShotVerification && repairTargetShotPlan
+              ? buildSceneVisualRepairPrompt(actionableShotVerification, repairTargetShotPlan)
+              : undefined;
         const targetedRepairPrepared = repairTargetShotIndex !== undefined && repairTargetShotPlan
           && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
         if (repairRequest && failedShot && onShotRepairHistory) {
