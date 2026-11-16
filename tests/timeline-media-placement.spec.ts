@@ -85,6 +85,6 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /ring-2 ring-\[var\(--vyra-accent-primary\)\]/);
   assert.match(editor, /border-\[var\(--vyra-accent-primary\)\]\/50 bg-\[var\(--vyra-accent-primary\)\]\/10/);
   assert.match(editor, /sceneCardOffset \+= width/);
-  assert.match(editor, /nextTransitions\[previousClip\.id \+ ':' \+ clipId\] = \{ effect: 'dissolve', duration: 0\.5 \}/);
+  assert.doesNotMatch(editor, /effect: 'dissolve', duration: 0\.5/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
 });
