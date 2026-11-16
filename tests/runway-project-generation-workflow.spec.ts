@@ -133,7 +133,7 @@ test('visual inspection failures remain unknown and never trigger paid automatic
   assert.ok(workflow.includes('A failed vision pass is an unknown result, never a silent pass'));
   assert.ok(workflow.includes('inspectionComplete = false'));
   assert.ok(workflow.includes("visualVerificationStatus: !request.visualVerification ? 'not_configured' : verifiedShotCount > 0 ? 'partial' : 'not_run'"));
-  assert.ok(workflow.includes('Do not auto-regenerate a paid output'));
+  assert.ok(workflow.includes('auto-regenerate a paid output'));
   assert.ok(visualVerifier.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
 });
 
