@@ -1077,7 +1077,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         const nextScenes = currentScenes.map((item) => item.id === scene.id ? {
           ...item,
           ...patch,
-          project: item.project ? { ...item.project, updatedAt: now } : item.project,
+          project: patch.project ? { ...(item.project || patch.project), ...patch.project, updatedAt: now } : item.project ? { ...item.project, updatedAt: now } : item.project,
         } : item);
         const details = {
           ...current.details,
@@ -1100,7 +1100,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           const videoClips = patch.project.timeline.tracks
             .filter((track) => track.type === 'video')
             .flatMap((track) => track.clips)
-            .filter((clip): clip is SceneProjectClip & { assetId: string; assetVersionId: string; assetMimeType: string } => Boolean(clip.assetId && clip.assetVersionId && /^video\\//i.test(clip.assetMimeType || '')))
+            .filter((clip): clip is SceneProjectClip & { assetId: string; assetVersionId: string; assetMimeType: string } => Boolean(clip.assetId && clip.assetVersionId && /^video\//i.test(clip.assetMimeType || '')))
             .sort((a, b) => a.start - b.start)
             .map((clip) => ({
               id: clip.id,
