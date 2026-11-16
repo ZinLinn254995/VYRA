@@ -106,6 +106,8 @@ type Props = {
 const toolbarItems = [
   { label: 'Text', Icon: Type },
   { label: 'Audio', Icon: AudioLines },
+  { label: 'Image', Icon: ImageIcon },
+  { label: 'Video', Icon: Video },
   { label: 'Undo', Icon: Undo2 },
   { label: 'Redo', Icon: Redo2 },
 ];
@@ -1278,6 +1280,45 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     setSelectedAudioClip({ trackId: track.id, clipId: right.id });
   };
 
+  const addSampleVisualClip = (mediaKind: 'image' | 'video') => {
+    const currentTracks = value?.videoTracks || [];
+    const existingClips = visibleVideoTracks.flatMap((track) => track.clips);
+    const previousClip = existingClips.reduce<TimelineClip | null>((latest, clip) =>
+      !latest || clip.start + clip.duration > latest.start + latest.duration ? clip : latest, null);
+    const start = previousClip ? previousClip.start + previousClip.duration : 0;
+    const clipId = crypto.randomUUID();
+    const sampleClip: TimelineClip = {
+      id: clipId,
+      name: mediaKind === 'image' ? 'Image Sample' : 'Video Sample',
+      start,
+      duration: 3,
+      mediaKind,
+      isPlaceholder: true,
+      content: mediaKind === 'image'
+        ? 'Sample Image — visual layout preview only'
+        : 'Sample Video — visual layout preview only',
+    };
+    const nextTracks: TimelineTrack[] = currentTracks.length
+      ? currentTracks.map((track, index) => index === 0
+        ? { ...track, name: 'Scenes', clips: [...track.clips, sampleClip] }
+        : track)
+      : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [sampleClip] }];
+    const nextTransitions = { ...(value?.transitions || {}) };
+    if (previousClip) nextTransitions[previousClip.id + ':' + clipId] = { effect: 'dissolve', duration: 0.5 };
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: nextTransitions,
+      audioTracks: value?.audioTracks || [],
+      videoTracks: nextTracks,
+      textTracks: value?.textTracks || [],
+    });
+    setSelectedSceneIds([]);
+    setSelectedTransitionKey(null);
+    setSelectedTextClip(null);
+    setSelectedAudioClip(null);
+  };
+
   const addTextClip = () => {
     const start = Math.max(0, scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
     const tracks = value?.textTracks || [];
@@ -1709,7 +1750,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             type="button"
             title={label}
             aria-label={label}
-            onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : label === 'Undo' ? undoTimeline : label === 'Redo' ? redoTimeline : undefined}
+            onClick={label === 'Text' ? addTextClip : label === 'Audio' ? addAudioClip : label === 'Image' ? () => addSampleVisualClip('image') : label === 'Video' ? () => addSampleVisualClip('video') : label === 'Undo' ? undoTimeline : label === 'Redo' ? redoTimeline : undefined}
             className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
           >
             <Icon size={22} strokeWidth={1.8} />
