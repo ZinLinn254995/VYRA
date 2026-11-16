@@ -597,7 +597,8 @@ export async function generateRunwayProjectShotSequence(
             observations = Array.isArray(inspection.observations) ? inspection.observations : [];
             inspectionComplete = inspection.inspectionComplete === true && Array.isArray(inspection.observations);
           }
-        } catch {
+        } catch (error) {
+          if (request.signal?.aborted) throw error;
           // A failed vision pass is an unknown result, never a silent pass.
           inspectionComplete = false;
         }
