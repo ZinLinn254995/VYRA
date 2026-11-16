@@ -84,7 +84,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
 
     if (!instance || playheadTime >= sceneEnd) continue;
 
-    if (Array.isArray(instance.videoClips) && instance.videoClips.length) {
+    if (Array.isArray(instance.videoClips)) {
       const orderedClips = [...instance.videoClips].sort((a, b) => a.start - b.start);
       for (const clip of orderedClips) {
         if (!clip || typeof clip.id !== 'string' || !clip.id ||
