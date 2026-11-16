@@ -2654,9 +2654,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             (repairRequest
               ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
               : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
-          (repairRequest
-            ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
-            : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
         if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
