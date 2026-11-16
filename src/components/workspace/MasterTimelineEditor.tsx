@@ -1304,25 +1304,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       textTracks: value?.textTracks || [],
     });
   };
-  const readMediaDuration = (file: File, kind: 'video' | 'audio' | 'image'): Promise<number> => {
-    if (kind === 'image') return Promise.resolve(5);
-    return new Promise((resolve) => {
-      const element = kind === 'video' ? document.createElement('video') : document.createElement('audio');
-      const objectUrl = URL.createObjectURL(file);
-      element.preload = 'metadata';
-      element.onloadedmetadata = () => {
-        const duration = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : 5;
-        URL.revokeObjectURL(objectUrl);
-        resolve(duration);
-      };
-      element.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(5);
-      };
-      element.src = objectUrl;
-    });
-  };
-
   const handleMediaFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
