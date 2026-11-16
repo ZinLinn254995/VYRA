@@ -86,7 +86,7 @@ test('completed Director shots are linked to the selected Scene Project timeline
 
 test('Master Editor preview schedules each generated Scene shot Asset in order', () => {
   assert.ok(workspace.includes('videoClips,'));
-  assert.ok(workspace.includes('videoClips: generatedClips.map'));
+  assert.ok(workspace.includes('const videoClips = generatedClips.map'));
   assert.ok(masterEditor.includes('videoClips?: TimelineClip[]'));
   assert.ok(videoPlanner.includes('Array.isArray(instance.videoClips)'));
   assert.ok(videoPlanner.includes("instance.id + ':' + clip.id"));
