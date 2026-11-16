@@ -620,31 +620,41 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const nextEntry = orderedVisualClips[index + 1];
     const clip = entry.clip;
     const nextClip = nextEntry.clip;
-    // The Scenes row uses the same gapless, edge-to-edge layout as the former
-    // Scene cards. Its transition positions therefore follow clip durations.
-    scenesRowBoundary += clip.duration;
+    // Transition controls follow the real timeline boundary after ripple edits.
+    scenesRowBoundary = clip.start + clip.duration;
     const boundary = scenesRowBoundary;
     const legacySceneBoundary = sceneTransitionMarkers.find((item) => Math.abs(item.boundary - boundary) <= 0.001);
     const key = legacySceneBoundary?.key || (clip.id + ':' + nextClip.id);
     return { key, boundary, rowIndex: entry.trackIndex, clipId: clip.id, nextClipId: nextClip.id, transition: value?.transitions?.[key] };
   });
-  const updateVisualClipTiming = (clip: TimelineClip, start: number, duration: number, sourceIn: number, sourceOut: number) => {
+  const updateVisualClipTiming = (
+    clip: TimelineClip,
+    start: number,
+    duration: number,
+    sourceIn: number,
+    sourceOut: number,
+    rippleClipIds: string[] = [],
+    rippleDelta = 0,
+  ) => {
+    const rippleIds = new Set(rippleClipIds);
     const videoTracks = (value?.videoTracks || []).map((track) => ({
       ...track,
-      clips: track.clips.map((item) => item.id === clip.id
-        ? { ...item, start, duration, sourceIn, sourceOut }
-        : item),
+      clips: track.clips.map((item) => {
+        if (item.id === clip.id) return { ...item, start, duration, sourceIn, sourceOut };
+        return rippleIds.has(item.id) ? { ...item, start: item.start + rippleDelta } : item;
+      }),
     }));
     const sceneInstances = (value?.sceneInstances || []).map((instance) => {
       const sceneIndex = orderedScenes.findIndex((item) => item.id === instance.sceneId);
       const currentSceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
         .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
-      if (instance.videoClips?.some((item) => item.id === clip.id)) {
+      if (instance.videoClips?.length) {
         return {
           ...instance,
-          videoClips: instance.videoClips.map((item) => item.id === clip.id
-            ? { ...item, start: start - currentSceneStart, duration, sourceIn, sourceOut }
-            : item),
+          videoClips: instance.videoClips.map((item) => {
+            if (item.id === clip.id) return { ...item, start: start - currentSceneStart, duration, sourceIn, sourceOut };
+            return rippleIds.has(item.id) ? { ...item, start: item.start + rippleDelta } : item;
+          }),
         };
       }
       if (instance.id === clip.id) {
@@ -1913,13 +1923,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               </div>
               {visibleVideoTracks.map((track, trackIndex) => {
                 const sceneStyleClips = [...track.clips].sort((a, b) => a.start - b.start || a.duration - b.duration);
-                let sceneCardOffset = 0;
                 return (
-                  <div key={track.id} data-video-track-id={track.id} className="relative flex h-16 items-center gap-0 py-2">
+                  <div key={track.id} data-video-track-id={track.id} className="relative h-16 py-2">
                     {sceneStyleClips.map((clip) => {
                       const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
                       const width = Math.max(24, clip.duration * pixelsPerSecond);
-                      sceneCardOffset += width;
                       const isSelected = selectedVisualClipId === clip.id;
                       return (
                         <button key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
@@ -1936,7 +1944,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                             setSelectedVisualClipId(isSelected ? null : clip.id);
                           }}
                           className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
-                          style={{ width }}>
+                          style={{ position: 'absolute', left: clip.start * pixelsPerSecond, top: '50%', width, transform: 'translateY(-50%)' }}>
                           {isImage ? <ImageIcon size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" /> : <Video size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" />}
                           <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{clip.name}</span>
                           {isSelected && (['left', 'right'] as const).map((edge) => (
@@ -1960,6 +1968,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 handle.dataset.initialDuration = String(clip.duration);
                                 handle.dataset.initialSourceIn = String(clip.sourceIn ?? 0);
                                 handle.dataset.initialSourceOut = String(clip.sourceOut ?? ((clip.sourceIn ?? 0) + clip.duration));
+                                const edgeBoundary = edge === 'left' ? clip.start : clip.start + clip.duration;
+                                handle.dataset.rippleClipIds = JSON.stringify(visibleVideoTracks.flatMap((item) => item.clips)
+                                  .filter((item) => item.id !== clip.id && (edge === 'left'
+                                    ? item.start + item.duration <= edgeBoundary + 0.0001
+                                    : item.start >= edgeBoundary - 0.0001))
+                                  .map((item) => item.id));
                               }}
                               onPointerMove={(event) => {
                                 const handle = event.currentTarget;
@@ -1972,29 +1986,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 const initialSourceIn = Number(handle.dataset.initialSourceIn);
                                 const initialSourceOut = Number(handle.dataset.initialSourceOut);
                                 const minDuration = 0.2;
-                                const allClips = visibleVideoTracks.flatMap((item) => item.clips).filter((item) => item.id !== clip.id);
-                                const previousEnd = allClips.filter((item) => item.start + item.duration <= initialStart + 0.0001)
-                                  .reduce((end, item) => Math.max(end, item.start + item.duration), 0);
-                                const nextStart = allClips.filter((item) => item.start >= initialStart + initialDuration - 0.0001)
-                                  .reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
+                                const rippleClipIds = JSON.parse(handle.dataset.rippleClipIds || '[]') as string[];
                                 let nextClipStart = initialStart;
                                 let nextClipDuration = initialDuration;
                                 let nextSourceIn = initialSourceIn;
                                 let nextSourceOut = initialSourceOut;
+                                let rippleDelta = delta;
                                 if (edge === 'left') {
                                   const fixedEnd = initialStart + initialDuration;
                                   const sourceStartBoundary = isImage ? 0 : Math.max(0, initialStart - initialSourceIn);
-                                  nextClipStart = Math.max(previousEnd, sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
+                                  nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
                                   nextClipDuration = fixedEnd - nextClipStart;
-                                  if (!isImage) nextSourceIn = initialSourceIn + (nextClipStart - initialStart);
+                                  rippleDelta = nextClipStart - initialStart;
+                                  if (!isImage) nextSourceIn = initialSourceIn + rippleDelta;
                                 } else {
-                                  const maxEnd = Number.isFinite(nextStart) ? nextStart : Number.POSITIVE_INFINITY;
                                   const sourceDuration = isImage ? Number.POSITIVE_INFINITY : Math.max(minDuration, initialSourceOut - initialSourceIn);
-                                  const availableDuration = Math.max(minDuration, Math.min(maxEnd - initialStart, sourceDuration));
-                                  nextClipDuration = Math.max(minDuration, Math.min(availableDuration, initialDuration + delta));
+                                  nextClipDuration = Math.max(minDuration, Math.min(sourceDuration, initialDuration + delta));
+                                  rippleDelta = nextClipDuration - initialDuration;
                                   if (!isImage) nextSourceOut = initialSourceIn + nextClipDuration;
                                 }
-                                updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut);
+                                updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipIds, rippleDelta);
                               }}
                               onPointerUp={(event) => {
                                 event.preventDefault();
