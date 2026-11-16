@@ -2654,7 +2654,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ]);
             if (asset && version && asset.id === existing.assetId && asset.vyral_id === storyboardUniverseId
               && version.id === existing.assetVersionId && asset.storage_path === version.storage_path
-              && /^video\\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
+              && /^video\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
               && Number(version.size_bytes) > 0) {
               downstreamShotAssets.push({
                 shotIndex,
@@ -2673,7 +2673,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex - 1)?.asset
             ?? (failedShot?.shotIndex === repairTargetShotIndex
               ? previousShotAsset
-              : result.completedShots.find((item) => item.shotIndex === repairTargetShotIndex - 1)?.assets.find((asset) => /^video\\//i.test(asset.mimeType)))
+              : result.completedShots.find((item) => item.shotIndex === repairTargetShotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType)))
           : undefined;
         const repairNextShotAsset = repairTargetShotIndex !== undefined
           ? downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex + 1)?.asset
@@ -2698,7 +2698,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const historyShotIndex = repairTargetShotIndex ?? repairRequest.shotIndex;
           const candidate = failedDownstreamShot
             ? downstreamShotAssets.find((item) => item.shotIndex === historyShotIndex)?.asset
-            : failedShot.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+            : failedShot.assets.find((asset) => /^video\//i.test(asset.mimeType));
           const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === historyShotIndex);
           const verifications = [
             ...(failedShot.visualVerifications ?? []),
@@ -2782,7 +2782,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         let shotSequenceLinkMessage = '';
         if (repairRequest && onShotRepairHistory && 'completedShots' in result) {
           const repairedShot = result.completedShots.find((shot) => shot.shotIndex === repairRequest.shotIndex);
-          const candidate = repairedShot?.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+          const candidate = repairedShot?.assets.find((asset) => /^video\//i.test(asset.mimeType));
           const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === repairRequest.shotIndex);
           onShotRepairHistory({
             id: makeId(), createdAt: new Date().toISOString(), sceneId: activeDirectorScenePlan?.id ?? repairRequest.scene.id,
