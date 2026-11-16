@@ -235,7 +235,8 @@ test('successful repair status reports the actual incoming and outgoing verifica
 
 test('continuity findings identify both sides of a failed handoff and never repair the original wrong Shot', () => {
   assert.ok(chat.includes("label: 'Shot ' + (item.previousShotIndex + 1) + ' → Shot ' + (item.currentShotIndex + 1)"));
-  assert.ok(chat.includes('const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedShot?.shotIndex'));
+  assert.ok(chat.includes('const failedDownstreamShot = failedShot?.downstreamShotVerifications?.find((item) => item.verification.status !== \'consistent\')'));
+  assert.ok(chat.includes('const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedDownstreamShot?.shotIndex ?? failedShot?.shotIndex'));
   assert.ok(chat.includes('shotIndex: repairTargetShotIndex'));
   assert.ok(chat.includes('buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)'));
   assert.ok(chat.includes('The earlier repair target will not be regenerated.'));
