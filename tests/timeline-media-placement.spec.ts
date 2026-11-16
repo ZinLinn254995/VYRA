@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
+
+const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
+  id, name: id, start, duration, assetId: 'asset-' + id, assetVersionId: 'version-' + id, assetMimeType: mime,
+});
+const idFactory = () => { let id = 0; return () => 'track-' + (++id); };
+
+test('places media at the playhead in the lowest row when the interval is clear', () => {
+  const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video 1', clips: [clip('existing', 0, 4)] }];
+  const result = placeTimelineMediaClip(tracks, clip('new', 5, 3), 'video', idFactory());
+  assert.equal(result.createdTrack, false);
+  assert.equal(result.trackId, 'video-1');
+  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['existing', 'new']);
+});
+
+test('creates a new bottom row when the lowest row overlaps the requested interval', () => {
+  const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video 1', clips: [clip('existing', 4, 5)] }];
+  const result = placeTimelineMediaClip(tracks, clip('new', 6, 2), 'video', idFactory());
+  assert.equal(result.createdTrack, true);
+  assert.equal(result.rowIndex, 1);
+  assert.equal(result.trackId, 'track-1');
+  assert.equal(result.tracks.length, 2);
+  assert.deepEqual(result.tracks[1].clips.map((item) => item.id), ['new']);
+});
+
+test('uses the same Video layer for Image clips', () => {
+  const tracks: TimelineMediaTrackRow[] = [];
+  const result = placeTimelineMediaClip(tracks, clip('image', 0, 5, 'image/png'), 'image', idFactory());
+  assert.equal(result.tracks[0].name, 'Video 1');
+});
+
+test('keeps Audio placement independent from Video rows', () => {
+  const tracks: TimelineMediaTrackRow[] = [];
+  const result = placeTimelineMediaClip(tracks, clip('audio', 0, 8, 'audio/mpeg'), 'audio', idFactory());
+  assert.equal(result.tracks[0].name, 'Audio 1');
+});
+
+test('rejects a MIME type that does not match the requested layer', () => {
+  assert.throws(() => placeTimelineMediaClip([], clip('wrong', 0, 2, 'image/png'), 'video', idFactory()), /video Asset Version/);
+});
+
+test('rejects invalid timeline intervals', () => {
+  assert.throws(() => placeTimelineMediaClip([], clip('invalid', -1, 2), 'video', idFactory()), /valid non-negative values/);
+});
