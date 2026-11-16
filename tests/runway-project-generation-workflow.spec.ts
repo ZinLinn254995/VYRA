@@ -309,6 +309,54 @@ test('shot sequence cancellation during visual inspection never starts the next 
   assert.deepEqual(approved, [0]);
 });
 
+test('shot sequence stops before the next paid Shot when the approved baseline changes during inspection', async () => {
+  const generated: number[] = [];
+  let baselineReads = 0;
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    const shotIndex = generated.length;
+    generated.push(shotIndex);
+    const quote = sequenceQuote(0.2);
+    const approval = await mediaRequest.requestApproval(quote);
+    if (!approval.confirmed) return { status: 'approval_declined' as const, quote };
+    return { status: 'ready' as const, quote, jobId: 'stale-baseline-job-' + shotIndex, assets: [sequenceAsset(shotIndex)] };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb,
+    sequenceRequest({
+      requestApproval: async () => ({ confirmed: true as const, maxCostUsd: 0.25 }),
+      visualVerification: {
+        baselineRevision: 'scene-rev-1',
+        anchors: [{ path: 'character.identity', expectedValue: 'A', scope: 'persistent', visibility: 'required' }],
+        inspect: async ({ anchors }) => ({
+          inspectionComplete: true,
+          observations: anchors.map((anchor) => ({
+            path: anchor.path, status: 'match' as const, confidence: 0.99,
+            evidence: 'The sampled frames match the baseline used to start this sequence.',
+          })),
+        }),
+        inspectTransition: async ({ anchors }) => ({
+          inspectionComplete: true,
+          observations: anchors.map((anchor) => ({
+            path: anchor.path, status: 'match' as const, confidence: 0.99,
+            evidence: 'The adjacent shots preserve the expected handoff.',
+          })),
+        }),
+        getCurrentBaselineRevision: async () => {
+          baselineReads += 1;
+          return baselineReads === 1 ? 'scene-rev-2' : 'scene-rev-2';
+        },
+      },
+    }),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'needs_review');
+  assert.equal(result.visualVerificationStatus, 'needs_review');
+  assert.deepEqual(generated, [0], 'a stale approved baseline must stop the sequence before another paid Shot');
+  assert.equal(result.completedShots[0].visualVerifications?.[0].status, 'needs_review');
+  assert.match(result.completedShots[0].visualVerifications?.[0].limitations.join(' ') ?? '', /baseline/i);
+});
+
 test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
   const calls: number[] = [];
   const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
