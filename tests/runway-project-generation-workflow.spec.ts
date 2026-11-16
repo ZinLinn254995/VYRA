@@ -156,14 +156,4 @@ test('approved repair targets exactly one original shot and re-checks its incomi
 });
 
 
-test('approved repair targets exactly one original shot and re-checks its incoming boundary', () => {
-  assert.ok(workflow.includes('repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset }'));
-  assert.ok(workflow.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
-  assert.ok(workflow.includes('const shotIndices = request.repair ? [request.repair.shotIndex]'));
-  assert.ok(workflow.includes('request.repair.shotIndex >= request.scene.shots.length'));
-  assert.ok(workflow.includes('The first shot cannot have a previous-shot repair reference.'));
-  assert.ok(workflow.includes('request.repair?.shotIndex === shotIndex ? request.repair.previousShotAsset : undefined'));
-  assert.ok(workflow.includes('completedShots.find((completed) => completed.shotIndex === shotIndex - 1)'));
-  assert.ok(workflow.includes('buildRunwayProjectShotPrompt(request, request.scene, shot, shotIndex)'));
-  assert.ok(workflow.includes('Do not generate later shots against an unverified handoff'));
-});
+
