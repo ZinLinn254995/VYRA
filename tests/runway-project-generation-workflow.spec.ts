@@ -165,6 +165,40 @@ test('shot orchestrator executes real sequence control flow with an offline medi
   assert.equal(result.approvedCostUsd, 1, 'the full creator-approved per-shot ceiling is reserved against the sequence budget');
 });
 
+
+test('shot orchestrator stops before the next paid Shot when visual inspection finds a continuity mismatch', async () => {
+  let generatedShots = 0;
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    generatedShots += 1;
+    const approval = await mediaRequest.requestApproval(sequenceQuote(0.2));
+    if (!approval.confirmed) return { status: 'approval_declined' as const, quote: sequenceQuote(0.2) };
+    return { status: 'ready' as const, quote: sequenceQuote(0.2), jobId: 'visual-job', assets: [sequenceAsset(0)] };
+  };
+  const result = await (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+    sequenceDb,
+    sequenceRequest({
+      visualVerification: {
+        baselineRevision: 'scene-rev-1',
+        anchors: [{ path: 'character.identity', expectedValue: 'A', scope: 'persistent', visibility: 'required' }],
+        inspect: async () => ({
+          inspectionComplete: true,
+          observations: [{ path: 'character.identity', status: 'mismatch', confidence: 0.96, evidence: 'The visible character does not match the approved identity.' }],
+        }),
+        inspectTransition: async () => ({ inspectionComplete: true, observations: [] }),
+        getCurrentBaselineRevision: async () => 'scene-rev-1',
+      },
+    }),
+    { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+  );
+  assert.equal(result.status, 'needs_review');
+  assert.equal(result.visualVerificationStatus, 'needs_review');
+  assert.equal(result.stoppedAtShotIndex, 0);
+  assert.equal(result.completedShots.length, 1);
+  assert.equal(generatedShots, 1, 'later paid Shots must not start after a visual mismatch');
+  assert.equal(result.completedShots[0].visualVerifications?.[0].status, 'needs_review');
+});
+
 test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
   const calls: number[] = [];
   const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
