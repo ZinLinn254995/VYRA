@@ -154,6 +154,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     lastScrollLeft: number;
     accumulatedDelta: number;
   } | null>(null);
+  const magneticReleasedBoundaryRef = useRef<number | null>(null);
   const masterPlaybackTickRef = useRef<(() => void) | null>(null);
   const masterPlaybackSeekPendingRef = useRef(false);
   useEffect(() => {
@@ -1036,12 +1037,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         } else {
           // The user has intentionally pulled far enough to break the magnetic
           // hold. Resume free scrolling and allow a different nearby edge to win.
+          magneticReleasedBoundaryRef.current = lock.boundary;
           magneticScrollLockRef.current = null;
         }
       }
 
       if (!magneticHoldActive) {
         const playheadTime = Math.max(0, element.scrollLeft / scale);
+        const releasedBoundary = magneticReleasedBoundaryRef.current;
+        if (
+          releasedBoundary !== null &&
+          Math.abs(playheadTime - releasedBoundary) * scale > releaseDistancePx
+        ) {
+          magneticReleasedBoundaryRef.current = null;
+        }
         const clipBoundaries = [
         ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
@@ -1054,7 +1063,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       let nearestDistancePx = 12;
       for (const boundary of clipBoundaries) {
         const distancePx = Math.abs(boundary - playheadTime) * scale;
-        if (distancePx < nearestDistancePx) {
+        const isRecentlyReleased =
+          magneticReleasedBoundaryRef.current !== null &&
+          Math.abs(boundary - magneticReleasedBoundaryRef.current) * scale < 0.5 &&
+          distancePx <= releaseDistancePx;
+        if (!isRecentlyReleased && distancePx < nearestDistancePx) {
           nearestDistancePx = distancePx;
           nearestBoundary = boundary;
         }
@@ -1062,6 +1075,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
 
       if (nearestBoundary !== null) {
         const snappedScrollLeft = Math.max(0, nearestBoundary * scale);
+        magneticReleasedBoundaryRef.current = null;
         magneticScrollLockRef.current = {
           boundary: nearestBoundary,
           lastScrollLeft: snappedScrollLeft,
