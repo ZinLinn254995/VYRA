@@ -21,7 +21,7 @@ import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneCon
 
 type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
-type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; assetVersionId?: string | null; assetMimeType?: string | null; source?: 'ai_director_shot' | 'manual'; shotId?: string; content?: string };
+type SceneProjectClip = { id: string; name: string; start: number; duration: number; sourceIn?: number; sourceOut?: number; assetId?: string | null; assetVersionId?: string | null; assetMimeType?: string | null; source?: 'ai_director_shot' | 'manual'; shotId?: string; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; composition: string; lighting: string; focus: string; sound: string; action: string; continuityNotes: string[] }> };
