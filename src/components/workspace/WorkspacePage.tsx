@@ -896,18 +896,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         }));
         const { storyboards: mergedStoryboards, pending } = mergeWorkspaceStoryboards(readStoryboards(storageKey), remote);
         let syncFailed = false;
-        if (pending.length) {
-          const { error: uploadError } = await client.from('vyral_storyboards').upsert(pending.map((item) => ({
-            id: item.id, user_id: authData.user.id, title: item.title, topic: item.topic,
-            details: item.details ?? {}, created_at: item.createdAt, updated_at: item.updatedAt,
-          })), { onConflict: 'id' });
+        // Route merge uploads through the same per-Project queue as ordinary
+        // saves so Delete can drain every write before removing the cloud row.
+        const pendingToUpload = pending.filter((item) => !deletedStoryboardIdsRef.current.has(item.id));
+        if (pendingToUpload.length) {
+          const results = await Promise.all(pendingToUpload.map(async (item) => {
+            await persistStoryboard(item);
+            return !deletedStoryboardIdsRef.current.has(item.id);
+          }));
           if (cancelled) return;
-          if (uploadError) syncFailed = true;
+          syncFailed = results.some((saved) => !saved);
         }
         if (cancelled) return;
         lastStoryboardSyncAtRef.current = Date.now();
-        setStoryboards(mergedStoryboards);
-        setCloudSyncMessage(syncFailed ? 'Some Storyboards could not sync. Your device copy is still available.' : '');
+        setStoryboards(mergedStoryboards.filter((item) => !deletedStoryboardIdsRef.current.has(item.id)));
+        if (!syncFailed) setCloudSyncMessage('');
       } catch {
         if (!cancelled) setCloudSyncMessage('Cloud sync is unavailable. Your device copy is still available.');
       } finally {
