@@ -1063,7 +1063,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
 
     const cloneId = crypto.randomUUID();
     const audioTracks = tracks.map((track) => track.id !== sourceTrack.id ? track : { ...track, clips: [...track.clips, { ...source, id: cloneId, start: cloneStart }] });
-    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, videoTracks: value?.videoTracks || [], audioTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip({ trackId: sourceTrack.id, clipId: cloneId });
   };
 
