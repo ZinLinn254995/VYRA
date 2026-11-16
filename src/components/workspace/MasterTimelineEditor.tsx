@@ -1838,8 +1838,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         ? 'Sample Image — visual layout preview only'
         : 'Sample Video — visual layout preview only',
     };
-    const nextTracks: TimelineTrack[] = currentTracks.length
-      ? currentTracks.map((track, index) => index === 0
+    const nextTracks: TimelineTrack[] = shiftedTracks.length
+      ? shiftedTracks.map((track, index) => index === 0
         ? { ...track, name: 'Scenes', clips: [...track.clips, sampleClip].sort((a, b) => a.start - b.start) }
         : track)
       : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [sampleClip] }];
