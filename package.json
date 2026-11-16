@@ -48,6 +48,7 @@
     "test:vyral-reconstruction-metrics": "node --import tsx --test tests/vyral-reconstruction-metrics.spec.ts",
     "test:vyral-semantic-completeness": "node --import tsx --test tests/vyral-semantic-completeness-v1.spec.ts",
     "test:ai-chat-stream": "node --import tsx --test tests/vyra-openai-chat-stream.spec.ts",
+    "test:creative-director": "node --import tsx --test tests/creative-director-intelligence.spec.ts",
     "test:global-chat-actions": "node --import tsx --test tests/global-chat-actions.spec.ts",
     "test:media-model-selection": "node --import tsx --test tests/media-model-selection.spec.ts",
     "test:media-generation-contract": "node --import tsx --test tests/media-generation-contract.spec.ts tests/runway-provider-contract.spec.ts tests/runway-submission-claim-contract.spec.ts tests/runway-task-polling-contract.spec.ts tests/runway-project-asset-destination.spec.ts tests/runway-output-ingestion-state.spec.ts tests/runway-output-transfer-worker.spec.ts tests/runway-project-output-ingestion.spec.ts tests/runway-project-generation-workflow.spec.ts tests/project-ai-chat-generation-ui.spec.ts tests/runway-project-consistency-context.spec.ts tests/runway-project-generation-recovery.spec.ts",
