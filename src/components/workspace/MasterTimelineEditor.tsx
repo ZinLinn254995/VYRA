@@ -130,6 +130,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // canonical Asset and immutable Version upload in the background.
   const localMediaObjectUrlsRef = useRef(new Map<string, string>());
   const recoveringUploadKeysRef = useRef(new Set<string>());
+  const editorMountedRef = useRef(true);
+  const latestTimelineValueRef = useRef(value);
+  latestTimelineValueRef.current = value;
+  useEffect(() => {
+    editorMountedRef.current = true;
+    return () => { editorMountedRef.current = false; };
+  }, []);
   const localMediaUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!supabase) return;
@@ -179,11 +186,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   useEffect(() => {
     if (!supabase || !vyralId || !value) return;
     const db = supabase;
-    let cancelled = false;
     const recover = async () => {
       const { data: sessionData } = await db.auth.getSession();
       const user = sessionData.session?.user;
-      if (!user || cancelled) return;
+      if (!user || !editorMountedRef.current) return;
       localMediaUserIdRef.current = user.id;
       const pending = (value.videoTracks || []).flatMap((track) => track.clips)
         .concat((value.audioTracks || []).flatMap((track) => track.clips))
@@ -194,7 +200,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         recoveringUploadKeysRef.current.add(key);
         try {
           const cached = await getVyralAssetLocalCopy(user.id, clip.assetId!, clip.assetVersionId!);
-          if (!cached || cancelled) continue;
+          if (!cached || !editorMountedRef.current) continue;
           const recoveredFile = new File([cached.blob], clip.name || 'recovered-media', {
             type: cached.mimeType || clip.assetMimeType || 'application/octet-stream',
             lastModified: cached.cachedAt,
@@ -207,7 +213,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             assetId: clip.assetId,
             metadata: { upload_source: 'creator_workspace', origin: 'project_editor', recovered_after_reload: true },
           });
-          if (cancelled) continue;
+          if (!editorMountedRef.current) continue;
           const replace = (item: TimelineClip): TimelineClip => item.id !== clip.id ? item : {
             ...item,
             assetId: ingestion.assetId,
@@ -226,13 +232,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                 : item.sourceOut,
             waveform: ingestion.audioTechnicalMetadata?.waveformPeaks || item.waveform || [],
           };
+          const latest = latestTimelineValueRef.current || value;
           onChange({
-            sceneRanges: value.sceneRanges || {},
-            sceneInstances: value.sceneInstances || [],
-            videoTracks: (value.videoTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
-            transitions: value.transitions || {},
-            audioTracks: (value.audioTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
-            textTracks: value.textTracks || [],
+            sceneRanges: latest.sceneRanges || {},
+            sceneInstances: latest.sceneInstances || [],
+            videoTracks: (latest.videoTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
+            transitions: latest.transitions || {},
+            audioTracks: (latest.audioTracks || []).map((track) => ({ ...track, clips: track.clips.map(replace) })),
+            textTracks: latest.textTracks || [],
           });
           try {
             await registerVyralAssetInMediaLibrary({
@@ -247,7 +254,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               thumbnailSource: recoveredFile,
             });
           } catch {
-            if (!cancelled) setMediaUploadError(recoveredFile.name + ' uploaded, but its Project Assets listing is still syncing.');
+            if (editorMountedRef.current) setMediaUploadError(recoveredFile.name + ' uploaded, but its Project Assets listing is still syncing.');
           }
           void removeVyralAssetLocalCopy(user.id, clip.assetId!, clip.assetVersionId!);
         } catch (error) {
@@ -259,7 +266,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       }
     };
     void recover();
-    return () => { cancelled = true; };
   }, [vyralId, pendingUploadSignature]);
 
   const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
