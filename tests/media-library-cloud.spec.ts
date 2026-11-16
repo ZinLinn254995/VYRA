@@ -62,7 +62,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(service.includes('const applyMetadataSnapshot ='), 'Metadata writes must compare the complete original JSON snapshot to avoid clobbering concurrent metadata changes.');
   assert.ok(service.includes("query.eq('metadata', metadata)"), 'Non-null metadata snapshots must use an equality guard.');
   assert.ok(service.includes("query.is('metadata', null)"), 'Null metadata snapshots must remain eligible for compare-and-set updates.');
-  assert.ok(backfill.includes('const attachmentQuery = applyMetadataSnapshot('), 'Thumbnail attachment must apply its metadata compare-and-set before selecting the updated row.');
+  assert.ok(backfill.includes('const attachmentQuery = applyUniverseScope(') && backfill.includes('applyMetadataSnapshot(db.from(\'media_library_items\')'), 'Thumbnail attachment must apply metadata compare-and-set and universe scope before executing the query.');
   const thumbnailFailure = backfill.slice(backfill.indexOf('if (!thumbnailBlob)'), backfill.indexOf('const thumbnailType'));
   assert.ok(thumbnailFailure.includes('await scheduleRetry(row)'), 'Thumbnail decode failures must use bounded retry rather than being permanently skipped after one attempt.');
   assert.ok(!thumbnailFailure.includes('thumbnail_backfill_attempted_at: new Date().toISOString()'), 'A single decode timeout must not permanently suppress thumbnail retries.');
