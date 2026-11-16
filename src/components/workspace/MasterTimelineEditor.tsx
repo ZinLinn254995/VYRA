@@ -694,6 +694,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           setMasterPreviewTextOverlays(textOverlays);
         }
         const targetScroll = currentTime * pixelsPerSecondRef.current;
+        setTimelinePlayheadTime(currentTime);
         const scrollElement = scrollRef.current;
         if (scrollElement && Math.abs(scrollElement.scrollLeft - targetScroll) > 0.5) {
           masterPlaybackProgrammaticScrollRef.current = targetScroll;
