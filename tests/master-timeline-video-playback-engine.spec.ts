@@ -162,3 +162,35 @@ test('does not retry a browser-blocked autoplay request on every animation frame
   assert.equal(mock.calls.plays, 2);
   handle.stop();
 });
+
+test('switches between ordered generated shots within the same Scene', async () => {
+  const shotPlan: MasterTimelineVideoPlaybackItem[] = [
+    { instanceId: 'scene-a:shot-1', sceneId: 'scene-a', assetId: 'shot-asset-1', assetVersionId: 'shot-version-1', timelineStartSeconds: 0, timelineEndSeconds: 2, delaySeconds: 0, sourceOffsetSeconds: 0, durationSeconds: 2, playbackStartSeconds: 0, playbackEndSeconds: 2 },
+    { instanceId: 'scene-a:shot-2', sceneId: 'scene-a', assetId: 'shot-asset-2', assetVersionId: 'shot-version-2', timelineStartSeconds: 2, timelineEndSeconds: 5, delaySeconds: 2, sourceOffsetSeconds: 0, durationSeconds: 3, playbackStartSeconds: 2, playbackEndSeconds: 5 },
+  ];
+  const mock = createVideo();
+  const resolved: string[] = [];
+  const handle = startMasterTimelineVideoPlayback(shotPlan, {
+    video: mock.video,
+    resolveAssetUrl: async (assetId, versionId) => {
+      resolved.push(assetId + '/' + versionId);
+      return 'https://private.example/' + assetId;
+    },
+  });
+  handle.sync(0);
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.video.readyState = 1;
+  mock.dispatch('loadedmetadata');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(handle.activeSceneId, 'scene-a');
+  assert.equal(mock.video.src, 'https://private.example/shot-asset-1');
+  handle.sync(2.5);
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.dispatch('loadedmetadata');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(handle.activeSceneId, 'scene-a');
+  assert.equal(mock.video.src, 'https://private.example/shot-asset-2');
+  assert.equal(mock.video.currentTime, 0.5);
+  assert.deepEqual(resolved, ['shot-asset-1/shot-version-1', 'shot-asset-2/shot-version-2']);
+  handle.stop();
+});
