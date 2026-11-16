@@ -2,12 +2,32 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
+import { getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
 
 const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
   id, name: id, start, duration, assetId: 'asset-' + id, assetVersionId: 'version-' + id, assetMimeType: mime,
 });
 const idFactory = () => { let id = 0; return () => 'track-' + (++id); };
+
+
+test('Scenes starts at zero when empty, regardless of playhead', () => {
+  assert.equal(getScenesInsertionTime([], 42), 0);
+});
+
+test('Scenes inserts immediately after the clip under the playhead', () => {
+  const clips = [clip('a', 0, 4), clip('b', 4, 3), clip('c', 7, 2)];
+  assert.equal(getScenesInsertionTime(clips, 5.5), 7);
+});
+
+test('Scenes inserts between clips when the playhead is in an internal gap', () => {
+  const clips = [clip('a', 0, 4), clip('b', 8, 3), clip('c', 11, 2)];
+  assert.equal(getScenesInsertionTime(clips, 6), 4);
+});
+
+test('Scenes appends after the last clip when playhead is in trailing empty space', () => {
+  const clips = [clip('a', 0, 4), clip('b', 4, 3)];
+  assert.equal(getScenesInsertionTime(clips, 30), 7);
+});
 
 test('places visual media in the shared Scenes row', () => {
   const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video 1', clips: [clip('existing', 0, 4)] }];
