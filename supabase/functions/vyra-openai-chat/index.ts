@@ -4662,7 +4662,7 @@ Deno.serve(async (request: Request) => {
           tool_choice: 'auto',
           parallel_tool_calls: false,
           temperature: 0.1,
-          max_completion_tokens: 700,
+          max_completion_tokens: 6000,
           stream: false,
         }),
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(45000)]),
