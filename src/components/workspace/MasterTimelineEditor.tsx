@@ -1579,6 +1579,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             assetId: ingestion.assetId,
             assetVersionId: ingestion.versionId,
             assetMimeType: ingestion.mimeType,
+            uploadPending: false,
             duration: kind === 'audio'
               ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration)
               : kind === 'video'
