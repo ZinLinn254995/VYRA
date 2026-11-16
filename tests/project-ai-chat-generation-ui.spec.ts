@@ -8,6 +8,7 @@ const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePag
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
   assert.ok(chat.includes('generateRunwayProjectMedia'));
   assert.ok(chat.includes('generateRunwayProjectShotSequence'));
+  assert.ok(chat.includes('onShotSequenceReady'));
   assert.ok(chat.includes('listRunwayProjectMediaRecovery'));
   assert.ok(chat.includes('recoverRunwayProjectMediaJob'));
   assert.ok(chat.includes('{storyboardId && ('));
@@ -66,6 +67,19 @@ test('generated Project media is previewed in chat while only stable Asset refer
   assert.ok(chat.includes("createSignedUrl(asset.storagePath, 3600)"));
   assert.ok(chat.includes('mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType }))'));
   assert.ok(!chat.includes('mediaAssets: message.mediaAssets.map((asset) => ({ ...asset, url: asset.url }))'));
+});
+
+test('completed Director shots are linked to the selected Scene Project timeline without deleting manual clips', () => {
+  assert.ok(workspace.includes('handleShotSequenceReady'));
+  assert.ok(workspace.includes('onShotSequenceReady={handleShotSequenceReady}'));
+  assert.ok(workspace.includes("'ai-director-shots-' + scene.id"));
+  assert.ok(workspace.includes("source: 'ai_director_shot'"));
+  assert.ok(workspace.includes('assetVersionId: shot.assetVersionId'));
+  assert.ok(workspace.includes('assetMimeType: shot.mimeType'));
+  assert.ok(workspace.includes('preservedManualClips'));
+  assert.ok(workspace.includes('Generated Director shots are saved as linked Project Assets in this Scene Timeline'));
+  assert.ok(workspace.includes('Linked private Project Asset'));
+  assert.ok(workspace.includes('playback and final Scene rendering are the next stage'));
 });
 
 test('Project Editor navigation stays above its video preview and Scene management remains in Editor', () => {
