@@ -226,7 +226,7 @@ const collectSceneVisualAnchors = (state: Record<string, unknown>): SceneVisualA
     }
     if (!path) return;
     canonicalizeAttachmentJson(value);
-    const temporary = /(^|\\.)(pose|position|expression|camera|framing|lighting|motion|blocking|screenDirection|screen_direction)(\\.|$)/i.test(path);
+    const temporary = /(^|\.)(pose|position|expression|camera|framing|lighting|motion|blocking|screenDirection|screen_direction)(\.|$)/i.test(path);
     anchors.push({
       path, expectedValue: value,
       scope: temporary ? 'scene_state' : 'persistent',
@@ -2536,7 +2536,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
           )
         ));
-        const detail = findings.length ? findings.join('\\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
+        const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success',
           content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
@@ -2590,7 +2590,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
             generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.' +
-            (isShotSequence && isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
+            (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
               ? ' All generated shots also passed the required sampled-frame visual continuity checks; creator approval is still required.'
               : isShotSequence ? ' Visual continuity was not automatically verified because no current creator-approved Scene baseline was available.' : '') +
             '\\n\\n' + summary,
@@ -2598,7 +2598,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setDraft('');
         setMediaGenerationStatus(isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
-            (result.visualVerificationStatus === 'verified'
+            (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
               ? 'Sampled-frame visual continuity checks passed; creator review is still required. '
               : 'Visual continuity remains unverified because no approved baseline was available. ') +
             (shotSequenceLinkMessage || 'Open the Scene to review its timeline links.')
