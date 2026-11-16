@@ -79,3 +79,41 @@ export function placeTimelineMediaClip(
   };
   return { tracks: [...tracks, track], trackId: track.id, rowIndex, createdTrack: true };
 }
+
+
+/**
+ * Combine AI Director media and creator-uploaded media into one shared Video
+ * layer. Existing Director clips form the first row; every later clip is
+ * placed on the current bottom row when it fits, otherwise a new row is added.
+ * Image and Video clips intentionally share this exact layer.
+ */
+export function mergeTimelineVideoRows(
+  directorClips: TimelineMediaClipPlacement[],
+  uploadedTracks: TimelineMediaTrackRow[],
+): TimelineMediaTrackRow[] {
+  const rows: TimelineMediaTrackRow[] = [];
+  const place = (clip: TimelineMediaClipPlacement) => {
+    const last = rows[rows.length - 1];
+    const end = clip.start + clip.duration;
+    const overlaps = (last?.clips ?? []).some((existing) => {
+      const existingEnd = existing.start + existing.duration;
+      return clip.start < existingEnd - EPSILON && end > existing.start + EPSILON;
+    });
+    if (last && !overlaps) {
+      last.clips = [...last.clips, clip].sort((a, b) => a.start - b.start);
+      return;
+    }
+    const rowNumber = rows.length + 1;
+    rows.push({
+      id: 'video-layer-row-' + rowNumber,
+      name: 'Video ' + rowNumber,
+      clips: [clip],
+    });
+  };
+
+  for (const clip of [...directorClips].sort((a, b) => a.start - b.start)) place(clip);
+  for (const track of uploadedTracks) {
+    for (const clip of [...track.clips].sort((a, b) => a.start - b.start)) place(clip);
+  }
+  return rows;
+}
