@@ -111,6 +111,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       if (!current || current.id !== sequence.storyboardId) return current;
       const now = new Date().toISOString();
       let sceneMatched = false;
+      let nextSceneInstances: MasterTimelineData['sceneInstances'];
       const scenes = (current.details?.scenes || []).map((scene) => {
         if (scene.id !== sequence.sceneId) return scene;
         sceneMatched = true;
@@ -187,6 +188,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               const index = insertAt < 0 ? previousInstances.length : insertAt;
               return [...previousInstances.slice(0, index), nextInstance, ...previousInstances.slice(index)];
             })();
+        nextSceneInstances = nextInstances;
         return {
           ...scene,
           duration: nextSceneDuration,
@@ -199,21 +201,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             },
             updatedAt: now,
           },
-          __shotSequenceTimeline: { sceneInstances: nextInstances },
-        } as StoryboardScene & { __shotSequenceTimeline: { sceneInstances: typeof nextInstances } };
+        };
       });
       if (!sceneMatched) return current;
-      const nextSceneInstances = scenes.find((scene) => '__shotSequenceTimeline' in scene)?.__shotSequenceTimeline.sceneInstances;
-      const cleanScenes = scenes.map((scene) => {
-        if (!('__shotSequenceTimeline' in scene)) return scene;
-        const { __shotSequenceTimeline: _internal, ...clean } = scene;
-        return clean as StoryboardScene;
-      });
       return {
         ...current,
         details: {
           ...current.details,
-          scenes: cleanScenes,
+          scenes,
           masterTimeline: {
             ...(current.details?.masterTimeline || { sceneRanges: {}, transitions: {}, audioTracks: [], textTracks: [] }),
             ...(nextSceneInstances ? { sceneInstances: nextSceneInstances } : {}),
