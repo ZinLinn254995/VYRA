@@ -1,3 +1,4 @@
+import { saveVyralAssetLocalCopy } from './vyralAssetLocalCache';
 import { createVyralFileDnaV1 } from './vyralFileDnaV1';
 import { buildVyralGeneratedAssetMetadata, type VyralGeneratedAssetProvenanceInput } from './vyralGeneratedAssetProvenance';
 
@@ -379,6 +380,13 @@ export async function ingestVyralAsset(
 
     assertNotAborted();
     await port.markReady(assetId, input.userId);
+    assertNotAborted();
+    // The device already has the original File. Keep a persistent offline copy
+    // after the cloud Asset Version and its DNA have both been committed.
+    // A full browser cache must never turn a successful cloud upload into a failure.
+    await saveVyralAssetLocalCopy({
+      userId: input.userId, assetId, versionId, mimeType, sizeBytes: file.size, blob: file,
+    });
     assertNotAborted();
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
