@@ -144,7 +144,7 @@ test('shot boundary asset selection uses valid case-insensitive video MIME match
 
 
 test('approved repair targets exactly one original shot and re-checks its incoming boundary', () => {
-  assert.ok(workflow.includes('repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset; nextShotAsset?: RunwayProjectOutputAsset }'));
+  assert.ok(workflow.includes('repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset; nextShotAsset?: RunwayProjectOutputAsset; downstreamShotAssets?: Array<{ shotIndex: number; asset: RunwayProjectOutputAsset }> }'));
   assert.ok(workflow.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
   assert.ok(workflow.includes('const shotIndices = request.repair ? [request.repair.shotIndex]'));
   assert.ok(workflow.includes('request.repair.shotIndex >= request.scene.shots.length'));
