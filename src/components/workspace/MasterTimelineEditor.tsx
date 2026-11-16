@@ -744,6 +744,46 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     });
   };
 
+  const normalizeAudioTrackOrigin = (trackId: string) => {
+    const track = (value?.audioTracks || []).find((item) => item.id === trackId);
+    if (!track?.clips.length) return;
+    const earliestStart = Math.min(...track.clips.map((item) => item.start));
+    if (!Number.isFinite(earliestStart) || Math.abs(earliestStart) < 0.0001) return;
+    const offset = -earliestStart;
+    const audioTracks = (value?.audioTracks || []).map((item) => item.id !== trackId ? item : ({
+      ...item,
+      clips: item.clips.map((clip) => ({ ...clip, start: clip.start + offset })),
+    }));
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks,
+      videoTracks: value?.videoTracks || [],
+      textTracks: value?.textTracks || [],
+    });
+  };
+
+  const normalizeTextTrackOrigin = (trackId: string) => {
+    const track = (value?.textTracks || []).find((item) => item.id === trackId);
+    if (!track?.clips.length) return;
+    const earliestStart = Math.min(...track.clips.map((item) => item.start));
+    if (!Number.isFinite(earliestStart) || Math.abs(earliestStart) < 0.0001) return;
+    const offset = -earliestStart;
+    const textTracks = (value?.textTracks || []).map((item) => item.id !== trackId ? item : ({
+      ...item,
+      clips: item.clips.map((clip) => ({ ...clip, start: clip.start + offset })),
+    }));
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks: value?.audioTracks || [],
+      videoTracks: value?.videoTracks || [],
+      textTracks,
+    });
+  };
+
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
       !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
@@ -2237,9 +2277,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 let rippleDelta = delta;
                                 if (edge === 'left') {
                                   const fixedEnd = initialStart + initialDuration;
-                                  // Images have no source-in limit, but timeline clips cannot start before 00:00.
-                                  // Videos remain bounded by the actual source media available before sourceIn.
-                                  const sourceStartBoundary = isImage ? 0 : Math.max(0, initialStart - initialSourceIn);
+                                  // Permit a temporary negative timeline start while revealing earlier source media.
+                                  // The clip is rebased to 00:00 on pointer-up; sourceIn=0 is the true media boundary.
+                                  const sourceStartBoundary = isImage ? Number.NEGATIVE_INFINITY : initialStart - initialSourceIn;
                                   nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
                                   nextClipDuration = fixedEnd - nextClipStart;
                                   rippleDelta = nextClipStart - initialStart;
@@ -2314,7 +2354,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                       const otherClips = track.clips.filter((itemClip) => itemClip.id !== clip.id);
                       const previousEnd = otherClips
                         .filter((itemClip) => itemClip.start + itemClip.duration <= initialStart + 0.0001)
-                        .reduce((end, itemClip) => Math.max(end, itemClip.start + itemClip.duration), 0);
+                        .reduce((end, itemClip) => Math.max(end, itemClip.start + itemClip.duration), Number.NEGATIVE_INFINITY);
                       const nextStartBoundary = otherClips
                         .filter((itemClip) => itemClip.start >= initialStart + initialDuration - 0.0001)
                         .reduce((start, itemClip) => Math.min(start, itemClip.start), Number.POSITIVE_INFINITY);
@@ -2334,12 +2374,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                     };
                     return (
                       <div key={clip.id} data-timeline-text-track-id={track.id} data-timeline-text-clip-id={clip.id} role="button" tabIndex={0} title={`${clip.content || clip.name} · ${clip.duration.toFixed(1)}s`} aria-pressed={isSelected} onClick={(event) => { if (consumeSuppressedGestureClick(event)) return; event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedAudioClip(null); setSelectedTextClip({ trackId: track.id, clipId: clip.id }); setIsTextEditMode(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSceneIds([]); setSelectedTransitionKey(null); setSelectedTextClip(isSelected ? null : { trackId: track.id, clipId: clip.id }); } }} className={`absolute inset-y-1 z-0 flex select-none items-center overflow-hidden rounded-md border text-left text-[10px] font-medium text-[var(--vyra-text-primary)] [-webkit-touch-callout:none] transition-[opacity,box-shadow,transform] duration-100 ${draggingTextClipId === clip.id ? 'z-20 opacity-70 shadow-lg' : 'opacity-100'} ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/30 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`} style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond), touchAction: 'none', WebkitTouchCallout: 'none', userSelect: 'none', WebkitUserSelect: 'none', transform: draggingTextClipId === clip.id && (textDragRef.current?.active || audioDragRef.current?.active) ? `translateY(${textDragYOffset}px)` : undefined }} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()} onPointerDown={(event) => beginTextLongPress(event, track.id, clip)}>
-                        <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                        <div role="presentation" data-trim-handle="true" aria-label="Adjust text start" title="Drag to adjust start" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'left')} onPointerMove={(event) => updateTrim(event, 'left')} onPointerUp={(event) => { event.stopPropagation(); normalizeTextTrackOrigin(track.id); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-1.5">
                           <Type size={12} className="mr-1 shrink-0" />
                           <span className="truncate">{clip.content || clip.name}</span>
                         </div>
-                        <div role="presentation" data-trim-handle="true" aria-label="Adjust text end" title="Drag to adjust end" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'right')} onPointerMove={(event) => updateTrim(event, 'right')} onPointerUp={(event) => { event.stopPropagation(); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
+                        <div role="presentation" data-trim-handle="true" aria-label="Adjust text end" title="Drag to adjust end" className="z-10 h-full w-2 shrink-0 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/35 hover:bg-[var(--vyra-accent-primary)]" onPointerDown={(event) => beginTrim(event, 'right')} onPointerMove={(event) => updateTrim(event, 'right')} onPointerUp={(event) => { event.stopPropagation(); normalizeAudioTrackOrigin(track.id); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} />
                       </div>
                     );
                   })}
@@ -2367,14 +2407,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                       const initialDuration = Number(handle.dataset.initialDuration);
                       const minimum = 0.2;
                       const others = track.clips.filter((item) => item.id !== clip.id);
-                      const previousEnd = others.filter((item) => item.start + item.duration <= initialStart + 0.0001).reduce((end, item) => Math.max(end, item.start + item.duration), 0);
+                      const previousEnd = others.filter((item) => item.start + item.duration <= initialStart + 0.0001).reduce((end, item) => Math.max(end, item.start + item.duration), Number.NEGATIVE_INFINITY);
                       const nextBoundary = others.filter((item) => item.start >= initialStart + initialDuration - 0.0001).reduce((start, item) => Math.min(start, item.start), Number.POSITIVE_INFINITY);
                       let nextStart = initialStart;
                       let nextDuration = initialDuration;
                       let nextSourceIn = Number(handle.dataset.initialSourceIn || 0);
                       if (edge === 'left') {
                         const fixedEnd = initialStart + initialDuration;
-                        nextStart = Math.max(previousEnd, Math.min(fixedEnd - minimum, initialStart + delta));
+                        const sourceStartBoundary = initialStart - Number(handle.dataset.initialSourceIn || 0);
+                        nextStart = Math.max(previousEnd, sourceStartBoundary, Math.min(fixedEnd - minimum, initialStart + delta));
                         nextDuration = fixedEnd - nextStart;
                         nextSourceIn += nextStart - initialStart;
                       } else {
