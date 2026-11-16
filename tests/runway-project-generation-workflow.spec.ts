@@ -159,13 +159,19 @@ test('approved repair targets exactly one original shot and re-checks its incomi
 
 
 
-test('shot repair verifies the outgoing cut against the next existing shot before replacement', () => {
-  assert.ok(workflow.includes('request.repair.nextShotAsset'));
-  assert.ok(workflow.includes('outgoingTransitionVerification'));
-  assert.ok(workflow.includes('outgoing_shot_transition_needs_review'));
-  assert.ok(workflow.includes('previousAsset: currentAsset, currentAsset: nextAsset'));
-  assert.ok(workflow.includes('shotIndex + 1 < request.scene.shots.length'));
-  assert.ok(workflow.includes('&& !request.repair.nextShotAsset'));
+test('shot repair re-verifies every downstream boundary in order before replacing the Editor clip', () => {
+  assert.ok(workflow.includes('request.repair.downstreamShotAssets'));
+  assert.ok(workflow.includes('expectedDownstreamIndices'));
+  assert.ok(workflow.includes('for (const currentShotIndex of expectedDownstreamIndices)'));
+  assert.ok(workflow.includes('previousAsset, currentAsset: nextAsset'));
+  assert.ok(workflow.includes('downstreamTransitionVerifications'));
+  assert.ok(workflow.includes('downstream_shot_chain_needs_review'));
+  assert.ok(workflow.includes('The chain cannot skip a missing timeline shot'));
+});
+
+test('the final repaired shot has no downstream boundary requirement', () => {
+  assert.ok(workflow.includes('filter((index) => index > shotIndex)'));
+  assert.ok(workflow.includes('for (const currentShotIndex of expectedDownstreamIndices)'));
 });
 
 test('the final repaired shot has no outgoing boundary requirement', () => {
