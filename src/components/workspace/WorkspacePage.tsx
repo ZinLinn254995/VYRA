@@ -875,7 +875,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         .is('details->>__vyraDeletedAt', null)
         .lte('updated_at', item.updatedAt)
         .select('id').maybeSingle();
-      let saveError = updateError;
+      let saveError: string | null = updateError?.message ?? null;
       if (!saveError && !updatedRow) {
         // A missing update result can mean the Project was deleted, another
         // device saved a newer snapshot, or the row does not exist yet.
@@ -896,11 +896,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           // The Cloud copy is intentionally authoritative over this stale save.
           saveError = null;
         } else if (existingError) {
-          saveError = existingError;
+          saveError = existingError.message;
         } else if (existingRow) {
           // The row exists but did not satisfy the compare-and-set update.
           // Do not insert or overwrite it; the next Cloud sync can reconcile it.
-          saveError = new Error('The Cloud Project changed during save. Sync again before retrying.');
+          saveError = 'The Cloud Project changed during save. Sync again before retrying.';
         } else {
           // Insert only when the row is absent. Never use upsert here: it could
           // overwrite a deletion tombstone created on another device.
@@ -917,7 +917,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             const deletionWonAfterInsert = typeof latestDetails.__vyraDeletedAt === 'string';
             saveError = deletionWonAfterInsert || concurrentSaveWon
               ? null
-              : (latestError || insertError);
+              : ((latestError || insertError)?.message ?? 'Could not save the Cloud Project.');
           }
         }
       }
