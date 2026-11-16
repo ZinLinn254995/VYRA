@@ -54,6 +54,39 @@ export function getScenesInsertionTime(
 }
 
 /**
+ * Return the insertion slot in the original visual order. A playhead inside
+ * a clip inserts after it; a playhead in a gap inserts before the next clip;
+ * after the final clip appends. Empty Scenes always starts at slot zero.
+ */
+export function getScenesInsertionIndex(
+  clips: Array<Pick<TimelineMediaClipPlacement, 'start' | 'duration'>>,
+  playheadTime: number,
+): number {
+  const ordered = [...clips].sort((a, b) => a.start - b.start);
+  const playhead = Math.max(0, Number.isFinite(playheadTime) ? playheadTime : 0);
+  for (let index = 0; index < ordered.length; index += 1) {
+    const clip = ordered[index];
+    if (playhead < clip.start - EPSILON) return index;
+    if (playhead < clip.start + clip.duration - EPSILON) return index + 1;
+  }
+  return ordered.length;
+}
+
+/** Rebuild absolute start times as one gapless train beginning at 0s. */
+export function buildScenesClipTrainLayout<T extends Pick<TimelineMediaClipPlacement, 'id' | 'start' | 'duration'>>(
+  clips: T[],
+): Array<T & { start: number }> {
+  let cursor = 0;
+  return [...clips]
+    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
+    .map((clip) => {
+      const placed = { ...clip, start: cursor };
+      cursor += Math.max(0, clip.duration);
+      return placed;
+    });
+}
+
+/**
  * Video and Image always occupy one shared visual row, even when clips overlap.
  * Audio remains on its own independent track and may use additional rows.
  */
