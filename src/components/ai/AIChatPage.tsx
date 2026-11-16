@@ -2622,6 +2622,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType)) ?? repairRequest?.previousShotAsset
           : undefined;
         const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
+        const reviewPreviews: ProjectMediaPreview[] = [];
+        for (const asset of failedShot?.assets ?? []) {
+          const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
+            projectSupabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 300),
+          );
+          reviewPreviews.push({
+            assetId: asset.assetId,
+            name: 'Shot ' + ((failedShot?.shotIndex ?? 0) + 1) + ' · Continuity review candidate',
+            mimeType: asset.mimeType,
+            ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}),
+          });
+        }
         if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
@@ -2640,7 +2652,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           setPendingShotRepair(null);
         }
         setMessages((previous) => [...previous, {
-          id: makeId(), role: 'assistant', status: 'success',
+          id: makeId(), role: 'assistant', status: 'success', mediaAssets: reviewPreviews,
           content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
             (repairRequest
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
