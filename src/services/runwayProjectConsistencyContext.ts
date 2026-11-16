@@ -168,7 +168,19 @@ export type RunwaySceneContinuityInput = {
   editorView?: string;
   selectedTimelineItem?: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null;
   selectedSceneIds?: string[];
-  continuityRuntime?: { sceneIds?: string[]; scenes?: Array<{ id: string; title: string; description?: string }>; ledger?: unknown } | null;
+  continuityRuntime?: { sceneIds?: string[]; scenes?: Array<{
+    id: string; title: string; description?: string;
+    creativeDirection?: {
+      productionTitle?: string; logline?: string; genre?: string; tone?: string;
+      sceneIndex?: number; sceneCount?: number; purpose?: string; location?: string;
+      characters?: string[]; entryState?: string; action?: string; exitState?: string;
+      shots?: Array<{
+        id?: string; purpose?: string; durationSeconds?: number; framing?: string; cameraAngle?: string;
+        cameraMovement?: string; composition?: string; lighting?: string; focus?: string;
+        sound?: string; action?: string; continuityNotes?: string[];
+      }>;
+    };
+  }>; ledger?: unknown } | null;
   activeSceneId?: string | null;
   activeSceneTitle?: string | null;
   activeSceneDescription?: string | null;
@@ -240,6 +252,48 @@ export function buildRunwaySceneContinuityPrompt(
     title ? 'Scene title: ' + title : '',
     description ? 'Creator-authored Scene description (context, not canon by itself): ' + description : '',
   ];
+  const creativeDirection = selectedSceneId ? selectedScene?.creativeDirection : null;
+  if (creativeDirection && typeof creativeDirection === 'object') {
+    const directorText = (value: unknown, max = 360) => safeText(value, max);
+    const directorList = (value: unknown, maxItems = 8, maxText = 180) =>
+      Array.isArray(value) ? value.slice(0, maxItems).map((item) => directorText(item, maxText)).filter(Boolean) : [];
+    lines.push(
+      'CREATOR-APPROVED AI DIRECTOR SHOT PLAN (structured creative direction saved with this exact Scene):',
+      'Treat this plan as the intended visual treatment. Preserve its ordered shot sequence, action, framing, camera, composition, lighting, focus, sound, and continuity notes. If the current request explicitly changes a creative choice, follow the current request and surface the changed element; do not silently rewrite other plan details.',
+      directorText(creativeDirection.productionTitle) ? 'Production: ' + directorText(creativeDirection.productionTitle, 180) : '',
+      directorText(creativeDirection.logline) ? 'Production logline: ' + directorText(creativeDirection.logline, 500) : '',
+      directorText(creativeDirection.genre) ? 'Genre: ' + directorText(creativeDirection.genre, 80) : '',
+      directorText(creativeDirection.tone) ? 'Tone: ' + directorText(creativeDirection.tone, 160) : '',
+      directorText(creativeDirection.purpose) ? 'Scene purpose: ' + directorText(creativeDirection.purpose, 500) : '',
+      directorText(creativeDirection.location) ? 'Scene location: ' + directorText(creativeDirection.location, 180) : '',
+      directorList(creativeDirection.characters).length ? 'Scene characters: ' + directorList(creativeDirection.characters).join(', ') : '',
+      directorText(creativeDirection.entryState) ? 'Planned entry state: ' + directorText(creativeDirection.entryState, 700) : '',
+      directorText(creativeDirection.action) ? 'Planned scene action: ' + directorText(creativeDirection.action, 900) : '',
+      directorText(creativeDirection.exitState) ? 'Planned exit state: ' + directorText(creativeDirection.exitState, 700) : '',
+    );
+    const shots = Array.isArray(creativeDirection.shots) ? creativeDirection.shots.slice(0, 24) : [];
+    if (shots.length) {
+      lines.push('ORDERED SHOT-BY-SHOT GENERATION DIRECTION:');
+      shots.forEach((shot, index) => {
+        if (!shot || typeof shot !== 'object') return;
+        const fields = [
+          'Shot ' + (index + 1) + (typeof shot.durationSeconds === 'number' ? ' (' + shot.durationSeconds + ' seconds)' : ''),
+          directorText(shot.purpose, 220) ? 'purpose: ' + directorText(shot.purpose, 220) : '',
+          directorText(shot.framing, 100) ? 'framing: ' + directorText(shot.framing, 100) : '',
+          directorText(shot.cameraAngle, 100) ? 'camera angle: ' + directorText(shot.cameraAngle, 100) : '',
+          directorText(shot.cameraMovement, 120) ? 'camera movement: ' + directorText(shot.cameraMovement, 120) : '',
+          directorText(shot.composition, 240) ? 'composition/blocking: ' + directorText(shot.composition, 240) : '',
+          directorText(shot.lighting, 240) ? 'lighting: ' + directorText(shot.lighting, 240) : '',
+          directorText(shot.focus, 180) ? 'focus/depth: ' + directorText(shot.focus, 180) : '',
+          directorText(shot.sound, 220) ? 'sound: ' + directorText(shot.sound, 220) : '',
+          directorText(shot.action, 420) ? 'action: ' + directorText(shot.action, 420) : '',
+          directorList(shot.continuityNotes, 5, 180).length ? 'continuity: ' + directorList(shot.continuityNotes, 5, 180).join('; ') : '',
+        ].filter(Boolean);
+        lines.push('- ' + fields.join(' | '));
+      });
+      lines.push('Generate the sequence as one coherent Scene with readable shot changes in this exact order. Maintain screen direction, spatial geography, character identity, wardrobe, props, and cause-and-effect continuity between shots. Do not collapse distinct planned shots into one static composition.');
+    }
+  }
   if (timeline.length) {
     lines.push('APPROVED PROJECT SCENE TIMELINE (chronological prior Scene handoffs):');
     for (const item of timeline) {
