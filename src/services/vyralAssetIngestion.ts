@@ -458,8 +458,31 @@ export async function ingestGeneratedVyralAsset(
 export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngestionPort {
   return {
     async createAsset(record) {
-      const { error } = await db.from('vyral_assets').upsert(record, { onConflict: 'id' });
+      // Keep Asset identity fields immutable: the table intentionally grants authenticated
+      // users UPDATE only on mutable columns, so retries must never use DO UPDATE upserts.
+      const { error } = await db.from('vyral_assets').upsert(record, {
+        onConflict: 'id',
+        ignoreDuplicates: true,
+      });
       if (error) throw error;
+
+      // An ignored duplicate is valid only when it is the exact same owner's source Asset.
+      const { data: existing, error: lookupError } = await db.from('vyral_assets')
+        .select('id,user_id,vyral_id,asset_type,mime_type,size_bytes,storage_path,sha256,original_filename')
+        .eq('id', record.id)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!existing ||
+          existing.user_id !== record.user_id ||
+          existing.vyral_id !== record.vyral_id ||
+          existing.asset_type !== record.asset_type ||
+          existing.mime_type !== record.mime_type ||
+          existing.size_bytes !== record.size_bytes ||
+          existing.storage_path !== record.storage_path ||
+          existing.sha256 !== record.sha256 ||
+          existing.original_filename !== record.original_filename) {
+        throw new Error('This Asset ID is already bound to a different owner or source file.');
+      }
     },
     async uploadOriginal(path, file, mimeType) {
       if (file.size > 6 * 1024 * 1024) {
