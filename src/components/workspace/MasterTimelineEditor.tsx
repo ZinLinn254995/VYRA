@@ -1055,21 +1055,40 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         ...(value?.videoTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.audioTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
         ...(value?.textTracks || []).flatMap((track) => track.clips.flatMap((clip) => [clip.start, clip.start + clip.duration])),
-      ].filter((time) => Number.isFinite(time) && time >= 0);
+      ].filter((time) => Number.isFinite(time) && time >= 0).sort((a, b) => a - b);
 
-      // Evaluate every edge and pick the single closest one. If several edges
-      // are inside the 12px attraction zone, the nearest always takes priority.
+      // Edges from different rows that nearly coincide form ONE magnetic target.
+      // Group width is capped at 12 screen pixels, so stacked attraction zones
+      // cannot combine into a wider sticky area. The group's midpoint is used
+      // as its stable shared target.
+      const magneticTargets: Array<{ time: number; boundaries: number[] }> = [];
+      for (const boundary of clipBoundaries) {
+        const currentGroup = magneticTargets[magneticTargets.length - 1];
+        if (
+          currentGroup &&
+          (boundary - currentGroup.boundaries[0]) * scale <= 12
+        ) {
+          currentGroup.boundaries.push(boundary);
+          currentGroup.time = currentGroup.boundaries.reduce((sum, item) => sum + item, 0) / currentGroup.boundaries.length;
+        } else {
+          magneticTargets.push({ time: boundary, boundaries: [boundary] });
+        }
+      }
+
+      // Choose the closest grouped target, with one fixed 12px attraction zone.
       let nearestBoundary: number | null = null;
       let nearestDistancePx = 12;
-      for (const boundary of clipBoundaries) {
-        const distancePx = Math.abs(boundary - playheadTime) * scale;
+      for (const target of magneticTargets) {
+        const distancePx = Math.abs(target.time - playheadTime) * scale;
         const isRecentlyReleased =
           magneticReleasedBoundaryRef.current !== null &&
-          Math.abs(boundary - magneticReleasedBoundaryRef.current) * scale < 0.5 &&
+          target.boundaries.some((boundary) =>
+            Math.abs(boundary - magneticReleasedBoundaryRef.current!) * scale < 0.5
+          ) &&
           distancePx <= releaseDistancePx;
         if (!isRecentlyReleased && distancePx < nearestDistancePx) {
           nearestDistancePx = distancePx;
-          nearestBoundary = boundary;
+          nearestBoundary = target.time;
         }
       }
 
@@ -1084,8 +1103,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         if (Math.abs(element.scrollLeft - snappedScrollLeft) > 0.5) {
           element.scrollLeft = snappedScrollLeft;
         }
-          setTimelinePlayheadTime(nearestBoundary);
-        }
+        setTimelinePlayheadTime(nearestBoundary);
+      }
       }
     }
 
@@ -2127,26 +2146,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
-        {!selectedTransitionKey && <button
-          type="button"
-          title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
-          aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
-          aria-pressed={isMagneticEnabled}
-          onClick={() => {
-            setIsMagneticEnabled((enabled) => {
-              const next = !enabled;
-              if (!next) {
-                magneticScrollLockRef.current = null;
-                magneticReleasedBoundaryRef.current = null;
-              }
-              return next;
-            });
-          }}
-          className={`grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
-        >
-          <Magnet size={22} strokeWidth={1.8} />
-          <span className="sr-only">Magnetic</span>
-        </button>}
+
         {selectedTransitionKey ? (
           <>
             <button
@@ -2177,7 +2177,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           <>
             <button type="button" title="Cut selected Scene at playhead" aria-label="Cut selected Scene at playhead" onClick={runCutSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]"><Scissors size={22} strokeWidth={1.8} /><span className="sr-only">Cut</span></button>
             <button type="button" title="Clone selected Scene" aria-label="Clone selected Scene" onClick={runCloneSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]"><Copy size={22} strokeWidth={1.8} /><span className="sr-only">Clone</span></button>
-            <button type="button" title="Delete selected Scene" aria-label="Delete selected Scene" onClick={runDeleteSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)] transition-colors hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={22} strokeWidth={1.8} /><span className="sr-only">Delete</span></button>
+            <button type="button" title="Delete selected Scene" aria-label="Delete selected Scene" onClick={runDeleteSelectedVisual} className="order-2 grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)] transition-colors hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={22} strokeWidth={1.8} /><span className="sr-only">Delete</span></button>
           </>
         ) : selectedTextClip ? (
           <>
@@ -2202,7 +2202,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           <>
             <button type="button" title="Split selected audio at playhead" aria-label="Split selected audio at playhead" onClick={runSplitSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Scissors size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Clone selected audio" aria-label="Clone selected audio" onClick={runCloneSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Copy size={22} strokeWidth={1.8} /></button>
-            <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
+            <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="order-2 grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
           </>
         ) : selectedSceneIds.length > 0 ? (
           <>
@@ -2227,6 +2227,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             <Icon size={22} strokeWidth={1.8} />
           </button>
         ))}
+                {!selectedTransitionKey && <button
+          type="button"
+          title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
+          aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
+          aria-pressed={isMagneticEnabled}
+          onClick={() => {
+            setIsMagneticEnabled((enabled) => {
+              const next = !enabled;
+              if (!next) {
+                magneticScrollLockRef.current = null;
+                magneticReleasedBoundaryRef.current = null;
+              }
+              return next;
+            });
+          }}
+          className={`order-1 grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
+        >
+          <Magnet size={22} strokeWidth={1.8} />
+          <span className="sr-only">Magnetic</span>
+        </button>}
       </div>
     </nav>
   );
