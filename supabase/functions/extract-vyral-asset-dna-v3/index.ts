@@ -7,7 +7,7 @@ import { computeVyralDHash64, VYRAL_DHASH_ALGORITHM } from '../_shared/perceptua
 
 const BUCKET = 'vyral-assets';
 const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_PIXELS = 10_000_000;
+const MAX_PIXELS = 50_000_000;
 const TILE = 512;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wasm = await Deno.readFile(new URL('magick.wasm', import.meta.resolve('npm:@imagemagick/magick-wasm@0.0.30')));
@@ -143,7 +143,7 @@ Deno.serve(async (request: Request) => {
       width = image.width; height = image.height;
       const pixels = width * height;
       if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) {
-        throw new Error('Image exceeds the 10-megapixel DNA v3 limit.');
+        throw new Error('Image exceeds the 50-megapixel DNA v3 limit.');
       }
       for (let y = 0; y < height; y += TILE) {
         const tileRow: Array<{ x: number; y: number; width: number; height: number; bytes: Uint8Array; path: string }> = [];
