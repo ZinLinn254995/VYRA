@@ -40,6 +40,7 @@ type PendingShotRepair = {
   genre: string;
   tone: string;
   sceneIndex?: number;
+  originalPromptText: string;
 };
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
@@ -2586,7 +2587,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             assetId: asset.assetId, assetVersionId: asset.versionId, mimeType: asset.mimeType,
           }] : [];
         });
-        if (linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && directorScenePlan && storyboardId) {
+        if (linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && activeDirectorScenePlan && storyboardId) {
           onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
         }
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
@@ -2599,6 +2600,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           )
         ));
         const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
+        const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
+        const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
+        const previousShotAsset = failedShot && failedShot.shotIndex > 0
+          ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\\//i.test(asset.mimeType))
+          : undefined;
+        const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\\n\\n');
+        if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification) {
+          setPendingShotRepair({
+            scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
+            ...(previousShotAsset ? { previousShotAsset } : {}),
+            promptText: (repairRequest?.originalPromptText ?? prompt) + '\\n\\nDIRECTOR-LED SHOT REPAIR:\\n' + repairInstruction,
+            originalPromptText: repairRequest?.originalPromptText ?? prompt,
+            productionTitle: repairRequest?.productionTitle ?? direction?.productionTitle ?? workspaceContext?.activeStoryboard?.title ?? 'Project production',
+            logline: repairRequest?.logline ?? direction?.logline ?? workspaceContext?.activeStoryboard?.topic ?? prompt,
+            genre: repairRequest?.genre ?? direction?.genre ?? 'Unspecified',
+            tone: repairRequest?.tone ?? direction?.tone ?? 'Unspecified',
+            sceneIndex: repairRequest?.sceneIndex ?? direction?.sceneIndex,
+          });
+        } else if (!repairRequest) {
+          setPendingShotRepair(null);
+        }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success',
           content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
@@ -2624,7 +2646,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             }] : [];
           });
           if (linkedShots.length === result.completedShots.length && onShotSequenceReady) {
-            onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+            onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots, ...(repairRequest ? { replaceShot: true } : {}) });
             shotSequenceLinkMessage = 'All generated shots are linked to the Scene Project timeline in production order.';
           } else {
             shotSequenceLinkMessage = 'All outputs are saved in Project Assets, but the complete sequence could not be linked to the Editor timeline.';
@@ -2657,7 +2679,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               : isShotSequence ? ' Visual continuity was not automatically verified because no current creator-approved Scene baseline was available.' : '') +
             '\n\n' + summary,
         }]);
-        setDraft('');
+        if (repairRequest) setPendingShotRepair(null); else setDraft('');
         setMediaGenerationStatus(isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
