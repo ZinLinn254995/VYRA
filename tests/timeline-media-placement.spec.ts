@@ -84,7 +84,7 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /data-timeline-video-clip-id=\{clip\.id\}/);
   assert.match(editor, /Adjust start point/);
   assert.match(editor, /Adjust end point/);
-  assert.match(editor, /updateVisualClipTiming\(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipIds, rippleDelta\)/);
+  assert.match(editor, /updateVisualClipTiming\(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipStarts, rippleDelta\)/);
   assert.match(editor, /data-trim-handle="true"/);
   assert.match(editor, /ring-2 ring-\[var\(--vyra-accent-primary\)\]/);
   assert.match(editor, /border-\[var\(--vyra-accent-primary\)\]\/50 bg-\[var\(--vyra-accent-primary\)\]\/10/);
@@ -92,6 +92,12 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary/);
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary \+ 0\.0001\s*:\s*item\.start >= edgeBoundary - 0\.0001/);
   assert.match(editor, /rippleIds\.has\(item\.id\) \? \{ \.\.\.item, start: rippleClipStarts\[item\.id\] \+ rippleDelta \}/);
+  assert.match(editor, /const normalizeTimelineOrigin = \(\) =>/);
+  assert.match(editor, /earliestStart >= -0\.0001/);
+  assert.match(editor, /normalizeTimelineOrigin\(\);[\s\S]*releasePointerCapture/);
+  assert.match(editor, /sourceStartBoundary = isImage \? Number\.NEGATIVE_INFINITY/);
+  assert.match(editor, /audioTracks: shiftTracks\(value\?\.audioTracks \|\| \[\]\)/);
+  assert.match(editor, /textTracks: shiftTracks\(value\?\.textTracks \|\| \[\]\)/);
   assert.match(editor, /Transition controls follow the real timeline boundary/);
   assert.doesNotMatch(editor, /effect: 'dissolve', duration: 0\.5/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
