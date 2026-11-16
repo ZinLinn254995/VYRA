@@ -1049,7 +1049,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const runDeleteSelectedAudio = () => {
     if (!selectedAudioClip) return;
     const audioTracks = (value?.audioTracks || []).map((track) => track.id !== selectedAudioClip.trackId ? track : { ...track, clips: track.clips.filter((clip) => clip.id !== selectedAudioClip.clipId) }).filter((track) => track.clips.length > 0);
-    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks, textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, videoTracks: value?.videoTracks || [], audioTracks, textTracks: value?.textTracks || [] });
     setSelectedAudioClip(null);
   };
 
