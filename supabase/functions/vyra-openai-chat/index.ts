@@ -14,6 +14,7 @@ import { parseVyralAssetRelationshipPendingPlan, validateVyralAssetRelationshipP
 import { parseVyralAssetArchivePendingPlan, validateVyralAssetArchivePendingAction, parseVyralAssetArchiveConfirmation } from '../../../src/server/vyralAssetArchiveAction.ts';
 import { parseVyralAssetRestorePendingPlan, validateVyralAssetRestorePendingAction, parseVyralAssetRestoreConfirmation } from '../../../src/server/vyralAssetRestoreAction.ts';
 import { buildSceneStateProposalInstruction, buildSceneVisualContinuityInstruction } from '../../../src/services/universeSceneStatePrompt.ts';
+import { CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION } from '../../../src/services/creativeDirectorIntelligence.ts';
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -4453,7 +4454,7 @@ Deno.serve(async (request: Request) => {
        ? '\n\nExact local file attached in the current chat turn (metadata only; bytes remain in the browser): ' + JSON.stringify(uploadAttachment) + '. This metadata is a hint for planning only; the browser must match the exact File before transfer.'
        : '';
      let baseMessages: Array<Record<string, unknown>> = [
-       { role: 'system', content: SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction },
+       { role: 'system', content: SYSTEM_INSTRUCTION + CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION + activeVyralInstruction + workspaceContextInstruction + conversationSessionInstruction + uploadAttachmentInstruction },
        ...messages,
      ];
      if (visionImages.length) {
