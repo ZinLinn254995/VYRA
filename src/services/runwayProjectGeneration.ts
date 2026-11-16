@@ -554,6 +554,7 @@ export async function generateRunwayProjectShotSequence(
     throw new Error('The first shot cannot have a previous-shot repair reference.');
   }
   const completedShots: RunwayProjectShotSequenceResult['completedShots'] = [];
+  let finalSceneValidation: RunwayProjectShotSequenceResult['finalSceneValidation'];
   let approvedCostUsd = 0;
   let budgetExceeded = false;
   let verifiedShotCount = 0;
@@ -708,7 +709,6 @@ export async function generateRunwayProjectShotSequence(
       });
       repairPrompts.push(buildSceneVisualRepairPrompt(transitionVerification, shot));
     }
-    let finalSceneValidation: RunwayProjectShotSequenceResult['finalSceneValidation'];
     let downstreamShotVerifications: NonNullable<RunwayProjectShotSequenceResult['completedShots'][number]['downstreamShotVerifications']> = [];
     if (request.visualVerification && request.repair?.shotIndex === shotIndex) {
       const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
@@ -729,7 +729,7 @@ export async function generateRunwayProjectShotSequence(
         let shotInspectionComplete = false;
         let shotBaselineRevision = request.visualVerification.baselineRevision;
         try {
-          if (nextAsset && /^video\\//i.test(nextAsset.mimeType)) {
+          if (nextAsset && /^video\//i.test(nextAsset.mimeType)) {
             const inspection = await request.visualVerification.inspect({
               asset: nextAsset, shot: nextShot, shotIndex: currentShotIndex,
               shotCount: request.scene.shots.length, scene: request.scene,
