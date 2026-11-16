@@ -210,3 +210,14 @@ test('shot-by-shot approvals reserve each quoted estimate against one shared tot
   assert.ok(chat.includes('maxTotalCostUsd: budget'));
   assert.ok(generation.includes('approvedCostUsd += approval.maxCostUsd'));
 });
+
+
+test('shot repair resolves the next existing Director Asset and passes it for outgoing continuity inspection', () => {
+  assert.ok(chat.includes('activeSceneDirectorShots'));
+  assert.ok(chat.includes("from('vyral_assets')"));
+  assert.ok(chat.includes("from('vyral_asset_versions')"));
+  assert.ok(chat.includes('nextShotAsset'));
+  assert.ok(chat.includes('outgoingTransitionVerification'));
+  assert.ok(workspace.includes('activeSceneDirectorShots:'));
+  assert.ok(workspace.includes('shotIndex:'));
+});
