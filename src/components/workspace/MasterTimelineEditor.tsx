@@ -2657,6 +2657,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-center gap-2 overflow-x-auto px-0">
             <button
               type="button"
+              title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
+              aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
+              aria-pressed={isMagneticEnabled}
+              onClick={() => {
+                setIsMagneticEnabled((enabled) => {
+                  const next = !enabled;
+                  if (!next) {
+                    magneticScrollLockRef.current = null;
+                    magneticReleasedBoundaryRef.current = null;
+                  }
+                  return next;
+                });
+              }}
+              className={`grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
+            >
+              <Magnet size={22} strokeWidth={1.8} />
+              <span className="sr-only">Magnetic</span>
+            </button>
+            <button
+              type="button"
               title="Fonts"
               aria-label="Fonts"
               className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-4 text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]"
