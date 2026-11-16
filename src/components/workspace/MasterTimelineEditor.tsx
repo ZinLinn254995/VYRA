@@ -27,7 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
-import { mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
+import { getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
@@ -1288,17 +1288,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       let nextVideoTracks = value?.videoTracks || [];
       let nextAudioTracks = value?.audioTracks || [];
       let nextSceneInstances = value?.sceneInstances || [];
-      // Visual insertion follows the playhead, but never splits an existing clip.
-      // If the playhead is inside a Scenes clip, insert immediately after that clip.
+      // Scenes has its own continuous clip-train insertion rule. Empty starts at 0;
+      // inside a clip inserts after it; between clips inserts at that boundary;
+      // trailing empty space always appends after the final Scenes clip.
       const sceneClipsAtStart = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks)
         .flatMap((track) => track.clips);
       const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
-      const containingSceneClips = sceneClipsAtStart.filter((clip) =>
-        playheadTime > clip.start + 0.001 && playheadTime < clip.start + clip.duration - 0.001,
-      );
-      let sceneInsertionTime = containingSceneClips.length
-        ? Math.max(...containingSceneClips.map((clip) => clip.start + clip.duration))
-        : playheadTime;
+      let sceneInsertionTime = getScenesInsertionTime(sceneClipsAtStart, playheadTime);
       const shiftDirectorSceneClips = (instances: typeof nextSceneInstances, insertionTime: number, amount: number) =>
         instances.map((instance) => {
           const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
@@ -1825,12 +1821,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const currentTracks = value?.videoTracks || [];
     const existingClips = visibleVideoTracks.flatMap((track) => track.clips);
     const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
-    const containingClips = existingClips.filter((clip) =>
-      playheadTime > clip.start + 0.001 && playheadTime < clip.start + clip.duration - 0.001,
-    );
-    const start = containingClips.length
-      ? Math.max(...containingClips.map((clip) => clip.start + clip.duration))
-      : playheadTime;
+    const start = getScenesInsertionTime(existingClips, playheadTime);
     const shiftedTracks = currentTracks.map((track) => ({
       ...track,
       clips: track.clips.map((clip) =>
