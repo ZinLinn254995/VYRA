@@ -158,8 +158,9 @@ const extractSelectedVideoFrames = async (
     const duration = video.duration;
     if (!Number.isFinite(duration) || duration <= 0) throw new Error('This video has no readable duration.');
     const frameCount = Math.min(4, maxFrames);
+    const lastSafeFrameTime = Math.max(0, duration - Math.min(0.05, duration / 10));
     const timestamps = Array.from({ length: frameCount }, (_, index) =>
-      frameCount === 1 ? 0 : Math.min(Math.max(0, duration - 0.05), duration * index / frameCount)
+      frameCount === 1 ? 0 : lastSafeFrameTime * index / (frameCount - 1)
     ).filter((time, index, all) => all.indexOf(time) === index);
     const frames: VyralVisionVideoFrame[] = [];
     for (const time of timestamps) {
