@@ -648,7 +648,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         };
       }
       if (instance.id === clip.id) {
-        return { ...instance, videoSourceIn: sourceIn, videoSourceOut: sourceOut };
+        return {
+          ...instance,
+          videoClips: [{
+            id: clip.id,
+            name: clip.name,
+            start: start - currentSceneStart,
+            duration,
+            sourceIn,
+            sourceOut,
+            assetId: instance.assetId,
+            assetVersionId: instance.assetVersionId,
+            assetMimeType: instance.assetMimeType,
+            mediaKind: clip.mediaKind,
+          }],
+        };
       }
       return instance;
     });
