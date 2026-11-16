@@ -25,7 +25,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
-import { createVyralAudioPlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
+import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
@@ -120,6 +120,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
+  const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
@@ -568,6 +570,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     ...(directorVideoTrack ? [directorVideoTrack] : []),
     ...(value?.videoTracks || []),
   ];
+  const activeImageClip = [...(value?.videoTracks || [])].reverse().flatMap((track) => track.clips)
+    .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
+      clip.start <= timelinePlayheadTime && clip.start + clip.duration > timelinePlayheadTime &&
+      Boolean(clip.assetId && clip.assetVersionId));
+  useEffect(() => {
+    let cancelled = false;
+    if (!supabase || !activeImageClip?.assetId || !activeImageClip.assetVersionId) {
+      setImagePreviewUrl(null);
+      return;
+    }
+    void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId })
+      .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
+      .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
+    return () => { cancelled = true; };
+  }, [activeImageClip?.assetId, activeImageClip?.assetVersionId]);
 
   const timelineWidth = totalDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
@@ -759,6 +776,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const handleMasterTimelineScroll = () => {
     const element = scrollRef.current;
     if (!element) return;
+    setTimelinePlayheadTime(Math.max(0, element.scrollLeft / pixelsPerSecondRef.current));
     const programmed = masterPlaybackProgrammaticScrollRef.current;
     if (programmed !== null && Math.abs(element.scrollLeft - programmed) < 1) {
       masterPlaybackProgrammaticScrollRef.current = null;
@@ -1650,17 +1668,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <input ref={mediaFileInputRef} type="file" accept="video/*,image/*,audio/*" multiple className="hidden" onChange={handleMediaFilesSelected} aria-label="Upload Video, Image or Audio files" />
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
-      {value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) || Boolean(instance.videoClips?.some((clip) => clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')))) && (
+      {(value?.sceneInstances?.some((instance) => Boolean(instance.assetId && instance.assetVersionId && instance.assetMimeType?.toLowerCase().startsWith('video/')) || Boolean(instance.videoClips?.some((clip) => clip.assetId && clip.assetVersionId && clip.assetMimeType?.toLowerCase().startsWith('video/')))) || value?.videoTracks?.some((track) => track.clips.some((clip) => clip.assetMimeType?.toLowerCase().startsWith('video/'))) || Boolean(imagePreviewUrl)) && (
         <div className="w-full shrink-0 px-3 pt-2">
           <div className="relative mx-auto aspect-video max-h-48 w-full max-w-3xl overflow-hidden rounded-xl bg-black">
             <video
               ref={masterVideoPreviewRef}
               playsInline
               preload="none"
-              className="h-full w-full object-contain"
+              className={`h-full w-full object-contain ${imagePreviewUrl ? 'hidden' : ''}`}
               aria-label="Master Timeline Video preview"
               onError={() => setMasterPlaybackError('The private Scene Video could not be loaded for Master Timeline playback.')}
             />
+            {imagePreviewUrl && <img src={imagePreviewUrl} alt={activeImageClip?.name || 'Timeline Image'} className="absolute inset-0 h-full w-full bg-black object-contain" />}
             {masterPreviewTextOverlays.length > 0 && (
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1 px-4 pb-4" aria-live="off">
                 {masterPreviewTextOverlays.map((overlay) => (
