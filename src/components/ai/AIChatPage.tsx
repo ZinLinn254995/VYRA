@@ -26,7 +26,7 @@ import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetInge
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
-import { buildSceneVisualInspectionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
+import { buildSceneVisualInspectionPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
@@ -2455,6 +2455,48 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
                 vision.content, shotAnchors, frames.map((frame) => frame.frameTimeMs),
               );
             },
+            inspectTransition: async ({ previousAsset, currentAsset, previousShot, currentShot, scene, anchors: transitionAnchors, signal }) => {
+              if (!supabase) return { observations: [], inspectionComplete: false };
+              const loadBoundaryFrame = async (asset: typeof previousAsset, boundary: 'opening' | 'closing') => {
+                const { data: signed, error: signedError } = await supabase.storage
+                  .from('vyral-assets').createSignedUrl(asset.storagePath, 300);
+                if (signedError || !signed?.signedUrl) throw new Error('A private shot boundary frame could not be opened.');
+                const response = await fetch(signed.signedUrl, {
+                  cache: 'no-store', redirect: 'error', ...(signal ? { signal } : {}),
+                });
+                if (!response.ok) throw new Error('A shot boundary video could not be downloaded.');
+                const blob = await response.blob();
+                if (blob.size <= 0 || blob.size > 128 * 1024 * 1024) throw new Error('A shot boundary video exceeds the safe inspection size limit.');
+                const frames = await extractSelectedVideoFrames(blob, asset.assetId, boundary + ' shot boundary', 4);
+                if (!frames.length) throw new Error('A shot boundary frame could not be decoded.');
+                return boundary === 'closing' ? frames[frames.length - 1] : frames[0];
+              };
+              const [previousFrame, currentFrame] = await Promise.all([
+                loadBoundaryFrame(previousAsset, 'closing'),
+                loadBoundaryFrame(currentAsset, 'opening'),
+              ]);
+              const accessToken = await getCurrentAccessToken();
+              if (!accessToken) throw new Error('The signed-in session is unavailable for transition inspection.');
+              const vision = await aiService.generateResponse({
+                messages: [{
+                  role: 'user',
+                  content: buildSceneVisualTransitionPrompt({
+                    sceneTitle: scene.title,
+                    previousShot,
+                    currentShot,
+                    anchors: transitionAnchors,
+                  }),
+                }],
+                accessToken,
+                signal,
+                visionImages: [
+                  { mimeType: previousFrame.mimeType, data: previousFrame.data, assetId: previousFrame.assetId, assetName: 'Previous shot · final frame' },
+                  { mimeType: currentFrame.mimeType, data: currentFrame.data, assetId: currentFrame.assetId, assetName: 'Current shot · opening frame' },
+                ],
+              });
+              if (vision.status !== 'success') throw new Error(vision.errorMessage || 'AI Vision could not inspect the shot transition.');
+              return parseSceneVisualInspection(vision.content, transitionAnchors, [0, 1]);
+            },
           };
         }
       }
@@ -2532,7 +2574,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
         }
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
-        const findings = result.completedShots.flatMap((shot) => (shot.visualVerifications ?? []).flatMap((verification) =>
+        const findings = result.completedShots.flatMap((shot) => [
+          ...(shot.visualVerifications ?? []),
+          ...(shot.transitionVerification ? [shot.transitionVerification] : []),
+        ].flatMap((verification) =>
           verification.findings.filter((finding) => finding.status !== 'match').map((finding) =>
             'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
           )
