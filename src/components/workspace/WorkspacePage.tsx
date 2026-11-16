@@ -102,6 +102,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const handleMasterTimelineImagePreviewChange = useCallback((preview: { url: string; alt: string } | null) => {
     setMasterTimelineImagePreview((current) => current?.url === preview?.url && current?.alt === preview?.alt ? current : preview);
   }, []);
+  const hasMasterTimelineVideo = Boolean(
+    activeStoryboard?.details?.masterTimeline?.sceneInstances?.some((instance) =>
+      instance.assetMimeType?.toLowerCase().startsWith('video/') ||
+      instance.videoClips?.some((clip) => clip.assetMimeType?.toLowerCase().startsWith('video/')),
+    ) ||
+    activeStoryboard?.details?.masterTimeline?.videoTracks?.some((track) =>
+      track.clips.some((clip) => clip.assetMimeType?.toLowerCase().startsWith('video/')),
+    ),
+  );
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
@@ -1740,7 +1749,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                           className="absolute inset-0 z-10 h-full w-full bg-black object-contain"
                         />
                       )}
-                      {!masterTimelineImagePreview && !masterTimelineTextPreviewOverlays.length && (
+                      {!masterTimelineImagePreview && !hasMasterTimelineVideo && !masterTimelineTextPreviewOverlays.length && (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
                           <div className="relative text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
