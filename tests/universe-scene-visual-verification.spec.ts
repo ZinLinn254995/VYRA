@@ -121,3 +121,47 @@ test('builds a narrow repair prompt without granting canon approval or spending 
   assert.match(prompt, /without explicit creator approval/);
   assert.ok(prompt.includes('\n'));
 });
+
+
+test('builds a structured inspection request from approved anchors and exact sampled timestamps', async () => {
+  const { buildSceneVisualInspectionPrompt } = await import('../src/services/universeSceneVisualVerification.ts');
+  const prompt = buildSceneVisualInspectionPrompt({
+    sceneTitle: 'Harbor return', shotIndex: 1, shotCount: 3,
+    shotPurpose: 'Show the fox arriving', shotAction: 'The fox steps onto the pier',
+    anchors: base.anchors, frameTimesMs: [0, 1200],
+  });
+  assert.match(prompt, /APPROVED VISUAL ANCHORS/);
+  assert.match(prompt, /0,1200/);
+  assert.match(prompt, /<vyra-visual-inspection>/);
+});
+
+test('parses only complete per-anchor observations at supplied video frame timestamps', async () => {
+  const { parseSceneVisualInspection } = await import('../src/services/universeSceneVisualVerification.ts');
+  const response = '<vyra-visual-inspection>' + JSON.stringify({
+    schemaVersion: 1,
+    observations: [
+      { path: 'character.mira.hair', status: 'match', confidence: 0.98, evidence: 'Hair matches.', frameTimeMs: 0, observedValue: 'long black hair' },
+      { path: 'character.mira.coat', status: 'match', confidence: 0.97, evidence: 'Blue coat visible.', frameTimeMs: 0, observedValue: 'blue coat' },
+      { path: 'character.mira.hair', status: 'match', confidence: 0.96, evidence: 'Hair remains consistent.', frameTimeMs: 1500, observedValue: 'long black hair' },
+      { path: 'character.mira.coat', status: 'mismatch', confidence: 0.94, evidence: 'Red jacket visible.', frameTimeMs: 1500, observedValue: 'red jacket' },
+    ],
+  }) + '</vyra-visual-inspection>';
+  const parsed = parseSceneVisualInspection(response, base.anchors, [0, 1500]);
+  assert.equal(parsed.inspectionComplete, true);
+  assert.equal(parsed.observations.length, 4);
+  assert.equal(parsed.observations[3].status, 'mismatch');
+});
+
+test('fails closed when vision invents a frame timestamp, omits coverage, or duplicates a finding', async () => {
+  const { parseSceneVisualInspection } = await import('../src/services/universeSceneVisualVerification.ts');
+  const makeResponse = (observations: unknown[]) => '<vyra-visual-inspection>' +
+    JSON.stringify({ schemaVersion: 1, observations }) + '</vyra-visual-inspection>';
+  const valid = [
+    { path: 'character.mira.hair', status: 'match', confidence: 1, evidence: 'Hair visible.', frameTimeMs: 0 },
+    { path: 'character.mira.coat', status: 'match', confidence: 1, evidence: 'Coat visible.', frameTimeMs: 0 },
+  ];
+  assert.equal(parseSceneVisualInspection(makeResponse(valid), base.anchors, [0]).inspectionComplete, true);
+  assert.equal(parseSceneVisualInspection(makeResponse(valid.slice(0, 1)), base.anchors, [0]).inspectionComplete, false);
+  assert.equal(parseSceneVisualInspection(makeResponse([...valid, valid[0]]), base.anchors, [0]).inspectionComplete, false);
+  assert.equal(parseSceneVisualInspection(makeResponse(valid.map((item) => ({ ...item, frameTimeMs: 99 }))), base.anchors, [0]).inspectionComplete, false);
+});
