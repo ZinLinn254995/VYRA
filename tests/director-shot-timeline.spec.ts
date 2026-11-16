@@ -101,6 +101,7 @@ test('queued storyboard saves cannot recreate a deleted Project', async () => {
   assert.ok(workspace.includes('__vyraDeletedAt: new Date().toISOString()'));
   assert.ok(workspace.includes(".update({ details: deletionDetails, updated_at: deletionDetails.__vyraDeletedAt })"));
   assert.ok(workspace.includes(".is('details->>__vyraDeletedAt', null)"));
+  assert.ok(workspace.includes(".lte('updated_at', item.updatedAt)"));
   assert.ok(workspace.includes(".insert(payload)"));
   assert.ok(workspace.includes('Never use upsert here'));
   assert.ok(!workspace.includes(".upsert({\n        id: item.id, user_id: authData.user.id"));
