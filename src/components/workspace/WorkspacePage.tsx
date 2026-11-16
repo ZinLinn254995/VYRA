@@ -148,17 +148,26 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         };
         const previousInstances = masterTimeline.sceneInstances || [];
         const previousInstance = previousInstances.find((instance) => instance.sceneId === scene.id);
-        const videoClips = generatedClips.map((clip) => ({
-          id: clip.id,
-          name: clip.name,
-          start: clip.start,
-          duration: clip.duration,
-          sourceIn: 0,
-          sourceOut: clip.duration,
-          assetId: clip.assetId!,
-          assetVersionId: clip.assetVersionId!,
-          assetMimeType: clip.assetMimeType!,
-        }));
+        // Keep the Master Timeline playback mirror in sync with every
+        // verified Video clip retained in the Scene's video tracks, including
+        // manual clips preserved when an AI Director sequence is refreshed.
+        const videoClips = [...otherTracks, directorTrack]
+          .filter((track) => track.type === 'video')
+          .flatMap((track) => track.clips)
+          .filter((clip): clip is SceneProjectClip & { assetId: string; assetVersionId: string; assetMimeType: string } =>
+            Boolean(clip.assetId && clip.assetVersionId && /^video\//i.test(clip.assetMimeType || '')))
+          .sort((a, b) => a.start - b.start)
+          .map((clip) => ({
+            id: clip.id,
+            name: clip.name,
+            start: clip.start,
+            duration: clip.duration,
+            sourceIn: Math.max(0, clip.sourceIn ?? 0),
+            sourceOut: Math.max(0, clip.sourceOut ?? (clip.sourceIn ?? 0) + clip.duration),
+            assetId: clip.assetId,
+            assetVersionId: clip.assetVersionId,
+            assetMimeType: clip.assetMimeType,
+          }));
         const nextInstance = {
           ...(previousInstance || {
             id: scene.id, sceneId: scene.id, sourceIn: 0, sourceOut: nextSceneDuration,
