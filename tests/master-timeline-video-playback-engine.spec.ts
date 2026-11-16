@@ -128,7 +128,7 @@ test('pauses in gaps and aborts stale Video URL resolution', async () => {
 
 test('Master Timeline shares one AudioContext clock for Audio and Scene Video transport', () => {
   const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
-  assert.match(editor, /buildMasterTimelineVideoPlaybackPlan\(orderedScenes, value\?\.sceneInstances, timelineStart\)/);
+  assert.match(editor, /buildMasterTimelineVideoPlaybackPlan\(orderedScenes, value\?\.sceneInstances, timelineStart, value\?\.videoTracks \\|\\| \\[\\]\\)/);
   assert.match(editor, /startMasterTimelineVideoPlayback\(videoPlan/);
   assert.match(editor, /masterVideoPlaybackHandleRef\.current\?\.sync\(currentTime\)/);
   assert.match(editor, /videoHandle\?\.pause\(\)/);
