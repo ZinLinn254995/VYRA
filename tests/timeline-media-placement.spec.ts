@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { buildScenesClipTrainLayout, getScenesInsertionIndex, getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
+import { buildScenesClipTrainLayout, getScenesInsertionIndex, getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
 
 const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
   id, name: id, start, duration, assetId: 'asset-' + id, assetVersionId: 'version-' + id, assetMimeType: mime,
@@ -84,6 +84,50 @@ test('keeps Audio placement independent from Video rows', () => {
   const tracks: TimelineMediaTrackRow[] = [];
   const result = placeTimelineMediaClip(tracks, clip('audio', 0, 8, 'audio/mpeg'), 'audio', idFactory());
   assert.equal(result.tracks[0].name, 'Audio 1');
+});
+
+test('Audio and Text reuse the bottom row when the playhead interval fits between clips', () => {
+  const tracks: TimelineMediaTrackRow[] = [
+    { id: 'audio-1', name: 'Audio 1', clips: [clip('upper', 5, 4, 'audio/mpeg')] },
+    { id: 'audio-2', name: 'Audio 2', clips: [clip('left', 0, 2, 'audio/mpeg'), clip('right', 8, 2, 'audio/mpeg')] },
+  ];
+  const result = placeTimelineOverlayClip(tracks, clip('insert', 3, 4, 'audio/mpeg'), 'Audio', idFactory());
+  assert.equal(result.createdTrack, false);
+  assert.equal(result.trackId, 'audio-2');
+  assert.equal(result.rowIndex, 1);
+  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['upper']);
+  assert.deepEqual(result.tracks[1].clips.map((item) => item.id), ['left', 'insert', 'right']);
+});
+
+test('Audio and Text create a new row when a clip occupies the playhead', () => {
+  const tracks: TimelineMediaTrackRow[] = [
+    { id: 'text-1', name: 'Text 1', clips: [clip('upper', 0, 10)] },
+    { id: 'text-2', name: 'Text 2', clips: [clip('under-playhead', 4, 3)] },
+  ];
+  const result = placeTimelineOverlayClip(tracks, clip('insert', 5, 2), 'Text', idFactory());
+  assert.equal(result.createdTrack, true);
+  assert.equal(result.rowIndex, 2);
+  assert.equal(result.trackId, 'track-1');
+  assert.equal(result.tracks[2].name, 'Text3');
+  assert.deepEqual(result.tracks[2].clips.map((item) => item.id), ['insert']);
+});
+
+test('Audio and Text create a new row when the remaining gap is too short', () => {
+  const tracks: TimelineMediaTrackRow[] = [
+    { id: 'audio-1', name: 'Audio 1', clips: [clip('left', 0, 4), clip('right', 7, 3)] },
+  ];
+  const result = placeTimelineOverlayClip(tracks, clip('too-long', 4, 4, 'audio/mpeg'), 'Audio', idFactory());
+  assert.equal(result.createdTrack, true);
+  assert.equal(result.rowIndex, 1);
+  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['left', 'right']);
+});
+
+test('Audio and Text create their first row when the layer is empty', () => {
+  const result = placeTimelineOverlayClip([], clip('first', 6, 3), 'Text', idFactory());
+  assert.equal(result.createdTrack, true);
+  assert.equal(result.rowIndex, 0);
+  assert.equal(result.tracks[0].name, 'Text1');
+  assert.equal(result.tracks[0].clips[0].start, 6);
 });
 
 test('rejects a MIME type that does not match the requested layer', () => {
