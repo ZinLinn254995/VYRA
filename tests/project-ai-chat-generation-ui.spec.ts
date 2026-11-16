@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
+const generation = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
 const masterEditor = readFileSync(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
 const videoPlanner = readFileSync(new URL('../src/server/masterTimelineVideoPlayback.ts', import.meta.url), 'utf8');
 
@@ -155,7 +156,7 @@ test('generation success message renders its summary on separate lines', () => {
 
 
 test('shot repair handoff replaces only the matching Editor clip and preserves the remaining Director sequence', () => {
-  assert.ok(workspace.includes('replaceShot?: boolean'));
+  assert.ok(generation.includes('replaceShot?: boolean'));
   assert.ok(workspace.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
   assert.ok(workspace.includes('sequence.replaceShot'));
   assert.ok(workspace.includes('!sequence.shots.some((shot) => shot.shotId === clip.shotId)'));
@@ -170,7 +171,7 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('startProjectMediaGeneration(pendingShotRepair)'));
   assert.ok(chat.includes('requestApproval: (quote, shot, shotIndex) => approveQuote'));
   assert.ok(chat.includes('repair: { shotIndex: repairRequest.shotIndex'));
-  assert.ok(chat.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
+  assert.ok(generation.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
   assert.ok(chat.includes('replaceShot: true'));
   assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
   assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
