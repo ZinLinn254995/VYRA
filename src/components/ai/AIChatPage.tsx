@@ -2378,22 +2378,47 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           requestApproval: (quote) => approveQuote(quote),
         });
       assertMediaRequestCurrent();
+      const isShotSequence = 'completedShots' in result;
       if (result.status === 'approval_declined') {
-        setMediaGenerationStatus('Cancelled. No job was created and no credits were reserved.');
+        setMediaGenerationStatus('Cancelled. No new job was created for the declined shot.');
+      } else if (result.status === 'budget_exceeded') {
+        const completed = isShotSequence ? result.completedShots.length : 0;
+        setMediaGenerationStatus('Shot sequence paused at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+          ': the approved total budget would be exceeded. ' + completed + ' earlier shot(s) remain saved in Project Assets.');
+      } else if (result.status === 'partial') {
+        const completed = result.completedShots.length;
+        const stoppedShot = (result.stoppedAtShotIndex ?? 0) + 1;
+        setMediaGenerationStatus('Shot sequence paused at Shot ' + stoppedShot + ' (' + (result.stoppedStatus ?? 'pending') + '). ' +
+          completed + ' earlier shot(s) are saved in Project Assets.' +
+          (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
       } else if (result.status === 'ready') {
-        const generatedAssets = result.assets ?? [];
+        const generatedAssets = isShotSequence
+          ? result.completedShots.flatMap((shot) => shot.assets.map((asset) => ({ ...asset, shotIndex: shot.shotIndex })))
+          : result.assets.map((asset) => ({ ...asset, shotIndex: null as number | null }));
         if (!generatedAssets.length) throw new Error('The generation job completed without verified Project Assets.');
         const previews: ProjectMediaPreview[] = [];
         for (let index = 0; index < generatedAssets.length; index++) {
           const asset = generatedAssets[index];
           const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(supabase.storage.from('vyral-assets').createSignedUrl(asset.storagePath, 3600));
-          previews.push({ assetId: asset.assetId, name: 'Generated ' + mediaTask + ' ' + (index + 1), mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
+          const name = asset.shotIndex === null
+            ? 'Generated ' + mediaTask + ' ' + (index + 1)
+            : 'Shot ' + (asset.shotIndex + 1) + ' · Generated video';
+          previews.push({ assetId: asset.assetId, name, mimeType: asset.mimeType, ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
         }
-        const summary = generatedAssets.map((asset, index) => (index + 1) + '. ' + asset.assetId + ' · ' + asset.mimeType).join('\n');
-        setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
-          content: 'Media generation completed. ' + generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\n\n' + summary }]);
+        const summary = generatedAssets.map((asset, index) =>
+          (asset.shotIndex === null ? (index + 1) + '. ' : 'Shot ' + (asset.shotIndex + 1) + ': ') +
+          asset.assetId + ' · ' + asset.mimeType).join('\\n');
+        setMessages((previous) => [...previous, {
+          id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
+          content: (isShotSequence
+            ? 'The Director shot sequence completed. '
+            : 'Media generation completed. ') +
+            generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.\\n\\n' + summary,
+        }]);
         setDraft('');
-        setMediaGenerationStatus('Completed. Your new media is available in Project Assets.');
+        setMediaGenerationStatus(isShotSequence
+          ? 'Completed. All planned shots are saved in Project Assets in production order.'
+          : 'Completed. Your new media is available in Project Assets.');
       } else if (result.status === 'submitted_pending') {
         setMediaGenerationStatus('Generation is still processing. Job ID: ' + result.jobId + '. Do not submit this job again.');
       } else if (result.status === 'reconciliation_required') {
