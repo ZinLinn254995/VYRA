@@ -1944,6 +1944,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                               aria-label={edge === 'left' ? 'Adjust start point' : 'Adjust end point'}
                               title={edge === 'left' ? 'Drag to adjust start point' : 'Drag to adjust end point'}
                               className={`absolute inset-y-0 z-20 w-2 cursor-ew-resize touch-none bg-[var(--vyra-accent-primary)]/45 hover:bg-[var(--vyra-accent-primary)] ${edge === 'left' ? 'left-0 rounded-l-md' : 'right-0 rounded-r-md'}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
                               onPointerDown={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
