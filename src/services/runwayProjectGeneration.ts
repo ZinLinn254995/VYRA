@@ -567,7 +567,10 @@ export function buildRunwayProjectShotPrompt(
 export async function generateRunwayProjectShotSequence(
   db: Db,
   request: RunwayProjectShotSequenceRequest,
+  dependencies: { generateMedia?: typeof generateRunwayProjectMedia } = {},
 ): Promise<RunwayProjectShotSequenceResult> {
+  // Injectable only to make orchestration behavior testable without provider calls.
+  const generateMedia = dependencies.generateMedia ?? generateRunwayProjectMedia;
   if (!request.scene || !Array.isArray(request.scene.shots) ||
       request.scene.shots.length < 1 || request.scene.shots.length > 12 ||
       !Number.isFinite(request.maxTotalCostUsd) || request.maxTotalCostUsd <= 0 ||
@@ -617,7 +620,7 @@ export async function generateRunwayProjectShotSequence(
     assertActive(request.signal);
     const shot = request.scene.shots[shotIndex];
     const promptText = buildRunwayProjectShotPrompt(request, request.scene, shot, shotIndex);
-    const result = await generateRunwayProjectMedia(db, {
+    const result = await generateMedia(db, {
       targetVyralId: request.targetVyralId,
       task: 'video',
       quality: request.quality,
