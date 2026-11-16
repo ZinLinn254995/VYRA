@@ -22,7 +22,7 @@ test('keeps overlapping Video clips on the single shared visual row', () => {
   assert.equal(result.rowIndex, 0);
   assert.equal(result.trackId, 'video-1');
   assert.equal(result.tracks.length, 1);
-  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['new', 'existing']);
+  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['existing', 'new']);
 });
 
 test('uses the same Video layer for Image clips', () => {
