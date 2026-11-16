@@ -7,6 +7,7 @@ const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePag
 
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
   assert.ok(chat.includes('generateRunwayProjectMedia'));
+  assert.ok(chat.includes('generateRunwayProjectShotSequence'));
   assert.ok(chat.includes('listRunwayProjectMediaRecovery'));
   assert.ok(chat.includes('recoverRunwayProjectMediaJob'));
   assert.ok(chat.includes('{storyboardId && ('));
@@ -14,7 +15,7 @@ test('Project AI Chat exposes media creation without changing global chat compos
   assert.ok(chat.includes('Generate in this Project'));
   assert.ok(chat.includes("targetVyralId: storyboardUniverseId"));
   assert.ok(chat.includes('input: { promptText: prompt }'));
-  assert.ok(chat.includes('sceneContext: workspaceContext ?'));
+  assert.ok(chat.includes('const sceneContext = workspaceContext ?'));
   assert.ok(chat.includes('sceneContinuity: workspaceContext.sceneContinuity'));
   assert.ok(chat.includes('selectedTimelineItem: workspaceContext.selectedTimelineItem'));
   assert.ok(chat.includes('editorView: workspaceContext.editorView'));
@@ -23,9 +24,25 @@ test('Project AI Chat exposes media creation without changing global chat compos
 test('media generation requires a creator-set budget and explicit quote approval', () => {
   assert.ok(chat.includes('Maximum budget (USD)'));
   assert.ok(chat.includes('const budget = Number(mediaBudgetUsd)'));
-  assert.ok(chat.includes('requestApproval: async (quote)'));
+  assert.ok(chat.includes('const approveQuote = async (quote'));
+  assert.ok(chat.includes('requestApproval: (quote) => approveQuote(quote)'));
   assert.ok(chat.includes('window.confirm(details)'));
   assert.ok(chat.includes('Credits are reserved only after approval.'));
+});
+
+test('AI Chat invokes shot-by-shot generation only for the selected Scene in the active Project', () => {
+  assert.ok(chat.includes("workspaceContext?.continuityRuntime?.storyboardId === storyboardId"));
+  assert.ok(chat.includes("workspaceContext.selectedTimelineItem?.kind === 'scene'"));
+  assert.ok(chat.includes("workspaceContext?.page === 'scene-editor'"));
+  assert.ok(chat.includes('const plannedShots = Array.isArray(direction?.shots) ? direction.shots : []'));
+  assert.ok(chat.includes("mediaTask === 'video' && directorScenePlan"));
+  assert.ok(chat.includes('maxTotalCostUsd: budget'));
+  assert.ok(chat.includes('maxCostUsdPerShot: budget'));
+  assert.ok(chat.includes('requestApproval: (quote, shot, shotIndex)'));
+  assert.ok(chat.includes('onShotProgress: (event)'));
+  assert.ok(chat.includes("result.status === 'partial'"));
+  assert.ok(chat.includes("result.status === 'budget_exceeded'"));
+  assert.ok(chat.includes('stoppedJobId'));
 });
 
 test('Project media progress distinguishes ready, pending and reconciliation states', () => {
