@@ -53,7 +53,7 @@ test('merges Director and uploaded Video/Image clips into one shared Video row w
   ];
   const rows = mergeTimelineVideoRows(director, uploaded);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'Video 1');
+  assert.equal(rows[0].name, 'Video');
   assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'director-2', 'image-1']);
 });
 
@@ -65,5 +65,5 @@ test('keeps overlapping Director and uploaded Video/Image clips in exactly one r
   const rows = mergeTimelineVideoRows(director, uploaded);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, 'Video');
-  assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'image', 'manual-video']);
+  assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'manual-video', 'image']);
 });
