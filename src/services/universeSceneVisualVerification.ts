@@ -227,5 +227,5 @@ export function buildSceneVisualRepairPrompt(
     'Do not change the canonical Scene state or mark any observation creator-approved.',
     'This is repair guidance only. Do not regenerate, submit a provider task, or spend credits without explicit creator approval.',
   );
-  return lines.join('\\n').slice(0, 7000);
+  return lines.join('\n').slice(0, 7000);
 }
