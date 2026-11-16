@@ -1569,9 +1569,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const selectedSceneIndex = selectedSceneInstance
       ? orderedScenes.findIndex((scene) => scene.id === selectedSceneInstance.sceneId)
       : -1;
-    [sceneTransitionMarkers[selectedSceneIndex - 1], sceneTransitionMarkers[selectedSceneIndex]]
-      .filter(Boolean)
-      .forEach((marker) => { delete transitions[marker.key]; });
+    const previousSceneTransition = sceneTransitionMarkers[selectedSceneIndex - 1];
+    const nextSceneTransition = sceneTransitionMarkers[selectedSceneIndex];
+    if (previousSceneTransition) delete transitions[previousSceneTransition.key];
+    if (nextSceneTransition) delete transitions[nextSceneTransition.key];
 
     // The newly adjacent pair must start with no transition. "None" is
     // represented by the absence of a transition record in this timeline.
