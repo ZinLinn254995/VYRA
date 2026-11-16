@@ -1052,8 +1052,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const releasedCluster = magneticReleasedClusterRef.current;
         if (
           releasedCluster &&
-          (playheadTime < releasedCluster.min - releaseDistancePx / scale ||
-            playheadTime > releasedCluster.max + releaseDistancePx / scale)
+          (playheadTime < releasedCluster.min - attractionDistancePx / scale ||
+            playheadTime > releasedCluster.max + attractionDistancePx / scale)
         ) {
           magneticReleasedClusterRef.current = null;
         }
