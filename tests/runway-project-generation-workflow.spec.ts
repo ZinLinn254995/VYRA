@@ -86,7 +86,7 @@ test('shot prompt isolates one ordered shot and carries its continuity handoff',
   assert.match(prompt, /PREVIOUS SHOT HANDOFF: A and B face each other/);
   assert.match(prompt, /NEXT SHOT SETUP|FINAL SHOT/);
   assert.match(prompt, /Generate only this planned shot/);
-  assert.match(prompt, /Scene 2: Warehouse Fight/);
+  assert.match(prompt, /SCENE 2: Warehouse Fight/);
 });
 
 test('shot sequence reuses the approved generation lifecycle sequentially and enforces a total budget', () => {
