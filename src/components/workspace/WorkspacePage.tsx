@@ -23,7 +23,7 @@ type SceneRenderRevision = { id: string; createdAt: string; duration: number; st
 type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
-type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; action: string; continuityNotes: string[] }> };
+type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; composition: string; lighting: string; focus: string; sound: string; action: string; continuityNotes: string[] }> };
 type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
@@ -1185,6 +1185,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                             <span className="shrink-0 text-[10px] tabular-nums text-[var(--vyra-text-secondary)]">{shot.durationSeconds}s</span>
                           </div>
                           <p className="text-[11px] text-[var(--vyra-text-secondary)]">{shot.framing} · {shot.cameraAngle} · {shot.cameraMovement}</p>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Composition</span><br />{shot.composition}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Lighting</span><br />{shot.lighting}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Focus</span><br />{shot.focus}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Sound</span><br />{shot.sound}</p>
+                          </div>
                           <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">{shot.action}</p>
                           {shot.continuityNotes.length > 0 && (
                             <ul className="list-disc space-y-1 pl-4 text-[11px] text-[var(--vyra-text-muted)]">
