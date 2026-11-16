@@ -749,7 +749,7 @@ export async function generateRunwayProjectShotSequence(
           anchors: buildSceneVisualTransitionAnchors(), observations, inspectionComplete,
         });
         downstreamTransitionVerifications.push({ previousShotIndex, currentShotIndex, verification });
-        repairPrompts.push(buildSceneVisualRepairPrompt(verification, previousShot));
+        repairPrompts.push(buildSceneVisualRepairPrompt(verification, nextShot));
         if (!outgoingTransitionVerification) outgoingTransitionVerification = verification;
         if (!nextAsset || !/^video\//i.test(nextAsset.mimeType)) {
           // The chain cannot skip a missing timeline shot and still claim continuity.
