@@ -2695,8 +2695,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const targetedRepairPrepared = repairTargetShotIndex !== undefined && repairTargetShotPlan
           && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
         if (repairRequest && failedShot && onShotRepairHistory) {
-          const candidate = failedShot.assets.find((asset) => /^video\\//i.test(asset.mimeType));
-          const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === repairRequest.shotIndex);
+          const historyShotIndex = repairTargetShotIndex ?? repairRequest.shotIndex;
+          const candidate = failedDownstreamShot
+            ? downstreamShotAssets.find((item) => item.shotIndex === historyShotIndex)?.asset
+            : failedShot.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+          const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === historyShotIndex);
           const verifications = [
             ...(failedShot.visualVerifications ?? []),
             ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
@@ -2705,8 +2708,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ];
           onShotRepairHistory({
             id: makeId(), createdAt: new Date().toISOString(), sceneId: activeDirectorScenePlan?.id ?? repairRequest.scene.id,
-            shotId: repairRequest.scene.shots[repairRequest.shotIndex]?.id ?? 'unknown',
-            shotIndex: repairRequest.shotIndex,
+            shotId: repairRequest.scene.shots[historyShotIndex]?.id ?? 'unknown',
+            shotIndex: historyShotIndex,
             previousAssetId: original?.assetId ?? null, previousAssetVersionId: original?.assetVersionId ?? null,
             candidateAssetId: candidate?.assetId ?? null, candidateAssetVersionId: candidate?.versionId ?? null,
             outcome: 'needs_review',
