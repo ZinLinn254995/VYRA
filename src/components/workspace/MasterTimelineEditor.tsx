@@ -595,6 +595,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const boundary = sceneSegments.slice(0, index + 1).reduce((sum, segment) => sum + segment.duration, 0);
     return { key, boundary, transition: value?.transitions?.[key] };
   });
+  const videoTransitionMarkers = (visibleVideoTracks[0]?.clips || [])
+    .slice()
+    .sort((a, b) => a.start - b.start)
+    .slice(0, -1)
+    .flatMap((clip, index, clips) => {
+      const nextClip = clips[index + 1];
+      const boundary = clip.start + clip.duration;
+      // Transitions belong between neighboring clips in the shared visual
+      // lane. Existing Scene-boundary keys are retained for old Storyboards.
+      if (Math.abs(nextClip.start - boundary) > 0.001) return [];
+      const legacySceneBoundary = sceneTransitionMarkers.find((item) => Math.abs(item.boundary - boundary) <= 0.001);
+      const key = legacySceneBoundary?.key || (clip.id + ':' + nextClip.id);
+      return [{ key, boundary, transition: value?.transitions?.[key] }];
+    });
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
       !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
@@ -1801,7 +1815,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                       </div>
                     );
                   })}
-                  {trackIndex === 0 && sceneTransitionMarkers.map(({ key, boundary, transition }) => (
+                  {trackIndex === 0 && videoTransitionMarkers.map(({ key, boundary, transition }) => (
                     <button key={key} type="button" data-timeline-transition-key={key}
                       title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
                       aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
