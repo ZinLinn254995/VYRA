@@ -37,10 +37,10 @@ test('verified Director sequence handoff creates ordered, contiguous timeline cl
   assert.deepEqual(result.clips.map((clip) => clip.assetId), ['new-0', 'new-1', 'new-2']);
   assert.deepEqual(result.clips.map((clip) => clip.assetVersionId), ['version-new-0', 'version-new-1', 'version-new-2']);
   assert.ok(result.clips.every((clip) => clip.source === 'ai_director_shot'));
-  assert.equal(result.duration, 12);
+  assert.equal(result.duration, 14);
 });
 
-test('verified targeted repair replaces only its Shot and preserves every other clip position and Asset reference', () => {
+test('verified targeted repair replaces only its Shot and shifts downstream clips to preserve a contiguous sequence', () => {
   const before = [
     existing(0, 0, 3),
     existing(1, 3, 4),
@@ -49,20 +49,20 @@ test('verified targeted repair replaces only its Shot and preserves every other 
   const result = buildDirectorShotTimelineClips(before, [shot(1, 6, 'repaired-1')], true);
 
   assert.deepEqual(result.clips.map((clip) => clip.shotId), ['shot-0', 'shot-1', 'shot-2']);
-  assert.deepEqual(result.clips.map((clip) => clip.start), [0, 3, 7]);
+  assert.deepEqual(result.clips.map((clip) => clip.start), [0, 3, 9]);
   assert.deepEqual(result.clips.map((clip) => clip.assetId), ['old-0', 'repaired-1', 'old-2']);
   assert.deepEqual(result.clips.map((clip) => clip.assetVersionId), ['version-old-0', 'version-repaired-1', 'version-old-2']);
   assert.equal(result.clips[1].duration, 6);
   assert.equal(result.duration, 12);
 });
 
-test('repair handoff does not discard a previously verified downstream Shot when the replacement is shorter', () => {
+test('shorter repair shifts later verified Shots earlier without dropping them or leaving a timeline gap', () => {
   const before = [existing(0, 0, 4), existing(1, 4, 5), existing(2, 9, 6)];
   const result = buildDirectorShotTimelineClips(before, [shot(1, 2, 'short-repair')], true);
 
   assert.deepEqual(result.clips.map((clip) => clip.assetId), ['old-0', 'short-repair', 'old-2']);
-  assert.deepEqual(result.clips.map((clip) => clip.start), [0, 4, 9]);
-  assert.equal(result.duration, 15);
+  assert.deepEqual(result.clips.map((clip) => clip.start), [0, 4, 6]);
+  assert.equal(result.duration, 12);
 });
 
 test('Project Editor wires the verified handoff into both Scene Timeline and Master Timeline persistence', async () => {
