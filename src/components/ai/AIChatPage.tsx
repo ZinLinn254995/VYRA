@@ -2623,7 +2623,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
         const failedBoundary = result.failedTransitionBoundary;
-        const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedShot?.shotIndex;
+        const failedDownstreamShot = failedShot?.downstreamShotVerifications?.find((item) => item.verification.status !== 'consistent');
+        const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedDownstreamShot?.shotIndex ?? failedShot?.shotIndex;
         const repairTargetShotPlan = repairTargetShotIndex !== undefined ? activeDirectorScenePlan?.shots[repairTargetShotIndex] : undefined;
         const failedShotVerifications = failedShot ? [
           ...(failedShot.visualVerifications ?? []),
@@ -2681,11 +2682,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? downstreamShotAssets.filter((item) => item.shotIndex > repairTargetShotIndex)
           : [];
         const hasActionableBoundaryMismatch = failedBoundary?.verification.findings.some((finding) => finding.status === 'mismatch') === true;
+        const hasActionableDownstreamShotMismatch = failedDownstreamShot?.verification.findings.some((finding) => finding.status === 'mismatch') === true;
         const repairInstruction = failedBoundary
           ? hasActionableBoundaryMismatch && repairTargetShotPlan
             ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)
             : undefined
-          : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
+          : failedDownstreamShot
+            ? hasActionableDownstreamShotMismatch && repairTargetShotPlan
+              ? buildSceneVisualRepairPrompt(failedDownstreamShot.verification, repairTargetShotPlan)
+              : undefined
+            : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const targetedRepairPrepared = repairTargetShotIndex !== undefined && repairTargetShotPlan
           && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
         if (repairRequest && failedShot && onShotRepairHistory) {
@@ -2746,7 +2752,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: reviewPreviews,
           content: 'Visual continuity review paused the sequence' +
-            (failedBoundary ? ' at the boundary Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + ' (' + failedBoundary.status + ')' : ' after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1)) +
+            (failedBoundary ? ' at the boundary Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + ' (' + failedBoundary.status + ')' : failedDownstreamShot ? ' while rechecking downstream Shot ' + (failedDownstreamShot.shotIndex + 1) : ' after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1)) +
             (repairRequest
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
               : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
