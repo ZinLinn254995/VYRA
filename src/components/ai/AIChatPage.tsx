@@ -2382,9 +2382,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         selectedTimelineItem: workspaceContext.selectedTimelineItem,
         selectedSceneIds: workspaceContext.selectedSceneIds,
       } : null;
-      const selectedSceneId = workspaceContext?.editorView === 'master'
+      const selectedSceneId = repairRequest?.scene.id ?? (workspaceContext?.editorView === 'master'
         ? workspaceContext.selectedTimelineItem?.kind === 'scene' ? workspaceContext.selectedTimelineItem.id : null
-        : workspaceContext?.page === 'scene-editor' ? workspaceContext.activeSceneId ?? null : null;
+        : workspaceContext?.page === 'scene-editor' ? workspaceContext.activeSceneId ?? null : null);
       const selectedScene = workspaceContext?.continuityRuntime?.storyboardId === storyboardId
         ? workspaceContext.continuityRuntime.scenes?.find((scene) => scene.id === selectedSceneId)
         : undefined;
@@ -2408,7 +2408,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       let visualVerification: Parameters<typeof generateRunwayProjectShotSequence>[1]['visualVerification'];
       const visualBaseline = workspaceContext?.activeSceneId === selectedSceneId
         ? workspaceContext.sceneContinuity : null;
-      if (effectiveMediaTask === 'video' && directorScenePlan && visualBaseline?.contextComplete
+      if (effectiveMediaTask === 'video' && activeDirectorScenePlan && visualBaseline?
         && !visualBaseline.entrySnapshotStale && visualBaseline.validationStatus === 'creator_approved'
         && visualBaseline.currentEntryState) {
         const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState).filter((anchor) => anchor.scope === 'persistent');
@@ -2535,7 +2535,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\\n');
         return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
       };
-      const result = effectiveMediaTask === 'video' && directorScenePlan
+      const result = effectiveMediaTask === 'video' && activeDirectorScenePlan
         ? await generateRunwayProjectShotSequence(supabase, {
           targetVyralId: storyboardUniverseId,
           quality: mediaQuality,
