@@ -996,16 +996,21 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const confirmDeleteStoryboard = async () => {
     if (!storyboardToDelete || isDeletingStoryboard) return;
+    const ownerStorageKey = storyboardStorageKeyRef.current;
     setIsDeletingStoryboard(true);
     const item = storyboardToDelete;
     const client = supabase;
     // Block new writes and drain any queued save before deleting, otherwise a
-    // late upsert could recreate a Project that the creator just removed.
+    // late save could recreate a Project that the creator just removed.
     deletedStoryboardIdsRef.current.add(item.id);
     const queuedSave = storyboardSaveQueueRef.current.get(item.id);
     if (queuedSave) await queuedSave.catch(() => undefined);
+    // A delete confirmation belongs to the account that opened it. Do not let
+    // its async continuation mutate the next account's Workspace after a switch.
+    if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
     if (isAuthenticated && client && isPersistableStoryboardId(item.id)) {
       const { data: authData, error: authError } = await client.auth.getUser();
+      if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       if (authError || !authData.user) {
         deletedStoryboardIdsRef.current.delete(item.id);
         setCloudSyncMessage('Sign in again before deleting this Storyboard.');
@@ -1021,6 +1026,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const { error: deleteError } = await client.from('vyral_storyboards')
         .update({ details: deletionDetails, updated_at: deletionDetails.__vyraDeletedAt })
         .eq('id', item.id).eq('user_id', authData.user.id);
+      if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       if (deleteError) {
         deletedStoryboardIdsRef.current.delete(item.id);
         setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
@@ -1028,6 +1034,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         return;
       }
     }
+    if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
     setStoryboards((current) => current.filter((storyboard) => storyboard.id !== item.id));
     setStoryboardToDelete(null);
     setIsDeletingStoryboard(false);
