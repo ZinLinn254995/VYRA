@@ -162,3 +162,15 @@ test('shot repair handoff replaces only the matching Editor clip and preserves t
   assert.ok(workspacePage.includes('...incomingClips'));
   assert.ok(workspacePage.includes('const videoClips = generatedClips.map'));
 });
+
+
+test('AI Chat requires a fresh quote and explicit approval for a targeted shot repair', () => {
+  assert.ok(chat.includes('pendingShotRepair'));
+  assert.ok(chat.includes('Review quote & repair Shot'));
+  assert.ok(chat.includes('startProjectMediaGeneration(pendingShotRepair)'));
+  assert.ok(chat.includes('requestApproval: (quote, shot, shotIndex) => approveQuote'));
+  assert.ok(chat.includes('repair: { shotIndex: repairRequest.shotIndex'));
+  assert.ok(chat.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
+  assert.ok(chat.includes('replaceShot: true'));
+  assert.ok(chat.includes('setPendingShotRepair(null)'));
+});
