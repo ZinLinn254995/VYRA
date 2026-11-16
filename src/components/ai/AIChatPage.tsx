@@ -2394,15 +2394,25 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (mediaTask === 'video' && directorScenePlan && visualBaseline?.contextComplete
         && !visualBaseline.entrySnapshotStale && visualBaseline.validationStatus === 'creator_approved'
         && visualBaseline.currentEntryState) {
-        const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState);
+        const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState).filter((anchor) => anchor.scope === 'persistent');
         if (anchors.length) {
           const baselineRevision = await getSceneVisualBaselineRevision(workspaceContext, selectedSceneId!);
           visualVerification = {
             baselineRevision,
             anchors,
             getCurrentBaselineRevision: () => getSceneVisualBaselineRevision(workspaceContextRef.current, selectedSceneId!),
-            inspect: async ({ asset, shot, shotIndex, shotCount, scene, signal }) => {
-              if (!supabase || !/^video\\//i.test(asset.mimeType)) {
+            getAnchorsForShot: (shot) => [
+              ...anchors,
+              { path: 'shot.framing', expectedValue: shot.framing, scope: 'scene_state', visibility: 'required' },
+              { path: 'shot.cameraAngle', expectedValue: shot.cameraAngle, scope: 'scene_state', visibility: 'required' },
+              { path: 'shot.composition', expectedValue: shot.composition, scope: 'scene_state', visibility: 'required' },
+              { path: 'shot.lighting', expectedValue: shot.lighting, scope: 'scene_state', visibility: 'required' },
+              { path: 'shot.action', expectedValue: shot.action, scope: 'scene_state', visibility: 'required' },
+              { path: 'shot.cameraMovement', expectedValue: shot.cameraMovement, scope: 'scene_state', visibility: 'optional' },
+              { path: 'shot.focus', expectedValue: shot.focus, scope: 'scene_state', visibility: 'optional' },
+            ],
+            inspect: async ({ asset, shot, shotIndex, shotCount, scene, signal, anchors: shotAnchors }) => {
+              if (!supabase || !/^video\//i.test(asset.mimeType)) {
                 return { observations: [], inspectionComplete: false };
               }
               const { data: signed, error: signedError } = await supabase.storage
@@ -2429,7 +2439,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
                     shotCount,
                     shotPurpose: shot.purpose,
                     shotAction: shot.action,
-                    anchors,
+                    anchors: shotAnchors,
                     frameTimesMs: frames.map((frame) => frame.frameTimeMs),
                   }),
                 }],
@@ -2441,7 +2451,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               });
               if (vision.status !== 'success') throw new Error(vision.errorMessage || 'AI Vision could not inspect the generated shot.');
               return parseSceneVisualInspection(
-                vision.content, anchors, frames.map((frame) => frame.frameTimeMs),
+                vision.content, shotAnchors, frames.map((frame) => frame.frameTimeMs),
               );
             },
           };
@@ -2580,7 +2590,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
             generatedAssets.length + ' Asset(s) were saved to this Project and passed DNA / Fingerprint verification.' +
-            (isShotSequence && result.visualVerificationStatus === 'verified'
+            (isShotSequence && isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
               ? ' All generated shots also passed the required sampled-frame visual continuity checks; creator approval is still required.'
               : isShotSequence ? ' Visual continuity was not automatically verified because no current creator-approved Scene baseline was available.' : '') +
             '\\n\\n' + summary,
