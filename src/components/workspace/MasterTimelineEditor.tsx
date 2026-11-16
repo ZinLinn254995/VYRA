@@ -27,7 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
-import { buildScenesClipTrainLayout, getScenesInsertionIndex, getScenesInsertionTime, mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
+import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
@@ -1295,6 +1295,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         .flatMap((track) => track.clips);
       const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
       let sceneInsertionIndex = getScenesInsertionIndex(sceneClipsAtStart, playheadTime);
+      const sceneOrderedClips = [...sceneClipsAtStart].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
       const applyScenesClipTrainLayout = (orderedClips: TimelineClip[]) => {
         const layout = buildScenesClipTrainLayout(orderedClips);
         const startById = new Map(layout.map((clip) => [clip.id, clip.start]));
@@ -1381,12 +1382,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else {
           nextVideoTracks = placement.tracks as TimelineTrack[];
-          const existingOrdered = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks)
-            .flatMap((track) => track.clips)
-            .filter((item) => item.id !== clip.id)
-            .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
-          existingOrdered.splice(Math.min(sceneInsertionIndex, existingOrdered.length), 0, clip);
-          applyScenesClipTrainLayout(existingOrdered);
+          sceneOrderedClips.splice(Math.min(sceneInsertionIndex, sceneOrderedClips.length), 0, clip);
+          applyScenesClipTrainLayout(sceneOrderedClips);
           sceneInsertionIndex += 1;
         }
         const nextTransitions = { ...(value?.transitions || {}) };
