@@ -136,6 +136,14 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     }).catch(() => { if (!cancelled) localMediaUserIdRef.current = null; });
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => () => {
+    // Every URL in this map is owned by this editor instance, including URLs
+    // restored from IndexedDB. Release them when the editor is unmounted.
+    for (const objectUrl of localMediaObjectUrlsRef.current.values()) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    localMediaObjectUrlsRef.current.clear();
+  }, []);
   const resolveLocalMediaUrl = async (assetId: string, versionId: string): Promise<string | null> => {
     const key = assetId + ':' + versionId;
     const activeUrl = localMediaObjectUrlsRef.current.get(key);
@@ -1415,7 +1423,19 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         localMediaObjectUrlsRef.current.set(localKey, localObjectUrl);
         // Persist a pending local copy too, so an interrupted upload or page
         // refresh does not discard the device file from this editing session.
-        void saveVyralAssetLocalCopy({ userId: uploadUser.id, assetId: temporaryAssetId, versionId: temporaryVersionId, mimeType: normalizedFile.type || (kind + '/octet-stream'), sizeBytes: normalizedFile.size, blob: normalizedFile });
+        const pendingCopySaved = await saveVyralAssetLocalCopy({
+          userId: uploadUser.id,
+          assetId: temporaryAssetId,
+          versionId: temporaryVersionId,
+          mimeType: normalizedFile.type || (kind + '/octet-stream'),
+          sizeBytes: normalizedFile.size,
+          blob: normalizedFile,
+        });
+        if (!pendingCopySaved) {
+          // The live object URL still keeps the file usable in this editor
+          // session; a failed browser cache write must not block cloud upload.
+          console.warn('[vyral-local-cache] Pending media could not be persisted for reload recovery.');
+        }
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
           : 0;
