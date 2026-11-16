@@ -14,6 +14,7 @@ import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboa
 import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
+import type { MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
 import type { VyralChatAssetContext } from '../../types/vyralChat';
 import type { RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
@@ -93,6 +94,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [sceneVideoPreviewSourceIn, setSceneVideoPreviewSourceIn] = useState(0);
   const [sceneVideoPreviewSourceOut, setSceneVideoPreviewSourceOut] = useState<number | null>(null);
   const [masterTimelineImagePreview, setMasterTimelineImagePreview] = useState<{ url: string; alt: string } | null>(null);
+  const [masterTimelineTextPreviewOverlays, setMasterTimelineTextPreviewOverlays] = useState<MasterTimelineTextOverlay[]>([]);
+  const masterTimelineVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const handleMasterTimelineTextPreviewChange = useCallback((overlays: MasterTimelineTextOverlay[]) => {
+    setMasterTimelineTextPreviewOverlays((current) => JSON.stringify(current) === JSON.stringify(overlays) ? current : overlays);
+  }, []);
   const handleMasterTimelineImagePreviewChange = useCallback((preview: { url: string; alt: string } | null) => {
     setMasterTimelineImagePreview((current) => current?.url === preview?.url && current?.alt === preview?.alt ? current : preview);
   }, []);
@@ -1719,18 +1725,35 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               {storyboardEditorView === 'master' && (
                 <>
                   <div className="profile-storyboard-preview">
-                    <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
-                      {masterTimelineImagePreview ? (
+                    <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-black">
+                      <video
+                        ref={masterTimelineVideoPreviewRef}
+                        playsInline
+                        preload="none"
+                        className="absolute inset-0 z-0 h-full w-full object-contain"
+                        aria-label="Master Timeline Video preview"
+                      />
+                      {masterTimelineImagePreview && (
                         <img
                           src={masterTimelineImagePreview.url}
                           alt={masterTimelineImagePreview.alt}
                           className="absolute inset-0 z-10 h-full w-full bg-black object-contain"
                         />
-                      ) : (
-                        <>
+                      )}
+                      {!masterTimelineImagePreview && !masterTimelineTextPreviewOverlays.length && (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
-                          <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
-                        </>
+                          <div className="relative text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                        </div>
+                      )}
+                      {masterTimelineTextPreviewOverlays.length > 0 && (
+                        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-end gap-1 px-4 pb-4" aria-live="off">
+                          {masterTimelineTextPreviewOverlays.map((overlay) => (
+                            <p key={overlay.trackId + ':' + overlay.clipId} className="max-w-full whitespace-pre-wrap rounded bg-black/60 px-3 py-1 text-center text-sm font-semibold text-white shadow-sm">
+                              {overlay.content}
+                            </p>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1825,6 +1848,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     }}
                     onSelectionChange={(selection) => setSelectedTimelineItem((current) => JSON.stringify(current) === JSON.stringify(selection) ? current : selection)}
                     onImagePreviewChange={handleMasterTimelineImagePreviewChange}
+                    videoPreviewRef={masterTimelineVideoPreviewRef}
+                    onTextPreviewOverlaysChange={handleMasterTimelineTextPreviewChange}
                     onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
                       ...current,
                       details: { ...current.details, masterTimeline },
