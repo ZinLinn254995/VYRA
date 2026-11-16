@@ -2748,7 +2748,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               ...(repairRequest.shotIndex + 1 < activeDirectorScenePlan.shots.length ? ['outgoing + downstream boundaries'] : []),
             ].join(', ')
           : 'shot-level';
-        if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
+        if ('completedShots' in result && activeDirectorScenePlan && storyboardId && (!repairRequest || result.finalSceneValidation?.status === 'verified')) {
           const linkedShots = result.completedShots.flatMap((shot) => {
             const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
             const shotPlan = activeDirectorScenePlan.shots[shot.shotIndex];
@@ -2767,7 +2767,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               ? 'The verified replacement is in the original Shot position; all other Director shots were preserved.'
               : 'All generated shots are linked to the Scene Project timeline in production order.';
           } else {
-            shotSequenceLinkMessage = 'All outputs are saved in Project Assets, but the complete sequence could not be linked to the Editor timeline.';
+            shotSequenceLinkMessage = repairRequest
+              ? 'The repair candidate is saved in Project Assets, but final continuity validation was not confirmed; the previous Editor clip was kept.'
+              : 'All outputs are saved in Project Assets, but the complete sequence could not be linked to the Editor timeline.';
           }
         }
         const generatedAssets = 'completedShots' in result
@@ -2789,7 +2791,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: repairRequest
-            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ' + repairVerificationScope + ' checks. Its Editor clip has been replaced; all available downstream shot boundaries were re-inspected.'
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed final continuity validation for the repaired Shot and every following Shot/boundary in the same approved baseline. Its Editor clip has been replaced; all available downstream shot boundaries were re-inspected.'
             : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
