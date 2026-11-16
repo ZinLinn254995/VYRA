@@ -7,7 +7,7 @@ const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): 
 });
 const idFactory = () => { let id = 0; return () => 'track-' + (++id); };
 
-test('places media at the playhead in the lowest row when the interval is clear', () => {
+test('places visual media in the shared Scenes row', () => {
   const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video 1', clips: [clip('existing', 0, 4)] }];
   const result = placeTimelineMediaClip(tracks, clip('new', 5, 3), 'video', idFactory());
   assert.equal(result.createdTrack, false);
@@ -28,7 +28,7 @@ test('keeps overlapping Video clips on the single shared visual row', () => {
 test('uses the same Video layer for Image clips', () => {
   const tracks: TimelineMediaTrackRow[] = [];
   const result = placeTimelineMediaClip(tracks, clip('image', 0, 5, 'image/png'), 'image', idFactory());
-  assert.equal(result.tracks[0].name, 'Video 1');
+  assert.equal(result.tracks[0].name, 'Scenes');
 });
 
 test('keeps Audio placement independent from Video rows', () => {
@@ -53,7 +53,7 @@ test('merges Director and uploaded Video/Image clips into one shared Video row w
   ];
   const rows = mergeTimelineVideoRows(director, uploaded);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'Video');
+  assert.equal(rows[0].name, 'Scenes');
   assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'director-2', 'image-1']);
 });
 
