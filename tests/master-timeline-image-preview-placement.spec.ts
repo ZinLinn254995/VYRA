@@ -17,4 +17,7 @@ test('Master Editor routes active Image previews into the shared upper Storyboar
   assert.match(previewFrame, /masterTimelineImagePreview/);
   assert.match(previewFrame, /<img/);
   assert.match(workspace, /onImagePreviewChange=\{handleMasterTimelineImagePreviewChange\}/);
+  assert.match(workspace, /ref=\{masterTimelineVideoPreviewRef\}/);
+  assert.match(workspace, /onTextPreviewOverlaysChange=\{handleMasterTimelineTextPreviewChange\}/);
+  assert.doesNotMatch(editor, /<video\\s+ref=\\{masterVideoPreviewRef\\}/);
 });
