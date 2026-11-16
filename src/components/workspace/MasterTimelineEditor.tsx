@@ -1319,7 +1319,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                 assetId: instance.assetId,
                 assetVersionId: instance.assetVersionId,
                 assetMimeType: instance.assetMimeType,
-                mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video',
+                mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
               }],
             };
           }
@@ -1851,7 +1851,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             assetId: instance.assetId,
             assetVersionId: instance.assetVersionId,
             assetMimeType: instance.assetMimeType,
-            mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video',
+            mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
           }],
         };
       }
