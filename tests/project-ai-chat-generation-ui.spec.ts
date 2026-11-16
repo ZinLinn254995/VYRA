@@ -199,3 +199,12 @@ test('continuity review exposes the saved candidate preview without replacing th
   assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
   assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes.'));
 });
+
+
+test('shot-by-shot approvals reserve each quoted estimate against one shared total budget', () => {
+  assert.ok(chat.includes('maxApprovedCostUsd = budget'));
+  assert.ok(chat.includes('maxCostUsd: maxApprovedCostUsd'));
+  assert.ok(chat.includes('quote.estimatedCostUsd),'));
+  assert.ok(chat.includes('maxTotalCostUsd: budget'));
+  assert.ok(generation.includes('approvedCostUsd += approval.maxCostUsd'));
+});
