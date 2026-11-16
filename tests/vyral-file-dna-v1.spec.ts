@@ -28,6 +28,32 @@ test('Hash-only File DNA verifies identity metadata but never claims reconstruct
   await assert.rejects(() => reconstructVyralFileDnaV1(record, new Map()), /does not contain a source-file reconstruction payload/);
 });
 
+test('Hash-only File DNA accepts a bounded structure prefix with the full source digest and size', async () => {
+  const fullSource = new Uint8Array([...sample, ...new Uint8Array(128).fill(7)]);
+  const digest = await crypto.subtle.digest('SHA-256', fullSource);
+  const fullSha256 = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  const { record, entries } = await createVyralFileDnaV1({
+    record_id: 'file-dna-bounded-prefix', source, bytes: sample,
+    mime_type: 'application/zip', filename: 'archive.zip',
+    source_sha256: fullSha256, source_size_bytes: fullSource.byteLength,
+  });
+  assert.equal(entries.length, 0);
+  assert.equal(record.file.size_bytes, fullSource.byteLength);
+  assert.equal(record.file.sha256, fullSha256);
+  assert.equal(record.file.format_signature, 'zip-container');
+  assert.ok(record.structure?.notes.some((note) => note.includes('Structural inspection used the first')));
+  assert.equal(record.reconstruction.claim, 'unavailable');
+  await assert.rejects(() => createVyralFileDnaV1({
+    record_id: 'file-dna-bad-prefix', source, bytes: sample,
+    mime_type: 'application/zip', source_sha256: 'not-a-sha', source_size_bytes: fullSource.byteLength,
+  }), /precomputed SHA-256 is invalid/);
+  await assert.rejects(() => createVyralFileDnaV1({
+    record_id: 'file-dna-false-payload', source, bytes: sample,
+    mime_type: 'application/zip', include_payload: true,
+    source_sha256: fullSha256, source_size_bytes: fullSource.byteLength,
+  }), /complete source bytes/);
+});
+
 test('File DNA rejects altered, missing, truncated and undeclared chunks', async () => {
   const { record, entries } = await createVyralFileDnaV1({
     record_id: 'file-dna-verify', source, bytes: sample, mime_type: 'application/octet-stream',
