@@ -161,7 +161,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
           !Number.isFinite(clip.duration) || clip.duration <= 0 ||
           typeof clip.assetId !== 'string' || !clip.assetId ||
           typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
-          typeof clip.assetMimeType !== 'string' || !/^video\\//i.test(clip.assetMimeType)) continue;
+          typeof clip.assetMimeType !== 'string' || !/^video\//i.test(clip.assetMimeType)) continue;
       const clipEnd = clip.start + clip.duration;
       if (playheadTime >= clipEnd) continue;
       const sourceIn = Number.isFinite(clip.sourceIn) && (clip.sourceIn as number) >= 0 ? clip.sourceIn as number : 0;
