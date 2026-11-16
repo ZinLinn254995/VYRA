@@ -59,12 +59,12 @@ export function placeTimelineMediaClip(
     const visualRow = tracks[0];
     if (visualRow) {
       const next = [
-        { ...visualRow, name: 'Video 1', clips: [...visualRow.clips, clip].sort((a, b) => a.start - b.start) },
+        { ...visualRow, name: 'Scenes', clips: [...visualRow.clips, clip].sort((a, b) => a.start - b.start) },
         ...tracks.slice(1),
       ];
       return { tracks: next, trackId: visualRow.id, rowIndex: 0, createdTrack: false };
     }
-    const track = { id: createId(), name: 'Video 1', clips: [clip] };
+    const track = { id: createId(), name: 'Scenes', clips: [clip] };
     return { tracks: [track], trackId: track.id, rowIndex: 0, createdTrack: true };
   }
 
@@ -101,7 +101,7 @@ export function mergeTimelineVideoRows(
   if (clips.length === 0) return [];
   return [{
     id: 'video-layer-row-1',
-    name: 'Video',
+    name: 'Scenes',
     clips,
   }];
 }
