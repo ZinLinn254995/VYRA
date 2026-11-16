@@ -2620,7 +2620,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             label + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
           )
         ));
-        const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
+        const finalValidationReasons = result.finalSceneValidation?.reasons ?? [];
+        const detail = [
+          ...findings,
+          ...finalValidationReasons,
+        ].filter(Boolean).join('\n') || 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
         const failedBoundary = result.failedTransitionBoundary;
         const failedDownstreamShot = failedShot?.downstreamShotVerifications?.find((item) => item.verification.status !== 'consistent');
