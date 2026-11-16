@@ -2603,17 +2603,24 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
         const findings = result.completedShots.flatMap((shot) => [
-          ...(shot.visualVerifications ?? []),
-          ...(shot.transitionVerification ? [shot.transitionVerification] : []),
-          ...(shot.outgoingTransitionVerification ? [shot.outgoingTransitionVerification] : []),
-          ...(shot.downstreamTransitionVerifications ?? []).map((item) => item.verification),
-        ].flatMap((verification) =>
+          ...(shot.visualVerifications ?? []).map((verification) => ({ verification, label: 'Shot ' + (shot.shotIndex + 1) })),
+          ...(shot.transitionVerification ? [{ verification: shot.transitionVerification, label: 'Shot ' + shot.shotIndex + ' → Shot ' + (shot.shotIndex + 1) }] : []),
+          ...(shot.outgoingTransitionVerification ? [{ verification: shot.outgoingTransitionVerification, label: 'Shot ' + (shot.shotIndex + 1) + ' outgoing boundary' }] : []),
+          ...(shot.downstreamTransitionVerifications ?? []).map((item) => ({
+            verification: item.verification,
+            label: 'Shot ' + (item.previousShotIndex + 1) + ' → Shot ' + (item.currentShotIndex + 1),
+          })),
+        ].flatMap(({ verification, label }) =>
           verification.findings.filter((finding) => finding.status !== 'match').map((finding) =>
-            'Shot ' + (shot.shotIndex + 1) + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
+            label + ' · ' + finding.path + ' · ' + finding.status + ' · ' + finding.reason
           )
         ));
         const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
+        const failedBoundary = result.failedTransitionBoundary;
+        const downstreamFailureTargetsDifferentShot = Boolean(
+          repairRequest && failedBoundary && failedBoundary.currentShotIndex !== repairRequest.shotIndex
+        );
         const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
         const failedShotVerifications = failedShot ? [
           ...(failedShot.visualVerifications ?? []),
@@ -2672,7 +2679,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}),
           });
         }
-        if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
+        if (!downstreamFailureTargetsDifferentShot && failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
             storyboardId,
@@ -2693,15 +2700,22 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: reviewPreviews,
-          content: 'Visual continuity review paused the sequence after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+          content: 'Visual continuity review paused the sequence' +
+            (failedBoundary ? ' at the boundary Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + ' (' + failedBoundary.status + ')' : ' after Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1)) +
             (repairRequest
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
               : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
-            detail + (baselineChangedDuringReview ? '\n\nThe approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.' : '') + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
+            detail +
+            (downstreamFailureTargetsDifferentShot
+              ? '\n\nThis failure is between existing Shot ' + (failedBoundary!.previousShotIndex + 1) + ' and Shot ' + (failedBoundary!.currentShotIndex + 1) + '. The original repair target cannot fix this later handoff. VYRA has not offered a repair for the wrong Shot; the correct next repair target is Shot ' + (failedBoundary!.currentShotIndex + 1) + '.'
+              : '') +
+            (baselineChangedDuringReview ? '\n\nThe approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.' : '') + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
             '\n\nNo later shots were generated and no automatic paid regeneration was attempted.',
         }]);
         setMediaGenerationStatus(baselineChangedDuringReview
           ? 'The approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.'
+          : downstreamFailureTargetsDifferentShot
+          ? 'Continuity mismatch at Shot ' + (failedBoundary!.previousShotIndex + 1) + ' → Shot ' + (failedBoundary!.currentShotIndex + 1) + '. The correct repair target is Shot ' + (failedBoundary!.currentShotIndex + 1) + '; no incorrect repair was offered.'
           : 'Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
             (repairRequest
               ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
