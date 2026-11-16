@@ -27,7 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
-import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
+import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
@@ -1380,7 +1380,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           mediaKind: kind,
         };
         const currentTracks = kind === 'audio' ? nextAudioTracks : nextVideoTracks;
-        const placement = placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
+        const placement = kind === 'audio'
+          ? placeTimelineOverlayClip(currentTracks, clip, 'Audio', () => crypto.randomUUID())
+          : placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else {
           nextVideoTracks = placement.tracks as TimelineTrack[];
@@ -1407,15 +1409,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
 
   const addAudioClip = () => {
     const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond);
-    const duration = 10;
-    const nextTrackId = crypto.randomUUID();
-    const nextTrack: TimelineTrack = {
-      id: nextTrackId,
-      name: 'Audio',
-      clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: [] }],
+    const clip: TimelineClip = {
+      id: crypto.randomUUID(),
+      name: 'New Audio',
+      content: 'New Audio',
+      start,
+      duration: 10,
+      waveform: [],
     };
-    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, videoTracks: value?.videoTracks || [], transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
-    revealNewTimelineRow('audio', nextTrackId);
+    const placement = placeTimelineOverlayClip(
+      value?.audioTracks || [],
+      clip,
+      'Audio',
+      () => crypto.randomUUID(),
+    );
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      videoTracks: value?.videoTracks || [],
+      transitions: value?.transitions || {},
+      audioTracks: placement.tracks as TimelineTrack[],
+      textTracks: value?.textTracks || [],
+    });
+    if (placement.createdTrack) revealNewTimelineRow('audio', placement.trackId);
   };
 
   const runDeleteSelectedAudio = () => {
@@ -1886,23 +1902,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   };
 
   const addTextClip = () => {
-    const start = Math.max(0, scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
-    const tracks = value?.textTracks || [];
-    const nextTrackId = crypto.randomUUID();
-    const nextTrack: TimelineTrack = {
-      id: nextTrackId,
+    const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond);
+    const clip: TimelineClip = {
+      id: crypto.randomUUID(),
       name: 'Text',
-      clips: [{ id: crypto.randomUUID(), name: 'Text', content: 'Text', start, duration: 3 }],
+      content: 'Text',
+      start,
+      duration: 3,
     };
+    const placement = placeTimelineOverlayClip(
+      value?.textTracks || [],
+      clip,
+      'Text',
+      () => crypto.randomUUID(),
+    );
     commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
       transitions: value?.transitions || {},
       audioTracks: value?.audioTracks || [],
       videoTracks: value?.videoTracks || [],
-      textTracks: [...tracks, nextTrack],
+      textTracks: placement.tracks as TimelineTrack[],
     });
-    revealNewTimelineRow('text', nextTrackId);
+    if (placement.createdTrack) revealNewTimelineRow('text', placement.trackId);
   };
 
 
