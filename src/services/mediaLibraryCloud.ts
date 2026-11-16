@@ -48,6 +48,7 @@ const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
 const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
 const folderCacheKey = (ownerId: string, universeId?: string | null) => ownerId + ':' + (universeId ?? 'personal');
 const applyUniverseScope = (query: any, universeId?: string | null) => universeId ? query.eq('universe_id', universeId) : query.is('universe_id', null);
+const applyMetadataSnapshot = (query: any, metadata: Record<string, unknown> | null) => metadata === null ? query.is('metadata', null) : query.eq('metadata', metadata);
 const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 let lastStorageCleanupStartedAt = 0;
 
@@ -733,10 +734,9 @@ async function runMediaLibraryThumbnailBackfill(
       const delayMinutes = Math.min(5 * (2 ** (attempts - 1)), 24 * 60);
       retryMetadata.thumbnail_backfill_retry_after_at = new Date(Date.now() + delayMinutes * 60_000).toISOString();
     }
-    await applyUniverseScope(db.from('media_library_items')
+    await applyUniverseScope(applyMetadataSnapshot(db.from('media_library_items')
       .update({ metadata: retryMetadata })
-      .eq('id', row.id).eq('user_id', userId)
-      .eq('metadata', row.metadata ?? {}), universeId)
+      .eq('id', row.id).eq('user_id', userId), row.metadata), universeId)
       .is('metadata->thumbnail_path', null)
       .is('metadata->thumbnail_backfill_attempted_at', null);
   };
@@ -769,13 +769,12 @@ async function runMediaLibraryThumbnailBackfill(
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
       const { data: updatedRow, error: updateError } = await applyUniverseScope(
-        db.from('media_library_items')
+        applyMetadataSnapshot(db.from('media_library_items')
           .update({ metadata })
           .eq('id', row.id).eq('user_id', userId)
-          .eq('metadata', row.metadata ?? {})
           .is('metadata->thumbnail_path', null)
           .select('id')
-          .maybeSingle(),
+          .maybeSingle(), row.metadata),
         universeId,
       );
       if (updateError || !updatedRow) {
