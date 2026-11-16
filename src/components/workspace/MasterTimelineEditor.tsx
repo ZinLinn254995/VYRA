@@ -633,15 +633,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     duration: number,
     sourceIn: number,
     sourceOut: number,
-    rippleClipIds: string[] = [],
+    rippleClipStarts: Record<string, number> = {},
     rippleDelta = 0,
   ) => {
-    const rippleIds = new Set(rippleClipIds);
+    const rippleIds = new Set(Object.keys(rippleClipStarts));
     const videoTracks = (value?.videoTracks || []).map((track) => ({
       ...track,
       clips: track.clips.map((item) => {
         if (item.id === clip.id) return { ...item, start, duration, sourceIn, sourceOut };
-        return rippleIds.has(item.id) ? { ...item, start: item.start + rippleDelta } : item;
+        return rippleIds.has(item.id) ? { ...item, start: rippleClipStarts[item.id] + rippleDelta } : item;
       }),
     }));
     const sceneInstances = (value?.sceneInstances || []).map((instance) => {
@@ -653,7 +653,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           ...instance,
           videoClips: instance.videoClips.map((item) => {
             if (item.id === clip.id) return { ...item, start: start - currentSceneStart, duration, sourceIn, sourceOut };
-            return rippleIds.has(item.id) ? { ...item, start: item.start + rippleDelta } : item;
+            return rippleIds.has(item.id) ? { ...item, start: rippleClipStarts[item.id] + rippleDelta } : item;
           }),
         };
       }
@@ -1969,11 +1969,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 handle.dataset.initialSourceIn = String(clip.sourceIn ?? 0);
                                 handle.dataset.initialSourceOut = String(clip.sourceOut ?? ((clip.sourceIn ?? 0) + clip.duration));
                                 const edgeBoundary = edge === 'left' ? clip.start : clip.start + clip.duration;
-                                handle.dataset.rippleClipIds = JSON.stringify(visibleVideoTracks.flatMap((item) => item.clips)
-                                  .filter((item) => item.id !== clip.id && (edge === 'left'
-                                    ? item.start + item.duration <= edgeBoundary + 0.0001
-                                    : item.start >= edgeBoundary - 0.0001))
-                                  .map((item) => item.id));
+                                handle.dataset.rippleClipStarts = JSON.stringify(Object.fromEntries(
+                                  visibleVideoTracks.flatMap((item) => item.clips)
+                                    .filter((item) => item.id !== clip.id && (edge === 'left'
+                                      ? item.start + item.duration <= edgeBoundary + 0.0001
+                                      : item.start >= edgeBoundary - 0.0001))
+                                    .map((item) => [item.id, item.start]),
+                                ));
                               }}
                               onPointerMove={(event) => {
                                 const handle = event.currentTarget;
@@ -1986,7 +1988,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 const initialSourceIn = Number(handle.dataset.initialSourceIn);
                                 const initialSourceOut = Number(handle.dataset.initialSourceOut);
                                 const minDuration = 0.2;
-                                const rippleClipIds = JSON.parse(handle.dataset.rippleClipIds || '[]') as string[];
+                                const rippleClipStarts = JSON.parse(handle.dataset.rippleClipStarts || '{}') as Record<string, number>;
                                 let nextClipStart = initialStart;
                                 let nextClipDuration = initialDuration;
                                 let nextSourceIn = initialSourceIn;
@@ -2005,7 +2007,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                   rippleDelta = nextClipDuration - initialDuration;
                                   if (!isImage) nextSourceOut = initialSourceIn + nextClipDuration;
                                 }
-                                updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipIds, rippleDelta);
+                                updateVisualClipTiming(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipStarts, rippleDelta);
                               }}
                               onPointerUp={(event) => {
                                 event.preventDefault();
