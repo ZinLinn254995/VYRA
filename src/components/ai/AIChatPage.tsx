@@ -2611,11 +2611,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
         const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
+        const failedShotVerifications = failedShot ? [
+          ...(failedShot.visualVerifications ?? []),
+          ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
+        ] : [];
+        const baselineChangedDuringReview = failedShotVerifications.some((verification) =>
+          verification.limitations.some((limitation) => limitation.includes('approved Scene baseline changed after inspection'))
+        );
         const previousShotAsset = failedShot && failedShot.shotIndex > 0
           ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType)) ?? repairRequest?.previousShotAsset
           : undefined;
         const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
-        if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification) {
+        if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
             storyboardId,
@@ -2638,10 +2645,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             (repairRequest
               ? '. The repaired candidate is saved in Project Assets; the previous Editor clip remains unchanged until verification passes.\n\n'
               : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
-            detail + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
+            detail + (baselineChangedDuringReview ? '\n\nThe approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.' : '') + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
             '\n\nNo later shots were generated and no automatic paid regeneration was attempted.',
         }]);
-        setMediaGenerationStatus('Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+        setMediaGenerationStatus(baselineChangedDuringReview
+          ? 'The approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.'
+          : 'Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
+            (repairRequest
+              ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
+              : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
           (repairRequest
             ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
             : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
