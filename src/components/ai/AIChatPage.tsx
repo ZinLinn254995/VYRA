@@ -2666,8 +2666,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               size_bytes: number | string | null; sha256: string | null;
             } | null;
             if (asset && version && asset.id === existing.assetId && asset.vyral_id === storyboardUniverseId
-              && version.id === existing.assetVersionId && asset.storage_path === version.storage_path
-              && /^video\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
+              && version.id === existing.assetVersionId && typeof version.storage_path === 'string'
+              && version.storage_path.length > 0 && asset.storage_path === version.storage_path
+              && typeof version.mime_type === 'string' && /^video\//i.test(version.mime_type)
+              && typeof version.sha256 === 'string' && Number.isSafeInteger(Number(version.size_bytes))
               && Number(version.size_bytes) > 0) {
               downstreamShotAssets.push({
                 shotIndex,
