@@ -951,6 +951,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     }
     const imageAssetId = activeImageClip.assetId;
     const imageVersionId = activeImageClip.assetVersionId;
+    setImagePreviewUrl(null);
     void resolveLocalMediaUrl(imageAssetId, imageVersionId).then((localImageUrl) => {
       if (cancelled) return;
       if (localImageUrl) { setImagePreviewUrl(localImageUrl); return; }
