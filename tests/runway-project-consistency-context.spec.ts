@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 const service = readFileSync(new URL('../src/services/runwayProjectConsistencyContext.ts', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20261116160000_vyral_asset_relationship_graph.sql', import.meta.url), 'utf8');
+const quoteService = readFileSync(new URL('../supabase/functions/quote-runway-media/index.ts', import.meta.url), 'utf8');
 
 test('Project consistency retrieval is isolated to the authenticated Project and ready Assets', () => {
   assert.ok(service.includes(".eq('user_id', input.userId)"));
@@ -32,6 +33,16 @@ test('Project consistency context does not silently promote observations into ca
   assert.ok(service.includes("record.verification_status === 'creator_confirmed'"));
   assert.ok(!service.includes('creator_approved: true'));
   assert.ok(!service.includes('canon_status: approved'));
+});
+
+test('Runway receives only private selected Project image references with valid modality roles', () => {
+  assert.ok(service.includes("createSignedUrl(asset.storage_path!, 3600)"));
+  assert.ok(service.includes("['image/png', 'image/jpeg', 'image/webp']"));
+  assert.ok(service.includes("asset.mime_type"));
+  assert.ok(workflow.includes("request.task === 'video' ? { ...reference, role: 'reference' } : reference"));
+  assert.ok(workflow.includes("const maxReferenceImages = request.task === 'video' ? 4 : request.task === 'image' ? 16 : 0"));
+  assert.ok(quoteService.includes("roles.some((role) => !['first', 'last', 'reference'].includes(String(role)))"));
+  assert.ok(quoteService.includes("result.referenceImages = refs.map((ref) => ({ uri: (ref as Record<string, unknown>).uri }));"));
 });
 
 test('Project context contains matching nested DNA evidence and excludes other Projects', async () => {
