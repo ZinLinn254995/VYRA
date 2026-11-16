@@ -78,8 +78,12 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /const addSampleVisualClip = \(mediaKind: 'image' \| 'video'\)/);
   assert.match(editor, /isPlaceholder: true/);
   assert.match(editor, /name: 'Scenes'/);
-  assert.match(editor, /relative flex h-16 items-center gap-0 border-b border-\[var\(--vyra-border\)\]/);
-  assert.match(editor, /group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-\[var\(--vyra-accent-primary\)\]\/50 bg-\[var\(--vyra-accent-primary\)\]\/10 px-3/);
+  assert.match(editor, /relative flex h-16 items-center gap-0 py-2/);
+  assert.doesNotMatch(editor, /data-video-track-id=\{track\.id\} className="relative flex h-16 items-center gap-0 border-b/);
+  assert.match(editor, /selectedVisualClipId === clip\.id/);
+  assert.match(editor, /data-timeline-video-clip-id=\{clip\.id\}/);
+  assert.match(editor, /ring-2 ring-\\\[var\\\(--vyra-accent-primary\\\)\\\]/);
+  assert.match(editor, /border-\\\[var\\\(--vyra-accent-primary\\\)\\\]\\/50 bg-\\\[var\\\(--vyra-accent-primary\\\)\\\]\\/10/);
   assert.match(editor, /sceneCardOffset \+= width/);
   assert.match(editor, /nextTransitions\[previousClip\.id \+ ':' \+ clipId\] = \{ effect: 'dissolve', duration: 0\.5 \}/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
