@@ -106,7 +106,7 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
     targetVyralId: request.targetVyralId,
     promptText: sceneContext.promptText,
   });
-  const maxReferenceImages = request.task === 'video' ? 4 : 16;
+  const maxReferenceImages = request.task === 'video' ? 4 : request.task === 'image' ? 16 : 0;
   const suppliedReferences = Array.isArray(request.input.referenceImages)
     ? request.input.referenceImages.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).slice(0, maxReferenceImages)
     : [];
