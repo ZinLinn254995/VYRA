@@ -352,7 +352,7 @@ const inspectVyralAttachment = async (file: File) => {
   return { context: lines.join('\n'), visionImages, vyralId: String(manifest.vyral.id) };
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, onShotSequenceReady, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
