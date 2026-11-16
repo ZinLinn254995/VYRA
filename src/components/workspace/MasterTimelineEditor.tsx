@@ -687,6 +687,63 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   };
 
 
+  // After a visual trim, rebase the Scenes row so its earliest clip is 00:00.
+  // Text and Audio are independent layers and must retain their absolute positions.
+  const normalizeScenesOrigin = () => {
+    const visualClips = visibleVideoTracks.flatMap((track) => track.clips);
+    if (!visualClips.length) return;
+    const earliestStart = Math.min(...visualClips.map((item) => item.start));
+    if (!Number.isFinite(earliestStart) || Math.abs(earliestStart) < 0.0001) return;
+
+    const offset = -earliestStart;
+    const videoTracks = (value?.videoTracks || []).map((track) => ({
+      ...track,
+      clips: track.clips.map((item) => ({ ...item, start: Math.max(0, item.start + offset) })),
+    }));
+    const sceneInstances = (value?.sceneInstances || []).map((instance) => {
+      const sceneIndex = orderedScenes.findIndex((item) => item.id === instance.sceneId);
+      if (instance.videoClips?.length) {
+        return {
+          ...instance,
+          videoClips: instance.videoClips.map((item) => ({
+            ...item,
+            start: Math.max(0, item.start + offset),
+          })),
+        };
+      }
+      if (instance.assetId && instance.assetVersionId &&
+        (instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/'))) {
+        const sourceIn = instance.videoSourceIn ?? 0;
+        const sourceOut = instance.videoSourceOut ?? (orderedScenes[sceneIndex]?.duration ?? 0);
+        return {
+          ...instance,
+          videoClips: [{
+            id: instance.id,
+            name: orderedScenes[sceneIndex]?.title || 'Scene media',
+            start: 0,
+            duration: Math.max(0.1, Math.min(orderedScenes[sceneIndex]?.duration ?? sourceOut - sourceIn, sourceOut - sourceIn)),
+            sourceIn,
+            sourceOut,
+            assetId: instance.assetId,
+            assetVersionId: instance.assetVersionId,
+            assetMimeType: instance.assetMimeType,
+            mediaKind: instance.assetMimeType?.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
+          }],
+        };
+      }
+      return instance;
+    });
+
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks: value?.audioTracks || [],
+      videoTracks,
+      textTracks: value?.textTracks || [],
+    });
+  };
+
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
       !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
@@ -2180,7 +2237,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                 let rippleDelta = delta;
                                 if (edge === 'left') {
                                   const fixedEnd = initialStart + initialDuration;
-                                  // Images have no source-in limit and may extend left of 00:00.
+                                  // Images have no source-in limit, but timeline clips cannot start before 00:00.
                                   // Videos remain bounded by the actual source media available before sourceIn.
                                   const sourceStartBoundary = isImage ? 0 : Math.max(0, initialStart - initialSourceIn);
                                   nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
@@ -2198,6 +2255,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                               onPointerUp={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
+                                normalizeScenesOrigin();
                                 if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
                               }}
                               onPointerCancel={(event) => {
