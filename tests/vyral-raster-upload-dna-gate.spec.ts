@@ -19,6 +19,6 @@ test('raster uploads cannot become ready with identity-only File DNA when DNA v3
 });
 
 test('identity-only File DNA remains limited to non-raster uploads', () => {
-  assert.match(rasterFlow, /\} else \{\s*const fileDna = await createVyralFileDnaV1/);
+  assert.match(rasterFlow, /\} else \{\s*const structurePrefix = new Uint8Array\([\s\S]*?const fileDna = await createVyralFileDnaV1/);
   assert.ok(rasterEnd > rasterStart);
 });
