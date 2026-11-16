@@ -134,7 +134,7 @@ test('raster visual fingerprint verification is version-pinned, source-hash chec
 
 test('raster DNA extraction automatically persists a server-generated perceptual fingerprint', async () => {
   const extractor = await readFile(new URL('../supabase/functions/extract-vyral-asset-dna-v3/index.ts', import.meta.url), 'utf8');
-  assert.match(extractor, /computeVyralDHash64\(samples, width, height, 4\)/);
+  assert.match(extractor, /computeVyralDHash64\(fingerprintSamples, 9, 8, 4\)/);\n  assert.match(extractor, /decodedHasher\.update\(tile\.bytes\.subarray/);\n  assert.match(extractor, /decodedHash = decodedHasher\.digest\('hex'\)/);
   assert.match(extractor, /fingerprint_kind: 'perceptual'/);
   assert.match(extractor, /algorithm: VYRAL_DHASH_ALGORITHM/);
   assert.match(extractor, /computed_by: 'extract-vyral-asset-dna-v3'/);
