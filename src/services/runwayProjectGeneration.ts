@@ -380,6 +380,21 @@ export type RunwayProjectShotSequenceRequest = Omit<
   }) => void;
 };
 
+export type RunwayProjectShotSequenceAsset = {
+  shotId: string;
+  shotIndex: number;
+  durationSeconds: number;
+  assetId: string;
+  assetVersionId: string;
+  mimeType: string;
+};
+
+export type RunwayProjectShotSequenceReady = {
+  storyboardId: string;
+  sceneId: string;
+  shots: RunwayProjectShotSequenceAsset[];
+};
+
 export type RunwayProjectShotSequenceResult = {
   status: 'ready' | 'approval_declined' | 'budget_exceeded' | 'partial';
   completedShots: Array<{
