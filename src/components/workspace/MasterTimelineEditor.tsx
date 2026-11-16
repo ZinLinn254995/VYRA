@@ -36,6 +36,7 @@ export type TimelineClip = {
   start: number;
   duration: number;
   sourceIn?: number;
+  sourceOut?: number;
   waveform?: number[];
   content?: string;
   assetId?: string;
@@ -65,6 +66,7 @@ export type SceneTimelineInstance = {
   assetMimeType?: string;
   videoSourceIn?: number;
   videoSourceOut?: number;
+  videoClips?: TimelineClip[];
 };
 
 export type MasterTimelineData = {
