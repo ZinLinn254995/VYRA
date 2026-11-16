@@ -41,8 +41,8 @@ type PendingShotRepair = {
   tone: string;
   sceneIndex?: number;
   originalPromptText: string;
-};
   storyboardId: string;
+};
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
 type ChatSession = {
@@ -501,10 +501,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           ? 'Recovered ' + assets.length + ' Project Asset(s). DNA and Fingerprint checks are complete.'
           : 'This generation job is already recovered.');
       } else if (result.status === 'submitted_pending') {
-        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('The provider is still processing this job. Check again shortly.');
       } else if (result.status === 'reconciliation_required') {
-        if (repairRequest) setPendingShotRepair(null);
         setMediaGenerationStatus('This job needs provider reconciliation. It was not resubmitted.');
       } else {
         setMediaGenerationStatus('Generation job status: ' + result.status + '.');
@@ -2480,9 +2478,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               );
             },
             inspectTransition: async ({ previousAsset, currentAsset, previousShot, currentShot, scene, anchors: transitionAnchors, signal }) => {
-              if (!supabase) return { observations: [], inspectionComplete: false };
+              const storageClient = supabase;
+              if (!storageClient) return { observations: [], inspectionComplete: false };
               const loadBoundaryFrame = async (asset: NonNullable<typeof previousAsset>, boundary: 'opening' | 'closing') => {
-                const { data: signed, error: signedError } = await supabase.storage
+                const { data: signed, error: signedError } = await storageClient.storage
                   .from('vyral-assets').createSignedUrl(asset.storagePath, 300);
                 if (signedError || !signed?.signedUrl) throw new Error('A private shot boundary frame could not be opened.');
                 const response = await fetch(signed.signedUrl, {
