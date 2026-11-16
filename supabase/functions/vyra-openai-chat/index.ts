@@ -363,10 +363,10 @@ const GLOBAL_READ_TOOLS = [
                     properties: {
                       id: { type: 'string' }, purpose: { type: 'string' }, durationSeconds: { type: 'number' },
                       framing: { type: 'string' }, cameraAngle: { type: 'string' },
-                      cameraMovement: { type: 'string' }, action: { type: 'string' },
+                      cameraMovement: { type: 'string' }, composition: { type: 'string' }, lighting: { type: 'string' }, focus: { type: 'string' }, sound: { type: 'string' }, action: { type: 'string' },
                       continuityNotes: { type: 'array', items: { type: 'string' } },
                     },
-                    required: ['id','purpose','durationSeconds','framing','cameraAngle','cameraMovement','action','continuityNotes'],
+                    required: ['id','purpose','durationSeconds','framing','cameraAngle','cameraMovement','composition','lighting','focus','sound','action','continuityNotes'],
                     additionalProperties: false,
                   } },
                 },
@@ -2315,14 +2315,16 @@ async function createSceneBatchProposal(
     for (const [shotIndex, rawShot] of rawScene.shots.entries()) {
       if (!isPlainRecord(rawShot) || !isText(rawShot.id, 80) || !isText(rawShot.purpose, 500) ||
           typeof rawShot.durationSeconds !== 'number' || !Number.isFinite(rawShot.durationSeconds) || rawShot.durationSeconds < 0.1 || rawShot.durationSeconds > 300 ||
-          !isText(rawShot.framing, 120) || !isText(rawShot.cameraAngle, 120) || !isText(rawShot.cameraMovement, 160) ||
+          !isText(rawShot.framing, 120) || !isText(rawShot.cameraAngle, 120) || !isText(rawShot.cameraMovement, 160) || !isText(rawShot.composition, 500) ||
+          !isText(rawShot.lighting, 500) || !isText(rawShot.focus, 300) || !isText(rawShot.sound, 500) ||
           !isText(rawShot.action, 1200) || !Array.isArray(rawShot.continuityNotes) || rawShot.continuityNotes.length > 12 ||
           !rawShot.continuityNotes.every((value) => isText(value, 300))) {
         return safeToolError('Scene ' + (sceneIndex + 1) + ', shot ' + (shotIndex + 1) + ' is incomplete or exceeds the supported limits.');
       }
       shots.push({
         id: String(rawShot.id).trim(), purpose: String(rawShot.purpose).trim(), durationSeconds: rawShot.durationSeconds,
-        framing: String(rawShot.framing).trim(), cameraAngle: String(rawShot.cameraAngle).trim(), cameraMovement: String(rawShot.cameraMovement).trim(),
+        framing: String(rawShot.framing).trim(), cameraAngle: String(rawShot.cameraAngle).trim(), cameraMovement: String(rawShot.cameraMovement).trim(), composition: String(rawShot.composition).trim(),
+        lighting: String(rawShot.lighting).trim(), focus: String(rawShot.focus).trim(), sound: String(rawShot.sound).trim(),
         action: String(rawShot.action).trim(), continuityNotes: rawShot.continuityNotes.map((value: string) => value.trim()),
       });
     }
