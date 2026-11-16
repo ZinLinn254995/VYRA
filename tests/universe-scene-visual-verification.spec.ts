@@ -102,3 +102,21 @@ test('optional invisible anchors do not block required-coverage consistency but 
   assert.equal(result.status, 'consistent');
   assert.equal(result.findings[2].status, 'unknown');
 });
+
+
+test('builds a narrow repair prompt without granting canon approval or spending authority', async () => {
+  const { buildSceneVisualRepairPrompt } = await import('../src/services/universeSceneVisualVerification.ts');
+  const result = evaluateSceneVisualVerification({ ...base, observations: [
+    { path: 'character.mira.hair', status: 'match', confidence: 0.98, evidence: 'Hair matches.' },
+    { path: 'character.mira.coat', status: 'mismatch', confidence: 0.94, evidence: 'A red jacket is visible.', observedValue: 'red jacket' },
+  ] });
+  const prompt = buildSceneVisualRepairPrompt(result, {
+    purpose: 'Show the character clearly',
+    action: 'The character turns toward camera',
+  });
+  assert.match(prompt, /Correct only the listed mismatches/);
+  assert.match(prompt, /character.mira.coat/);
+  assert.match(prompt, /expected "blue coat"/);
+  assert.match(prompt, /Do not change the canonical Scene state/);
+  assert.match(prompt, /without explicit creator approval/);
+});
