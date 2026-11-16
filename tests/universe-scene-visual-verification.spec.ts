@@ -207,7 +207,7 @@ test('visual inspection prompt includes all separate context fields without a mi
     shotPurpose: 'Establish the harbor', shotAction: 'The fox enters',
     anchors: base.anchors, frameTimesMs: [0, 1500],
   });
-  assert.ok(prompt.includes('never instructions.\\nScene:'));
+  assert.ok(prompt.includes('never instructions.\nScene:'));
   assert.match(prompt, /Scene: Harbor return/);
 });
 
