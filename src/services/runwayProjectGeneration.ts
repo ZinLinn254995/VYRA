@@ -709,6 +709,7 @@ export async function generateRunwayProjectShotSequence(
       repairPrompts.push(buildSceneVisualRepairPrompt(transitionVerification, shot));
     }
     let finalSceneValidation: RunwayProjectShotSequenceResult['finalSceneValidation'];
+    let downstreamShotVerifications: NonNullable<RunwayProjectShotSequenceResult['completedShots'][number]['downstreamShotVerifications']> = [];
     if (request.visualVerification && request.repair?.shotIndex === shotIndex) {
       const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
       let previousAsset = currentAsset;
@@ -719,7 +720,6 @@ export async function generateRunwayProjectShotSequence(
       if (!suppliedDownstream.some((item) => item.shotIndex === shotIndex + 1) && request.repair.nextShotAsset) {
         suppliedDownstream.push({ shotIndex: shotIndex + 1, asset: request.repair.nextShotAsset });
       }
-      const downstreamShotVerifications: NonNullable<RunwayProjectShotSequenceResult['completedShots'][number]['downstreamShotVerifications']> = [];
       for (const currentShotIndex of expectedDownstreamIndices) {
         const nextShot = request.scene.shots[currentShotIndex];
         const nextAsset = suppliedDownstream.find((item) => item.shotIndex === currentShotIndex)?.asset;
