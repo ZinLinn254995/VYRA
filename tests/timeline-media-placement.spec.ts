@@ -15,14 +15,14 @@ test('places media at the playhead in the lowest row when the interval is clear'
   assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['existing', 'new']);
 });
 
-test('creates a new bottom row when the lowest row overlaps the requested interval', () => {
-  const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video 1', clips: [clip('existing', 4, 5)] }];
+test('keeps overlapping Video clips on the single shared visual row', () => {
+  const tracks: TimelineMediaTrackRow[] = [{ id: 'video-1', name: 'Video', clips: [clip('existing', 4, 5)] }];
   const result = placeTimelineMediaClip(tracks, clip('new', 6, 2), 'video', idFactory());
-  assert.equal(result.createdTrack, true);
-  assert.equal(result.rowIndex, 1);
-  assert.equal(result.trackId, 'track-1');
-  assert.equal(result.tracks.length, 2);
-  assert.deepEqual(result.tracks[1].clips.map((item) => item.id), ['new']);
+  assert.equal(result.createdTrack, false);
+  assert.equal(result.rowIndex, 0);
+  assert.equal(result.trackId, 'video-1');
+  assert.equal(result.tracks.length, 1);
+  assert.deepEqual(result.tracks[0].clips.map((item) => item.id), ['new', 'existing']);
 });
 
 test('uses the same Video layer for Image clips', () => {
@@ -57,12 +57,13 @@ test('merges Director and uploaded Video/Image clips into one shared Video row w
   assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'director-2', 'image-1']);
 });
 
-test('adds an extra shared Video row only when the bottom row overlaps', () => {
+test('keeps overlapping Director and uploaded Video/Image clips in exactly one row', () => {
   const director = [clip('director-1', 0, 5)];
   const uploaded: TimelineMediaTrackRow[] = [
-    { id: 'uploaded-1', name: 'Video 1', clips: [clip('manual-video', 3, 2)] },
+    { id: 'uploaded-1', name: 'Video 1', clips: [clip('manual-video', 3, 2), clip('image', 4, 3, 'image/png')] },
   ];
   const rows = mergeTimelineVideoRows(director, uploaded);
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((row) => row.clips.map((item) => item.id)), [['director-1'], ['manual-video']]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'Video');
+  assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'image', 'manual-video']);
 });
