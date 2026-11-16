@@ -2618,12 +2618,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const detail = findings.length ? findings.join('\n') : 'The inspection was incomplete or the approved Scene baseline changed during inspection.';
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
         const failedBoundary = result.failedTransitionBoundary;
-        const downstreamFailureTargetsDifferentShot = Boolean(
-          repairRequest && failedBoundary && failedBoundary.currentShotIndex !== repairRequest.shotIndex
-        );
         const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedShot?.shotIndex;
         const repairTargetShotPlan = repairTargetShotIndex !== undefined ? activeDirectorScenePlan?.shots[repairTargetShotIndex] : undefined;
-        const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
         const failedShotVerifications = failedShot ? [
           ...(failedShot.visualVerifications ?? []),
           ...(failedShot.transitionVerification ? [failedShot.transitionVerification] : []),
@@ -2678,8 +2674,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const repairDownstreamShotAssets = repairTargetShotIndex !== undefined
           ? downstreamShotAssets.filter((item) => item.shotIndex > repairTargetShotIndex)
           : [];
-        const repairInstruction = failedBoundary
-          ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan ?? activeDirectorScenePlan?.shots[failedBoundary.currentShotIndex])
+        const repairInstruction = failedBoundary && repairTargetShotPlan
+          ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)
           : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
