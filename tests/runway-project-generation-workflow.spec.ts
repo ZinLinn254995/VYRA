@@ -103,3 +103,21 @@ test('shot sequence reuses the approved generation lifecycle sequentially and en
   assert.ok(workflow.includes('Never automatically retry this request'));
   assert.ok(workflow.includes("status: 'reconciliation_required'"));
 });
+
+
+test('shot sequence verifies each ingested video output before continuing and stops on drift', () => {
+  assert.ok(workflow.includes('request.visualVerification.inspect'));
+  assert.ok(workflow.includes('evaluateSceneVisualVerification'));
+  assert.ok(workflow.includes('getCurrentBaselineRevision'));
+  assert.ok(workflow.includes("status: 'needs_review'"));
+  assert.ok(workflow.includes("stoppedStatus: 'visual_verification_needs_review'"));
+  assert.ok(workflow.includes('Do not generate later shots against an unverified handoff'));
+  assert.ok(workflow.includes("visualVerificationStatus: request.visualVerification ? 'verified' : 'not_configured'"));
+  assert.ok(workflow.includes('buildSceneVisualRepairPrompt'));
+});
+
+test('visual inspection failures remain unknown and never trigger paid automatic retries', () => {
+  assert.ok(workflow.includes('A failed vision pass is an unknown result, never a silent pass'));
+  assert.ok(workflow.includes('Do not auto-regenerate a paid output'));
+  assert.ok(workflow.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
+});
