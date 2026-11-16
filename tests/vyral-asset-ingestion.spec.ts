@@ -27,6 +27,7 @@ function makePort(options: { rasterStatus?: string; verificationStatus?: string;
     async createFingerprint() { calls.push('createFingerprint'); if (options.failAt === 'createFingerprint') throw new Error('fingerprint failed'); },
     async extractRasterDna(_assetId, _versionId, signal) { rasterSignal = signal; calls.push('extractRasterDna'); return { status: options.rasterStatus ?? 'extracted', dnaRecordId: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45', error: 'extract failed' }; },
     async verifyRasterDna() { calls.push('verifyRasterDna'); return { status: options.verificationStatus ?? 'passed', error: 'verification pending' }; },
+    async verifyUniversalFileDna() { calls.push('verifyUniversalFileDna'); return { status: options.verificationStatus ?? 'verified', error: 'verification pending' }; },
     async insertDna() { calls.push('insertDna'); if (options.failAt === 'insertDna') throw new Error('DNA insert failed'); },
     async hasDnaRecord() { calls.push('hasDnaRecord'); return options.dnaExists ?? false; },
     async markReady() { calls.push('markReady'); if (options.failAt === 'markReady') throw new Error('ready update failed'); },
@@ -174,11 +175,13 @@ test('rejects unsafe AI-approved Asset display names before creating records', a
   assert.deepEqual(calls, []);
 });
 
-test('non-raster files receive source-bound universal File DNA before ready', async () => {
+test('non-raster files receive source-bound universal File DNA and exact readback before ready', async () => {
   const { port, calls } = makePort();
   const result = await ingestVyralAsset(port, { vyralId, userId, file: makeFile('voice.wav', 'audio/wav') });
   assert.equal(result.dnaKind, 'universal-file-v1');
-  assert.equal(calls.indexOf('insertDna') < calls.indexOf('markReady'), true);
+  assert.equal(result.exactVerificationStatus, 'passed');
+  assert.ok(calls.indexOf('insertDna') < calls.indexOf('verifyUniversalFileDna'));
+  assert.ok(calls.indexOf('verifyUniversalFileDna') < calls.indexOf('markReady'));
 });
 
 test('keeps an uploaded raster Asset ready while exact readback remains pending', async () => {
@@ -188,6 +191,16 @@ test('keeps an uploaded raster Asset ready while exact readback remains pending'
   });
   assert.equal(result.exactVerificationStatus, 'pending');
   assert.ok(calls.indexOf('verifyRasterDna') < calls.indexOf('markReady'));
+  assert.equal(calls.includes('markReady'), true);
+});
+
+test('keeps a universal-file Asset ready while exact binary readback remains pending', async () => {
+  const { port, calls } = makePort({ verificationStatus: 'failed' });
+  const result = await ingestVyralAsset(port, {
+    vyralId, userId, file: makeFile('voice.wav', 'audio/wav'),
+  });
+  assert.equal(result.exactVerificationStatus, 'pending');
+  assert.ok(calls.indexOf('verifyUniversalFileDna') < calls.indexOf('markReady'));
   assert.equal(calls.includes('markReady'), true);
 });
 
