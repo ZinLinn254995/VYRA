@@ -160,7 +160,7 @@ test('cloud deletion tombstones suppress stale Projects across devices during me
   assert.deepEqual(deletedLocalMerge.pending, []);
 
   const unrelatedProject = { ...live, id: 'c5afacb6-174a-498a-88f2-476b24f08e87', title: 'Unrelated Project' };
-  const unrelatedMerge = mergeWorkspaceStoryboards([live, unrelatedProject], [tombstone]);
+  const unrelatedMerge = mergeWorkspaceStoryboards([live, unrelatedProject], [tombstone, unrelatedProject]);
   assert.deepEqual(unrelatedMerge.storyboards.map((item) => item.id), [unrelatedProject.id]);
   assert.deepEqual(unrelatedMerge.pending, []);
 });
