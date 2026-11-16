@@ -7,6 +7,7 @@ type Db = {
   auth: { getUser(): Promise<{ data: { user: { id: string } | null }; error: unknown }> };
   from(table: string): any;
   functions: { invoke(name: string, options: { body: Record<string, unknown>; signal?: AbortSignal }): Promise<{ data: any; error: any }> };
+  storage?: { from(bucket: string): { createSignedUrl(path: string, expiresIn: number): Promise<{ data: { signedUrl?: string } | null; error: unknown }> } };
 };
 type Quote = {
   id: string;
@@ -105,9 +106,21 @@ export async function generateRunwayProjectMedia(db: Db, request: RunwayProjectG
     targetVyralId: request.targetVyralId,
     promptText: sceneContext.promptText,
   });
+  const maxReferenceImages = request.task === 'video' ? 4 : 16;
+  const suppliedReferences = Array.isArray(request.input.referenceImages)
+    ? request.input.referenceImages.filter((item) => item && typeof item === 'object' && !Array.isArray(item)).slice(0, maxReferenceImages)
+    : [];
+  const suppliedUris = new Set(suppliedReferences.map((item: any) => typeof item.uri === 'string' ? item.uri : '').filter(Boolean));
+  const automaticReferences = consistency.referenceImages
+    .filter((reference) => !suppliedUris.has(reference.uri))
+    .slice(0, Math.max(0, maxReferenceImages - suppliedReferences.length))
+    .map((reference) => request.task === 'video' ? { ...reference, role: 'reference' } : reference);
   const generationInput = {
     ...request.input,
     ...(typeof request.input.promptText === 'string' ? { promptText: consistency.promptText } : {}),
+    ...(suppliedReferences.length || automaticReferences.length
+      ? { referenceImages: [...suppliedReferences, ...automaticReferences] }
+      : {}),
   };
   const quoteData = requireRecord(await invoke(db, 'quote-runway-media', {
     action: 'quote', task: request.task, quality: request.quality,
