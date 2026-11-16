@@ -2705,9 +2705,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
         if (repairRequest && failedShot && onShotRepairHistory) {
           const historyShotIndex = repairTargetShotIndex ?? repairRequest.shotIndex;
-          const candidate = failedDownstreamShot
-            ? undefined
-            : failedShot.assets.find((asset) => /^video\//i.test(asset.mimeType));
+          const candidate = !failedDownstreamShot && failedShot.shotIndex === historyShotIndex
+            ? failedShot.assets.find((asset) => /^video\//i.test(asset.mimeType))
+            : undefined;
           const original = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === historyShotIndex);
           const verifications = [
             ...(failedShot.visualVerifications ?? []),
