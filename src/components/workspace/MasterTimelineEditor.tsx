@@ -5,8 +5,6 @@ import {
   Video,
   LoaderCircle,
   Magnet,
-  Pause,
-  Play,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -2129,10 +2127,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       aria-label="Master Editor tools"
     >
       <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-start gap-2 overflow-x-auto px-0">
-        <button type="button" title={masterPlaybackError || (masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel media loading' : 'Play Master Timeline')} aria-label={masterPlaybackState === 'playing' ? 'Pause Master Timeline' : masterPlaybackState === 'paused' ? 'Resume Master Timeline' : masterPlaybackState === 'loading' ? 'Cancel Audio loading' : 'Play Master Timeline'} onClick={() => void startMasterTimelinePlayback()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
-          {masterPlaybackState === 'loading' ? <LoaderCircle size={22} className="animate-spin" /> : masterPlaybackState === 'playing' ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
-        </button>
-        <button
+        {!selectedTransitionKey && <button
           type="button"
           title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
           aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
@@ -2151,7 +2146,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         >
           <Magnet size={22} strokeWidth={1.8} />
           <span className="sr-only">Magnetic</span>
-        </button>
+        </button>}
         {selectedTransitionKey ? (
           <>
             <button
@@ -2205,9 +2200,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           </>
         ) : selectedAudioClip ? (
           <>
-            <button type="button" title={audioPreviewError || 'Preview original Audio Asset'} aria-label={audioPreviewPlaying ? 'Pause Audio Asset preview' : 'Play Audio Asset preview'} disabled={audioPreviewLoading || !selectedAudioClipRecord?.assetId || !selectedAudioClipRecord?.assetVersionId} onClick={() => void toggleSelectedAudioPreview()} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] disabled:cursor-not-allowed disabled:opacity-40">
-              {audioPreviewLoading ? <LoaderCircle size={22} className="animate-spin" /> : audioPreviewPlaying && audioPreviewClipKey === selectedAudioClipKey ? <Pause size={22} strokeWidth={1.8} /> : <Play size={22} strokeWidth={1.8} />}
-            </button>
             <button type="button" title="Split selected audio at playhead" aria-label="Split selected audio at playhead" onClick={runSplitSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Scissors size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Clone selected audio" aria-label="Clone selected audio" onClick={runCloneSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Copy size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
@@ -2655,26 +2647,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           aria-label="Text editing tools"
         >
           <div className="master-editor-toolbar-scroll mx-auto flex w-max max-w-full min-w-0 items-center justify-center gap-2 overflow-x-auto px-0">
-            <button
-              type="button"
-              title={isMagneticEnabled ? 'Magnetic snapping: On' : 'Magnetic snapping: Off'}
-              aria-label={isMagneticEnabled ? 'Turn Magnetic snapping off' : 'Turn Magnetic snapping on'}
-              aria-pressed={isMagneticEnabled}
-              onClick={() => {
-                setIsMagneticEnabled((enabled) => {
-                  const next = !enabled;
-                  if (!next) {
-                    magneticScrollLockRef.current = null;
-                    magneticReleasedBoundaryRef.current = null;
-                  }
-                  return next;
-                });
-              }}
-              className={`grid size-14 shrink-0 place-items-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)] ${isMagneticEnabled ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]'}`}
-            >
-              <Magnet size={22} strokeWidth={1.8} />
-              <span className="sr-only">Magnetic</span>
-            </button>
             <button
               type="button"
               title="Fonts"
