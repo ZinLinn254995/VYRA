@@ -859,7 +859,7 @@ export async function generateRunwayProjectShotSequence(
       || (outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent')
       || downstreamShotFailed
       || downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent')
-      || finalSceneValidation?.status !== 'verified') {
+      || (request.repair !== undefined && finalSceneValidation?.status !== 'verified')) {
       request.onShotProgress?.({
         shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
         status: downstreamShotFailed ? 'downstream-shot-visual-needs-review' : downstreamTransitionVerifications.some((item) => item.verification.status !== 'consistent') ? 'downstream-shot-chain-needs-review' : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing-shot-transition-needs-review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
