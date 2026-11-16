@@ -133,3 +133,8 @@ test('visual inspection failures remain unknown and never trigger paid automatic
   assert.ok(workflow.includes('Do not auto-regenerate a paid output'));
   assert.ok(visualVerifier.includes('Do not regenerate, submit a provider task, or spend credits without explicit creator approval'));
 });
+
+
+test('shot boundary asset selection uses valid case-insensitive video MIME matching', () => {
+  assert.ok(workflow.includes('/^video\\//i.test(asset.mimeType)'));
+});
