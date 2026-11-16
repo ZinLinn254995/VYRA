@@ -1381,10 +1381,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else {
           nextVideoTracks = placement.tracks as TimelineTrack[];
-          const existingOrdered = sceneClipsAtStart
-            .filter((existing) => !nextVideoTracks.some((track) => track.clips.some((item) => item.id === existing.id)))
-            .concat(mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks).flatMap((track) => track.clips)
-              .filter((item) => item.id !== clip.id))
+          const existingOrdered = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks)
+            .flatMap((track) => track.clips)
+            .filter((item) => item.id !== clip.id)
             .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
           existingOrdered.splice(Math.min(sceneInsertionIndex, existingOrdered.length), 0, clip);
           applyScenesClipTrainLayout(existingOrdered);
