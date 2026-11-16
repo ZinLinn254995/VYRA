@@ -84,6 +84,9 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /data-timeline-video-clip-id=\{clip\.id\}/);
   assert.match(editor, /Adjust start point/);
   assert.match(editor, /Adjust end point/);
+  assert.match(editor, /const snapTrimPointToPlayhead = \(time: number\)/);
+  assert.equal([...editor.matchAll(/snapTrimPointToPlayhead\(/g)].length, 7);
+  assert.match(editor, /return Math\.abs\(time - playheadTime\) \* scale <= 10 \? playheadTime : time/);
   assert.match(editor, /updateVisualClipTiming\(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipStarts, rippleDelta\)/);
   assert.match(editor, /data-trim-handle="true"/);
   assert.match(editor, /ring-2 ring-\[var\(--vyra-accent-primary\)\]/);
