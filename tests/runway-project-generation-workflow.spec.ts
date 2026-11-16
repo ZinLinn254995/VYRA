@@ -178,3 +178,10 @@ test('the final repaired shot has no outgoing boundary requirement', () => {
   assert.ok(workflow.includes('shotIndex + 1 < request.scene.shots.length'));
   assert.ok(workflow.includes('request.repair?.shotIndex === shotIndex'));
 });
+
+
+test('repair reports the exact first failing downstream boundary and its correct target Shot', () => {
+  assert.ok(workflow.includes('failedTransitionBoundary?: { previousShotIndex: number; currentShotIndex: number; status: SceneVisualVerificationResult[\'status\']; verification: SceneVisualVerificationResult }'));
+  assert.ok(workflow.includes('const failedDownstreamBoundary = downstreamTransitionVerifications.find((item) => item.verification.status !== \'consistent\')'));
+  assert.ok(workflow.includes('currentShotIndex: failedDownstreamBoundary.currentShotIndex'));
+});
