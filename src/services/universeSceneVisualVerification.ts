@@ -185,3 +185,47 @@ export function evaluateSceneVisualVerification(
     limitations,
   };
 }
+
+
+/**
+ * Produces narrowly scoped, review-only repair guidance from visual findings.
+ * It never edits canon, submits a provider task, or authorizes additional spend.
+ */
+export function buildSceneVisualRepairPrompt(
+  result: SceneVisualVerificationResult,
+  shot: { purpose: string; action: string },
+): string {
+  const findings = result.findings.filter((finding) => finding.status !== 'match');
+  if (!findings.length && result.status === 'consistent') {
+    return 'Visual inspection found no required-anchor mismatch for this shot. Keep the approved Scene canon unchanged.';
+  }
+  const lines = [
+    'VYRA VISUAL CONTINUITY REPAIR — REVIEW REQUIRED',
+    'Shot purpose: ' + shot.purpose.slice(0, 300),
+    'Planned action: ' + shot.action.slice(0, 500),
+    'The following findings are unverified visual observations against the immutable creator-approved baseline.',
+    'Correct only the listed mismatches. Preserve all other approved identity, wardrobe, props, location, action, screen direction, camera and lighting choices.',
+  ];
+  for (const finding of findings.slice(0, 24)) {
+    if (finding.status === 'mismatch') {
+      lines.push(
+        '- MISMATCH at ' + finding.path +
+        ': expected ' + JSON.stringify(finding.expectedValue) +
+        '; observed ' + JSON.stringify(finding.observedValues).slice(0, 700) +
+        '; evidence: ' + finding.evidence.join(' | ').slice(0, 700),
+      );
+    } else {
+      lines.push(
+        '- UNKNOWN at ' + finding.path +
+        ': expected ' + JSON.stringify(finding.expectedValue) +
+        '; evidence: ' + finding.evidence.join(' | ').slice(0, 500) +
+        '. Do not guess or declare this detail correct; obtain a clearer inspection or creator review.',
+      );
+    }
+  }
+  lines.push(
+    'Do not change the canonical Scene state or mark any observation creator-approved.',
+    'This is repair guidance only. Do not regenerate, submit a provider task, or spend credits without explicit creator approval.',
+  );
+  return lines.join('\\n').slice(0, 7000);
+}
