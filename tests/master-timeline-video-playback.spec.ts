@@ -196,7 +196,7 @@ test('plans uploaded Video Track clips at absolute timeline positions', () => {
   }];
   const plan = buildMasterTimelineVideoPlaybackPlan([], [], 5, tracks);
   assert.equal(plan.length, 1);
-  assert.equal(plan[0].instanceId, 'video-track-1:uploaded-video');
+  assert.equal(plan[0].instanceId, 'timeline-track:video-track-1:uploaded-video');
   assert.equal(plan[0].timelineStartSeconds, 3);
   assert.equal(plan[0].sourceOffsetSeconds, 3);
   assert.equal(plan[0].playbackStartSeconds, 5);
