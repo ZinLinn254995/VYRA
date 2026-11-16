@@ -93,7 +93,8 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /edge === 'left'\s*\? item\.start \+ item\.duration <= edgeBoundary \+ 0\.0001\s*:\s*item\.start >= edgeBoundary - 0\.0001/);
   assert.match(editor, /rippleIds\.has\(item\.id\) \? \{ \.\.\.item, start: rippleClipStarts\[item\.id\] \+ rippleDelta \}/);
   assert.match(editor, /const normalizeTimelineOrigin = \(\) =>/);
-  assert.match(editor, /earliestStart >= -0\.0001/);
+  assert.match(editor, /Math\.abs\(earliestStart\) < 0\.0001/);
+  assert.match(editor, /const offset = -earliestStart/);
   assert.match(editor, /normalizeTimelineOrigin\(\);[\s\S]*releasePointerCapture/);
   assert.match(editor, /sourceStartBoundary = isImage \? Number\.NEGATIVE_INFINITY/);
   assert.match(editor, /audioTracks: shiftTracks\(value\?\.audioTracks \|\| \[\]\)/);
