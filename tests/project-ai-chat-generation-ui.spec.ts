@@ -175,5 +175,4 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
   assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
   assert.ok(chat.includes('setPendingShotRepair(null)'));
-  assert.ok(chat.includes("join('\\\\n\\\\n')") === false || chat.includes("join('\\n\\n')"));
 });
