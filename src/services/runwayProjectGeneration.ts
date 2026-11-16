@@ -342,3 +342,180 @@ export async function recoverRunwayProjectMediaJob(
   const recovered = await resumeRunwayProjectMediaIngestion(db, jobId, signal);
   return { ...recovered, status: 'ready' as const };
 }
+
+
+import {
+  validateCreativeProductionPlan,
+  type CreativeScenePlan,
+  type CreativeShotPlan,
+} from './creativeProductionPlanning';
+
+export type RunwayProjectShotSequenceRequest = Omit<
+  RunwayProjectGenerationRequest,
+  'input' | 'requestApproval'
+> & {
+  scene: CreativeScenePlan;
+  productionTitle: string;
+  logline: string;
+  genre: string;
+  tone: string;
+  sceneIndex?: number;
+  promptText: string;
+  referenceImages?: unknown[];
+  /** Hard ceiling for all approved shot costs in this sequence. */
+  maxTotalCostUsd: number;
+  /** Per-shot quote ceiling shown to the creator before approval. */
+  maxCostUsdPerShot: number;
+  requestApproval: (
+    quote: Quote,
+    shot: CreativeShotPlan,
+    shotIndex: number,
+  ) => Promise<{ confirmed: true; maxCostUsd: number } | { confirmed: false }>;
+  onShotProgress?: (event: {
+    shotId: string;
+    shotIndex: number;
+    shotCount: number;
+    status: string;
+    jobId?: string;
+  }) => void;
+};
+
+export type RunwayProjectShotSequenceResult = {
+  status: 'ready' | 'approval_declined' | 'partial';
+  completedShots: Array<{
+    shotId: string;
+    shotIndex: number;
+    jobId: string;
+    assets: Awaited<ReturnType<typeof ingestRunwayProjectOutput>>['ingestion'][];
+  }>;
+  stoppedAtShotIndex: number | null;
+  approvedCostUsd: number;
+};
+
+/** Build a bounded, single-shot prompt while retaining the approved Scene context. */
+export function buildRunwayProjectShotPrompt(
+  request: Pick<RunwayProjectShotSequenceRequest, 'productionTitle' | 'logline' | 'genre' | 'tone' | 'sceneIndex'>,
+  scene: CreativeScenePlan,
+  shot: CreativeShotPlan,
+  shotIndex: number,
+): string {
+  const shotCount = scene.shots.length;
+  const previous = shotIndex > 0 ? scene.shots[shotIndex - 1] : null;
+  const next = shotIndex + 1 < shotCount ? scene.shots[shotIndex + 1] : null;
+  const lines = [
+    'PRODUCTION: ' + request.productionTitle,
+    'STORY: ' + request.logline,
+    'GENRE / TONE: ' + request.genre + ' / ' + request.tone,
+    'SCENE ' + ((request.sceneIndex ?? 0) + 1) + ': ' + scene.title,
+    'SCENE PURPOSE: ' + scene.purpose,
+    'LOCATION: ' + scene.location,
+    'CHARACTERS: ' + (scene.characters.length ? scene.characters.join(', ') : 'No on-screen characters'),
+    'SCENE ENTRY STATE: ' + scene.entryState,
+    'SCENE ACTION: ' + scene.action,
+    'SHOT ' + (shotIndex + 1) + ' OF ' + shotCount + ' (target duration ' + shot.durationSeconds + ' seconds)',
+    'SHOT PURPOSE: ' + shot.purpose,
+    'ACTION TO GENERATE: ' + shot.action,
+    'FRAMING: ' + shot.framing,
+    'CAMERA ANGLE: ' + shot.cameraAngle,
+    'CAMERA MOVEMENT: ' + shot.cameraMovement,
+    'COMPOSITION AND BLOCKING: ' + shot.composition,
+    'LIGHTING: ' + shot.lighting,
+    'FOCUS / DEPTH: ' + shot.focus,
+    'SOUND INTENT: ' + shot.sound,
+    'SHOT CONTINUITY: ' + shot.continuityNotes.join('; '),
+    previous ? 'PREVIOUS SHOT HANDOFF: ' + previous.action + ' | ' + previous.continuityNotes.join('; ') : 'FIRST SHOT: establish the Scene geography and initial blocking.',
+    next ? 'NEXT SHOT SETUP: ' + next.purpose + ' | ' + next.action : 'FINAL SHOT: resolve into the planned Scene exit state: ' + scene.exitState,
+    'Generate only this planned shot, not the entire Scene or other shots. Preserve the approved Project Asset identities and Scene continuity. Do not add unplanned characters, wardrobe, props, locations, or story events. The target duration is creative direction; never claim exact duration unless the selected provider confirms it.',
+  ];
+  return (request.promptText.trim() + '\n\n' + lines.join('\n')).slice(0, 9000);
+}
+
+/**
+ * Generate the approved Scene one shot at a time. Each shot keeps the existing
+ * quote → explicit approval → reserved job → single submit → safe poll →
+ * private Asset/DNA/Fingerprint ingestion lifecycle. The sequence stops on the
+ * first declined, pending, failed, or unknown task; it never skips ahead.
+ */
+export async function generateRunwayProjectShotSequence(
+  db: Db,
+  request: RunwayProjectShotSequenceRequest,
+): Promise<RunwayProjectShotSequenceResult> {
+  if (!request.scene || !Array.isArray(request.scene.shots) ||
+      request.scene.shots.length < 1 || request.scene.shots.length > 12 ||
+      !Number.isFinite(request.maxTotalCostUsd) || request.maxTotalCostUsd <= 0 ||
+      !Number.isFinite(request.maxCostUsdPerShot) || request.maxCostUsdPerShot <= 0 ||
+      !request.promptText.trim()) {
+    throw new Error('A valid Scene shot plan, prompt and bounded generation budget are required.');
+  }
+  const validation = validateCreativeProductionPlan({
+    title: request.productionTitle,
+    logline: request.logline,
+    requestedDurationSeconds: request.scene.durationSeconds,
+    genre: request.genre,
+    tone: request.tone,
+    scenes: [{ ...request.scene, characters: request.scene.characters.length ? request.scene.characters : ['(no characters)'] }],
+  });
+  if (!validation.valid) {
+    throw new Error('The Scene shot plan is incomplete: ' + validation.errors.join(' '));
+  }
+
+  const completedShots: RunwayProjectShotSequenceResult['completedShots'] = [];
+  let approvedCostUsd = 0;
+  for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++) {
+    assertActive(request.signal);
+    const shot = request.scene.shots[shotIndex];
+    const promptText = buildRunwayProjectShotPrompt(request, request.scene, shot, shotIndex);
+    const result = await generateRunwayProjectMedia(db, {
+      targetVyralId: request.targetVyralId,
+      task: 'video',
+      quality: request.quality,
+      maxCostUsd: request.maxCostUsdPerShot,
+      input: {
+        promptText,
+        ...(request.referenceImages?.length ? { referenceImages: request.referenceImages } : {}),
+      },
+      sceneContext: request.sceneContext,
+      signal: request.signal,
+      pollIntervalMs: request.pollIntervalMs,
+      timeoutMs: request.timeoutMs,
+      onProgress: (progress) => {
+        const jobId = 'jobId' in progress ? progress.jobId : undefined;
+        request.onShotProgress?.({
+          shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
+          status: progress.stage, ...(jobId ? { jobId } : {}),
+        });
+        request.onProgress?.(progress);
+      },
+      requestApproval: async (quote) => {
+        if (approvedCostUsd + quote.estimatedCostUsd > request.maxTotalCostUsd) {
+          return { confirmed: false };
+        }
+        const approval = await request.requestApproval(quote, shot, shotIndex);
+        if (!approval.confirmed) return approval;
+        if (approvedCostUsd + approval.maxCostUsd > request.maxTotalCostUsd) {
+          return { confirmed: false };
+        }
+        approvedCostUsd += approval.maxCostUsd;
+        return approval;
+      },
+    });
+
+    if (result.status !== 'ready') {
+      request.onShotProgress?.({
+        shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
+        status: result.status,
+        ...('jobId' in result && result.jobId ? { jobId: result.jobId } : {}),
+      });
+      return {
+        status: result.status === 'approval_declined' ? 'approval_declined' : 'partial',
+        completedShots, stoppedAtShotIndex: shotIndex, approvedCostUsd,
+      };
+    }
+    completedShots.push({ shotId: shot.id, shotIndex, jobId: result.jobId, assets: result.assets });
+    request.onShotProgress?.({
+      shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
+      status: 'ready', jobId: result.jobId,
+    });
+  }
+  return { status: 'ready', completedShots, stoppedAtShotIndex: null, approvedCostUsd };
+}
