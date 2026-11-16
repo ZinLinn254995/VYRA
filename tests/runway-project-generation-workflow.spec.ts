@@ -108,6 +108,10 @@ test('shot sequence reuses the approved generation lifecycle sequentially and en
 
 test('shot sequence verifies each ingested video output before continuing and stops on drift', () => {
   assert.ok(workflow.includes('request.visualVerification.inspect'));
+  assert.ok(workflow.includes('request.visualVerification.inspectTransition'));
+  assert.ok(workflow.includes('shot-boundary continuity inspector'));
+  assert.ok(workflow.includes('transitionVerification.status !== \'consistent\''));
+  assert.ok(workflow.includes('buildSceneVisualTransitionAnchors'));
   assert.ok(workflow.includes('getAnchorsForShot?.(shot, shotIndex, request.scene)'));
   assert.ok(workflow.includes('anchors: shotAnchors'));
   assert.ok(workflow.includes('Visual verification requires a creator-approved baseline revision'));
