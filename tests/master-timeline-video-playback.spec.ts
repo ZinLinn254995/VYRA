@@ -146,3 +146,34 @@ test('an explicit empty shot track does not fall back to a stale single-clip Sce
   }];
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], cleared, 0), []);
 });
+
+test('plays a mixed manual and AI Director clip sequence using each exact immutable Asset version', () => {
+  const mixedInstance = [{
+    id: 'scene-mixed',
+    sceneId: 'scene-a',
+    sourceIn: 0,
+    sourceOut: 5,
+    videoClips: [
+      { id: 'manual-opening', start: 0, duration: 1.5, sourceIn: 2, sourceOut: 3.5, assetId: 'manual-asset', assetVersionId: 'manual-version-3', assetMimeType: 'video/mp4' },
+      { id: 'director-shot-1', start: 1.5, duration: 2, sourceIn: 0.5, sourceOut: 2.5, assetId: 'director-asset-1', assetVersionId: 'director-version-1', assetMimeType: 'video/webm' },
+      { id: 'manual-insert', start: 3.5, duration: 1.5, sourceIn: 1, sourceOut: 2.5, assetId: 'manual-insert-asset', assetVersionId: 'manual-insert-version-2', assetMimeType: 'video/mp4' },
+    ],
+  }];
+  const plan = buildMasterTimelineVideoPlaybackPlan([scenes[0]], mixedInstance, 0);
+  assert.deepEqual(plan.map((item) => ({
+    instanceId: item.instanceId,
+    assetId: item.assetId,
+    assetVersionId: item.assetVersionId,
+    start: item.playbackStartSeconds,
+    end: item.playbackEndSeconds,
+    sourceOffset: item.sourceOffsetSeconds,
+  })), [
+    { instanceId: 'scene-mixed:manual-opening', assetId: 'manual-asset', assetVersionId: 'manual-version-3', start: 0, end: 1.5, sourceOffset: 2 },
+    { instanceId: 'scene-mixed:director-shot-1', assetId: 'director-asset-1', assetVersionId: 'director-version-1', start: 1.5, end: 3.5, sourceOffset: 0.5 },
+    { instanceId: 'scene-mixed:manual-insert', assetId: 'manual-insert-asset', assetVersionId: 'manual-insert-version-2', start: 3.5, end: 5, sourceOffset: 1 },
+  ]);
+  const seekIntoManualInsert = buildMasterTimelineVideoPlaybackPlan([scenes[0]], mixedInstance, 4);
+  assert.equal(seekIntoManualInsert.length, 1);
+  assert.equal(seekIntoManualInsert[0].instanceId, 'scene-mixed:manual-insert');
+  assert.equal(seekIntoManualInsert[0].sourceOffsetSeconds, 1.5);
+});
