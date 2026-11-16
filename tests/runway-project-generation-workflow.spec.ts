@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { buildRunwayProjectShotPrompt } from '../src/services/runwayProjectGeneration';
+import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
 
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
 const ingestion = readFileSync(new URL('../src/services/runwayProjectOutputIngestion.ts', import.meta.url), 'utf8');
@@ -45,12 +47,6 @@ test('browser cancellation after submission preserves the resumable server job',
   assert.ok(workflow.includes('Once submitted, cancellation only stops this browser'));
 });
 
-
-import {
-  buildRunwayProjectShotPrompt,
-  generateRunwayProjectShotSequence,
-} from '../src/services/runwayProjectGeneration';
-import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
 
 const shotScene: CreativeScenePlan = {
   id: 'warehouse-fight',
