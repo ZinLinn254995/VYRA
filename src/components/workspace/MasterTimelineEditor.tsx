@@ -27,6 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
+import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -1359,7 +1360,27 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           userId: authData.user.id,
           folderId: null,
           file: normalizedFile,
+          metadata: { upload_source: 'creator_workspace', origin: 'project_editor' },
         });
+        // Editor uploads and Project Assets uploads must point to the same
+        // canonical Project library entry. The Vyral Asset is already durable;
+        // if the Library index is temporarily unavailable, keep the timeline
+        // usable and let the Project Assets reconciliation rebuild the listing.
+        try {
+          await registerVyralAssetInMediaLibrary({
+            assetId: ingestion.assetId,
+            userId: authData.user.id,
+            fileName: file.name,
+            mimeType: ingestion.mimeType,
+            sizeBytes: ingestion.sizeBytes,
+            storagePath: ingestion.storagePath,
+            sourceKind: 'vyral_asset',
+            universeId: vyralId,
+            thumbnailSource: normalizedFile,
+          });
+        } catch {
+          setMediaUploadError(file.name + ' was saved to Project Assets, but its Library listing is still syncing.');
+        }
         const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
         // Audio remains playhead-placed. Image/Video insert at the Scenes playhead position.
         const start = kind === 'audio'
