@@ -381,7 +381,7 @@ export type RunwayProjectShotSequenceRequest = Omit<
 };
 
 export type RunwayProjectShotSequenceResult = {
-  status: 'ready' | 'approval_declined' | 'partial';
+  status: 'ready' | 'approval_declined' | 'budget_exceeded' | 'partial';
   completedShots: Array<{
     shotId: string;
     shotIndex: number;
@@ -394,7 +394,7 @@ export type RunwayProjectShotSequenceResult = {
 
 /** Build a bounded, single-shot prompt while retaining the approved Scene context. */
 export function buildRunwayProjectShotPrompt(
-  request: Pick<RunwayProjectShotSequenceRequest, 'productionTitle' | 'logline' | 'genre' | 'tone' | 'sceneIndex'>,
+  request: Pick<RunwayProjectShotSequenceRequest, 'productionTitle' | 'logline' | 'genre' | 'tone' | 'sceneIndex' | 'promptText'>,
   scene: CreativeScenePlan,
   shot: CreativeShotPlan,
   shotIndex: number,
@@ -461,6 +461,7 @@ export async function generateRunwayProjectShotSequence(
 
   const completedShots: RunwayProjectShotSequenceResult['completedShots'] = [];
   let approvedCostUsd = 0;
+  let budgetExceeded = false;
   for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++) {
     assertActive(request.signal);
     const shot = request.scene.shots[shotIndex];
@@ -488,11 +489,13 @@ export async function generateRunwayProjectShotSequence(
       },
       requestApproval: async (quote) => {
         if (approvedCostUsd + quote.estimatedCostUsd > request.maxTotalCostUsd) {
+          budgetExceeded = true;
           return { confirmed: false };
         }
         const approval = await request.requestApproval(quote, shot, shotIndex);
         if (!approval.confirmed) return approval;
         if (approvedCostUsd + approval.maxCostUsd > request.maxTotalCostUsd) {
+          budgetExceeded = true;
           return { confirmed: false };
         }
         approvedCostUsd += approval.maxCostUsd;
@@ -507,7 +510,7 @@ export async function generateRunwayProjectShotSequence(
         ...('jobId' in result && result.jobId ? { jobId: result.jobId } : {}),
       });
       return {
-        status: result.status === 'approval_declined' ? 'approval_declined' : 'partial',
+        status: budgetExceeded ? 'budget_exceeded' : result.status === 'approval_declined' ? 'approval_declined' : 'partial',
         completedShots, stoppedAtShotIndex: shotIndex, approvedCostUsd,
       };
     }
