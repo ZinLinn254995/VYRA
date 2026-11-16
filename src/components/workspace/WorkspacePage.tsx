@@ -1422,3 +1422,496 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     </div>
                     <div className="space-y-2">
                       <p className="text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.productionTitle}</p>
+                      <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.purpose}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Location</p>
+                          <p className="mt-1 text-xs text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.location}</p>
+                        </div>
+                        <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Characters</p>
+                          <p className="mt-1 text-xs text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.characters.join(', ') || 'No characters'}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Entry State</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.entryState}</p>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Scene Action</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.action}</p>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Exit State</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.exitState}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold text-[var(--vyra-text-primary)]">Shots</h3>
+                      {scene.project.creativeDirection.shots.map((shot, index) => (
+                        <article key={shot.id} className="space-y-2 rounded-lg border border-[var(--vyra-border)] p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-[var(--vyra-text-primary)]">{String(index + 1).padStart(2, '0')} · {shot.purpose}</p>
+                            <span className="shrink-0 text-[10px] tabular-nums text-[var(--vyra-text-secondary)]">{shot.durationSeconds}s</span>
+                          </div>
+                          <p className="text-[11px] text-[var(--vyra-text-secondary)]">{shot.framing} · {shot.cameraAngle} · {shot.cameraMovement}</p>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Composition</span><br />{shot.composition}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Lighting</span><br />{shot.lighting}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Focus</span><br />{shot.focus}</p>
+                            <p className="text-[11px] leading-5 text-[var(--vyra-text-secondary)]"><span className="font-semibold text-[var(--vyra-text-primary)]">Sound</span><br />{shot.sound}</p>
+                          </div>
+                          <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">{shot.action}</p>
+                          {shot.continuityNotes.length > 0 && (
+                            <ul className="list-disc space-y-1 pl-4 text-[11px] text-[var(--vyra-text-muted)]">
+                              {shot.continuityNotes.map((note, noteIndex) => <li key={shot.id + '-note-' + noteIndex}>{note}</li>)}
+                            </ul>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
+                    <span className="rounded-full border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)]">
+                      {sceneContinuityRecord?.validationStatus === 'creator_approved' ? 'Approved' : sceneContinuityRecord?.validationStatus === 'consistent' && !sceneContinuityContext?.contextComplete ? sceneContinuityContext?.previousSceneId ? 'Waiting for previous Scene' : 'Needs starting state' : sceneContinuityRecord?.validationStatus === 'consistent' ? 'Passed · awaiting approval' : sceneContinuityRecord?.validationStatus === 'needs_review' ? 'Needs review' : 'Not evaluated'}
+                    </span>
+                  </div>
+                  {sceneContinuityContext?.previousSceneId === null && (
+                    <div className="space-y-2 rounded-lg border border-[var(--vyra-border)] p-3">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard starting conditions</span>
+                        <textarea
+                          value={sceneStartingContextDraft}
+                          onChange={(event) => setSceneStartingContextDraft(event.target.value)}
+                          rows={3}
+                          maxLength={12000}
+                          placeholder="Describe the opening world, character states, locations, time, and important facts that must remain consistent…"
+                          className={inputClass + ' w-full resize-y'}
+                        />
+                      </label>
+                      <p className="text-[11px] leading-4 text-[var(--vyra-text-secondary)]">
+                        Creator-authored starting context for the first Scene. Updating it invalidates later Scene approvals so they can be checked again.
+                      </p>
+                      <button type="button" onClick={saveSceneStartingContext} disabled={!sceneStartingContextDraft.trim() || sceneStartingContextDraft.trim() === activeStartingContext} className="min-h-9 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+                        Save Starting State
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">
+                    {sceneContinuityContext?.contextComplete
+                      ? sceneContinuityContext.previousSceneId
+                        ? 'The previous Scene has an approved state. This Scene inherits its continuity handoff.'
+                        : 'This is the first Scene. No previous Scene handoff is required.'
+                      : sceneContinuityContext?.previousSceneId
+                        ? 'The previous Scene has not been approved yet. Its state will not be treated as canon for this Scene.'
+                        : 'This first Scene needs an explicit starting state before it can become the continuity source for later Scenes.'}
+                  </p>
+                  {sceneContinuityViolations.length > 0 && (
+                    <ul className="space-y-1 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] p-3 text-xs text-[var(--vyra-text-secondary)]">
+                      {sceneContinuityViolations.slice(0, 12).map((violation, index) => (
+                        <li key={violation.path + '-' + index}>
+                          <span className="font-semibold text-[var(--vyra-text-primary)]">{violation.path}</span>
+                          <span>: {violation.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {canApproveSceneContinuity && sceneContinuityRecord?.validationStatus !== 'creator_approved' && (
+                    <button type="button" onClick={approveCurrentSceneContinuity} className="min-h-10 rounded-lg border border-[var(--vyra-accent-primary)] px-3 py-2 text-xs font-semibold text-[var(--vyra-accent-primary)] transition hover:bg-[var(--vyra-bg-hover)]">
+                      Approve Scene State for Next Scene
+                    </button>
+                  )}
+                  {sceneContinuityMessage && <p role="status" className="text-xs text-[var(--vyra-text-secondary)]">{sceneContinuityMessage}</p>}
+                </section>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Project</h2>
+                    <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">This Scene has its own independent project record. Changes here belong to this Scene, not to the Master timeline trim.</p>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene title</span>
+                    <input value={scene.title} onChange={(event) => updateActiveScene({ title: event.target.value })} className={inputClass + ' min-h-10'} maxLength={100} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Scene description</span>
+                    <textarea value={scene.description} onChange={(event) => updateActiveScene({ description: event.target.value })} className={inputClass + ' min-h-24 resize-y py-2'} rows={3} maxLength={1000} placeholder="Describe what happens in this Scene…" />
+                  </label>
+                  <label className="block max-w-48 space-y-1">
+                    <span className="text-[11px] font-semibold text-[var(--vyra-text-secondary)]">Canonical Scene Duration (seconds)</span>
+                    <input type="number" min="0.1" max="3600" step="0.1" value={scene.duration} onChange={(event) => updateSceneDuration(Number(event.target.value))} className={inputClass + ' min-h-10'} />
+                  </label>
+                </section>
+                <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Scene Timeline</h2>
+                      <p className="mt-1 text-xs text-[var(--vyra-text-secondary)]">Independent editable tracks for this Scene Project</p>
+                    </div>
+                    <span className="text-xs tabular-nums text-[var(--vyra-text-muted)]">{timeline.duration.toFixed(1)}s</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(['video', 'audio', 'text'] as const).map((type) => (
+                      <button key={type} type="button" onClick={() => addProjectTrack(type)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-2 text-xs font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">
+                        + {type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Text'} Track
+                      </button>
+                    ))}
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-[var(--vyra-border)]">
+                    <div className="flex items-center justify-between border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-subtle)] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">
+                      <span>Track</span><span>{timeline.fps} FPS · {timeline.width} × {timeline.height}</span>
+                    </div>
+                    {timeline.tracks.length ? timeline.tracks.map((track) => (
+                      <div key={track.id} className="flex min-h-14 items-center gap-3 border-b border-[var(--vyra-border-subtle)] px-3 last:border-b-0">
+                        <div className="w-24 shrink-0">
+                          <p className="truncate text-xs font-semibold text-[var(--vyra-text-primary)]">{track.name}</p>
+                          <p className="text-[10px] capitalize text-[var(--vyra-text-muted)]">{track.type} · {track.clips.length} clips</p>
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-2 py-2">
+                          <div className="relative h-8 overflow-hidden rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]">
+                            {track.clips.map((clip) => (
+                              <div key={clip.id + '-lane'} title={clip.name + ' · ' + clip.start.toFixed(1) + 's'} className="absolute top-1 flex h-6 min-w-[2px] items-center overflow-hidden rounded-sm border border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-hover)] px-1 text-[9px] font-medium text-[var(--vyra-text-primary)]" style={{ left: (clip.start / timeline.duration * 100) + '%', width: Math.max(1.5, clip.duration / timeline.duration * 100) + '%' }}>
+                                <span className="truncate">{clip.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {track.type === 'text' && <button type="button" onClick={() => addTextClip(track.id)} className="rounded-md border border-[var(--vyra-border)] px-2 py-1 text-[10px] font-medium text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">+ Add Text Clip</button>}
+                          {track.clips.map((clip) => (
+                            <div key={clip.id} className="space-y-2 rounded-lg bg-[var(--vyra-bg-subtle)] p-2">
+                              <div className="flex items-center gap-2">
+                                <input aria-label="Clip name" value={clip.name} onChange={(event) => updateProjectClip(track.id, clip.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" />
+                                <button type="button" onClick={() => removeProjectClip(track.id, clip.id)} aria-label={'Remove ' + clip.name} className="rounded p-1 text-[var(--vyra-danger)]"><Trash2 size={12} /></button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Start (s)<input type="number" min="0" max={timeline.duration} step="0.1" value={clip.start} onChange={(event) => updateProjectClip(track.id, clip.id, { start: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                                <label className="text-[10px] text-[var(--vyra-text-muted)]">Duration (s)<input type="number" min="0.1" max={timeline.duration} step="0.1" value={clip.duration} onChange={(event) => updateProjectClip(track.id, clip.id, { duration: Number(event.target.value) })} className="mt-1 w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" /></label>
+                              </div>
+                              {track.type === 'text' && <textarea aria-label="Text clip content" value={clip.content || ''} onChange={(event) => updateProjectClip(track.id, clip.id, { content: event.target.value })} rows={2} className="w-full rounded border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-2 py-1 text-xs text-[var(--vyra-text-primary)]" placeholder="Text shown in this clip" />}
+                              {track.type !== 'text' && (clip.assetId && clip.assetVersionId ? <p className="text-[10px] text-[var(--vyra-text-muted)]">Linked private Project Asset · {clip.assetMimeType || 'video'} · playback is being connected</p> : <p className="text-[10px] text-[var(--vyra-text-muted)]">Media source is not linked yet.</p>)}
+                            </div>
+                          ))}
+                          {!track.clips.length && track.type !== 'text' && <p className="text-[10px] text-[var(--vyra-text-muted)]">No media clips yet. Generated Director shots will appear here in production order.</p>}
+                        </div>
+                        <button type="button" onClick={() => removeProjectTrack(track.id)} aria-label={'Remove ' + track.name} className="rounded p-2 text-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={14} /></button>
+                      </div>
+                    )) : <div className="px-4 py-8 text-center text-xs text-[var(--vyra-text-muted)]">Add a track to begin building this Scene independently.</div>}
+                  </div>
+                  <p className="text-[11px] leading-5 text-[var(--vyra-text-muted)]">Generated Director shots are saved as linked Project Assets in this Scene Timeline. Playback and final Scene rendering are the next stage; no placeholder video is generated.</p>
+                </section>
+              </div>
+            </section>
+          </div>
+        <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
+          {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex h-full items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
+        </aside>
+        <div className="hidden">
+          <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={false} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
+        </div>
+      </main>
+    );
+    }
+  }
+
+  if (activeStoryboard) {
+    const details = activeStoryboard.details || {};
+    const leaveStoryboardPage = () => {
+      if (activeStoryboardConfirmed) {
+        const latest = { ...activeStoryboard, updatedAt: new Date().toISOString() };
+        setStoryboards((current) => current.map((item) => item.id === latest.id ? latest : item));
+        void persistStoryboard(latest);
+      }
+      // Leaving the Storyboard Editor returns to the Workspace, where the global
+      // navigation header must always be visible and interactive again.
+      const root = document.documentElement;
+      root.style.setProperty('--vyra-main-header-progress', '0');
+      root.style.setProperty('--vyra-header-spacer-collapse', '0px');
+      root.classList.remove('is-header-dragging');
+      window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
+      setActiveStoryboard(null);
+      setStoryboardUniverse(null);
+      setActiveStoryboardConfirmed(false);
+      setStoryboardDetailsExpanded(true);
+      setStoryboardEditorView('chat');
+      setStoryboardAiMessage('');
+      onEditorExit?.();
+    };
+    return (
+      <main className="profile-page-main flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden p-0">
+        <div className="profile-subpage-scroll profile-subpage-viewport !h-full !min-h-0 !w-full !overflow-hidden">
+          <section className="profile-subpage-card storyboard-fullscreen-card !flex !h-full !min-h-0 !flex-col !overflow-hidden">
+          <header className="sticky top-0 z-50 flex h-11 min-h-11 shrink-0 items-center justify-between bg-[var(--vyra-bg-canvas)] px-4 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <button type="button" onClick={leaveStoryboardPage} className="inline-flex shrink-0 items-center gap-[7px] rounded-[9px] px-2 py-[7px] text-sm font-medium text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]" aria-label="Back to My Projects">
+                <ArrowLeft size={16} /><span>My Projects</span>
+              </button>
+              <span className="min-w-0 truncate text-sm font-semibold text-[var(--vyra-text-primary)]" title={activeStoryboard.title}>{activeStoryboard.title || 'Untitled Project'}</span>
+            </div>
+          </header>
+          <div className="profile-subpage-content flex min-h-0 flex-1 flex-col overflow-hidden px-0 pb-4 pt-0 sm:px-0 sm:pb-5" onWheel={handleHeaderWheel} onTouchStart={handleHeaderTouchStart} onTouchMove={handleHeaderTouchMove} onTouchEnd={handleHeaderTouchEnd} onTouchCancel={handleHeaderTouchEnd}>
+          {activeStoryboardConfirmed && (
+            <div ref={storyboardControlsRef} className="profile-storyboard-controls -mx-4 shrink-0 sm:-mx-5">
+              <div className="profile-storyboard-view-tabs order-first flex shrink-0 items-center gap-1 bg-[var(--vyra-bg-surface)]" aria-label="Project navigation">
+                <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
+                <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Editor</button>
+                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Project Assets</button>
+                <button type="button" onClick={() => setStoryboardEditorView('details')} aria-pressed={storyboardEditorView === 'details'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'details' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Details</button>
+              </div>
+              {storyboardEditorView === 'master' && (
+                <>
+                  <div className="profile-storyboard-preview">
+                    <div ref={storyboardPreviewFrameRef} className="profile-storyboard-preview-frame relative mx-auto flex aspect-video w-full items-center justify-center overflow-hidden bg-[var(--vyra-bg-subtle)]">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.16),transparent_55%)]" />
+                      <div className="relative z-10 text-[var(--vyra-text-muted)]" aria-label="Video preview placeholder"><Film size={30} /></div>
+                    </div>
+                  </div>
+                  <div className="grid h-12 grid-cols-3 items-center bg-[var(--vyra-bg-surface)] px-3">
+                    <span className="justify-self-start font-mono text-[11px] tabular-nums text-[var(--vyra-text-secondary)]">
+                      00:00 <span className="px-1 text-[var(--vyra-text-muted)]">/</span> {(() => {
+                        const total = (activeStoryboard?.details?.scenes || []).reduce((sum, scene) => sum + Math.max(0, Number(scene.duration) || 0), 0);
+                        const minutes = Math.floor(total / 60).toString().padStart(2, '0');
+                        const seconds = Math.floor(total % 60).toString().padStart(2, '0');
+                        return minutes + ':' + seconds;
+                      })()}
+                    </span>
+                    <button type="button" disabled aria-label="Play preview (available when video media is connected)" title="Preview playback will be available when video media is connected" className="grid size-8 justify-self-center place-items-center rounded-full bg-[var(--vyra-bg-subtle)] text-[var(--vyra-text-muted)] disabled:cursor-not-allowed disabled:opacity-60">
+                      <Play size={15} fill="currentColor" />
+                    </button>
+                    <button type="button" onClick={() => { const frame = storyboardPreviewFrameRef.current; if (frame?.requestFullscreen) void frame.requestFullscreen(); }} aria-label="Expand preview" title="Expand preview" className="grid size-8 justify-self-end place-items-center rounded-lg text-[var(--vyra-text-secondary)] transition hover:bg-[var(--vyra-bg-hover)] hover:text-[var(--vyra-text-primary)]">
+                      <Maximize2 size={16} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+            {activeStoryboardConfirmed && (() => {
+              const scenes = details.scenes || [];
+              const updateScenes = (nextScenes: StoryboardScene[]) => setActiveStoryboard((current) => {
+                if (!current) return current;
+                const master = current.details?.masterTimeline;
+                const continuityLedger = hydrateSceneContinuityLedger(current.details?.continuityLedger, nextScenes);
+                if (!master) return { ...current, details: { ...current.details, scenes: nextScenes, continuityLedger }, updatedAt: new Date().toISOString() };
+                const previousInstances = master.sceneInstances || [];
+                const instancesByScene = new Map(previousInstances.map((instance) => [instance.sceneId, instance]));
+                const sceneIds = new Set(nextScenes.map((scene) => scene.id));
+                const orderedInstances = nextScenes.map((scene) => {
+                  const existing = instancesByScene.get(scene.id);
+                  return {
+                    ...(existing || { id: scene.id, sceneId: scene.id }),
+                    sceneId: scene.id,
+                    sourceIn: 0,
+                    sourceOut: scene.duration,
+                    sceneProjectId: scene.project?.id,
+                    renderRevisionId: scene.project?.latestRenderRevisionId ?? null,
+                  };
+                });
+                const transitions = Object.fromEntries(Object.entries(master.transitions || {}).filter(([id]) => sceneIds.has(id) || orderedInstances.some((instance) => instance.id === id)));
+                return {
+                  ...current,
+                  details: {
+                    ...current.details,
+                    scenes: nextScenes,
+                    continuityLedger,
+                    masterTimeline: { ...master, sceneInstances: orderedInstances, sceneRanges: {}, transitions },
+                  },
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              return (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-3">
+                    {storyboardEditorView === 'master' ? (
+                      <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
+<MasterTimelineEditor
+                    scenes={scenes.map((scene) => ({
+                      ...scene,
+                      projectId: scene.project?.id,
+                      latestRenderRevisionId: scene.project?.latestRenderRevisionId ?? null,
+                    }))}
+                    value={details.masterTimeline}
+                    onSceneOrderChange={(sceneIds) => {
+                      const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+                      const ordered = sceneIds.map((id) => byId.get(id)).filter((scene): scene is StoryboardScene => Boolean(scene));
+                      if (ordered.length === scenes.length && ordered.some((scene, index) => scene.id !== scenes[index]?.id)) updateScenes(ordered);
+                    }}
+                    onSceneDuplicate={(source, index) => {
+                      const original = scenes.find((scene) => scene.id === source.id);
+                      const now = new Date().toISOString();
+                      const copy: StoryboardScene = {
+                        ...(original || { id: source.id, title: source.title, description: '', duration: source.duration, transition: 'Fade' }),
+                        id: crypto.randomUUID(),
+                        title: (original?.title || source.title) + ' copy',
+                        project: { id: crypto.randomUUID(), schemaVersion: 1, createdAt: now, updatedAt: now, renderRevisionIds: [] },
+                      };
+                      const next = [...scenes];
+                      next.splice(Math.max(0, Math.min(index, next.length)), 0, copy);
+                      updateScenes(next);
+                      return { id: copy.id, title: copy.title, duration: copy.duration, projectId: copy.project?.id, latestRenderRevisionId: copy.project?.latestRenderRevisionId ?? null };
+                    }}
+                    onSceneDelete={(sceneId) => {
+                      updateScenes(scenes.filter((scene) => scene.id !== sceneId));
+                      setSelectedSceneIds((current) => current.filter((id) => id !== sceneId));
+                      if (activeSceneId === sceneId) setActiveSceneId(null);
+                    }}
+                    onSelectionChange={(selection) => setSelectedTimelineItem((current) => JSON.stringify(current) === JSON.stringify(selection) ? current : selection)}
+                    onChange={(masterTimeline) => setActiveStoryboard((current) => current ? {
+                      ...current,
+                      details: { ...current.details, masterTimeline },
+                      updatedAt: new Date().toISOString(),
+                    } : current)}
+                  />
+                      </div>
+                    ) : storyboardEditorView === 'details' ? (
+                      <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5 sm:px-6">
+                        <label className="block space-y-1.5"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Title</span><input value={activeStoryboard.title} onChange={(event) => updateActiveStoryboard('title', event.target.value)} maxLength={100} className={inputClass} /></label>
+                        <label className="block space-y-1.5"><span className="text-xs font-semibold text-[var(--vyra-text-secondary)]">Description</span><textarea value={activeStoryboard.topic} onChange={(event) => updateActiveStoryboard('topic', event.target.value)} rows={4} maxLength={500} className={inputClass + ' min-h-24 resize-y py-2'} /></label>
+                      </section>
+                    ) : storyboardEditorView === 'chat' ? (
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex flex-1 items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
+                      </div>
+                    ) : null}
+                    <div className={storyboardEditorView === 'universe' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+                      <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={storyboardEditorView === 'universe'} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
+                    </div>
+                </div>
+              );
+            })()}
+
+
+          </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main ref={workspaceScrollRef} onScroll={(event) => { preservedWorkspaceScrollTopRef.current = event.currentTarget.scrollTop; }} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
+      <section className="mb-7 pt-8 sm:pt-10">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => onOpenLibraryPage('my-vyrals')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><VyralIdentityIcon size={21} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Projects</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative Projects and their Assets</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
+          <button type="button" onClick={() => onOpenLibraryPage('my-media-library')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Images size={19} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Media Library</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your images, videos, audio and files</span></span>
+            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
+          </button>
+        </div>
+      </section>
+
+      <section ref={storyboardBarRef} className="sticky top-0 z-40 -mx-4 mb-2 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
+        {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
+        </div>
+        <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
+      </section>
+
+      {storyboards.length ? (
+        <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
+          {storyboards.map((item) => (
+            <Card key={item.id} padding="none" className="relative overflow-hidden">
+              <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open storyboard: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+              <div className="flex aspect-[16/9] items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.20),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]"><Film size={34} className="text-[var(--vyra-accent-primary)]" strokeWidth={1.5} /></div>
+              <div className="p-4">
+                <h2 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.title}</h2>
+                {item.topic && <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--vyra-text-secondary)]">{item.topic}</p>}
+                {item.details?.category && <p className="mt-2 text-[11px] text-[var(--vyra-text-secondary)]">{item.details.category}{item.details.style ? ' · ' + item.details.style : ''}</p>}
+                {item.details?.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.details.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-full bg-[var(--vyra-bg-subtle)] px-2 py-1 text-[10px] text-[var(--vyra-text-secondary)]">{tag}</span>)}</div> : null}
+                <p className="mt-3 text-[10px] text-[var(--vyra-text-muted)]">Updated {new Date(item.updatedAt).toLocaleDateString()}</p>
+              </div>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setStoryboardToDelete(item); }}
+                aria-label={`Delete storyboard: ${item.title}`}
+                title="Delete storyboard"
+                className="absolute right-3 top-3 grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 text-[var(--vyra-text-secondary)] shadow-sm backdrop-blur transition hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)] hover:text-white focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
+              >
+                <Trash2 size={16} />
+              </button>
+            </Card>
+          ))}
+        </section>
+      ) : (
+        <section className="flex min-h-[min(52vh,440px)] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40 px-6 py-12 text-center">
+          <div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><Clapperboard size={25} /></div>
+          <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No storyboards yet</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
+        </section>
+      )}
+
+      <ConfirmationDialog
+        open={Boolean(storyboardToDelete)}
+        title="Delete storyboard?"
+        description={storyboardToDelete
+          ? <>“{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.</>
+          : null}
+        icon={<Trash2 size={20} />}
+        confirmLabel={isDeletingStoryboard ? 'Deleting…' : 'Delete'}
+        destructive
+        loading={isDeletingStoryboard}
+        onClose={() => setStoryboardToDelete(null)}
+        onConfirm={() => void confirmDeleteStoryboard()}
+      />
+
+      {editDraft && editingStoryboardId && (
+        <div role="presentation" className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingStoryboardId(null); setEditDraft(null); } }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-storyboard-title" className="my-auto w-full max-w-lg rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-5 shadow-[var(--vyra-shadow-overlay)] sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3"><h2 id="edit-storyboard-title" className="text-xl font-bold text-[var(--vyra-text-primary)]">Edit Project Details</h2><button type="button" onClick={() => { setEditingStoryboardId(null); setEditDraft(null); }} aria-label="Close" className="rounded-lg p-2 text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button></div>
+            <form onSubmit={saveStoryboardEdits} className="space-y-3">
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Name</label><input maxLength={100} value={editDraft.title} onChange={(event) => setEditDraft((current) => current ? { ...current, title: event.target.value, details: { ...current.details, origins: { ...current.details?.origins, title: 'creator_edited' } } } : current)} className={inputClass} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Description</label><textarea rows={3} maxLength={500} value={editDraft.topic} onChange={(event) => setEditDraft((current) => current ? { ...current, topic: event.target.value, details: { ...current.details, origins: { ...current.details?.origins, topic: 'creator_edited' } } } : current)} className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} /></div>
+              {(['category', 'style', 'mood'] as const).map((key) => <div key={key}><label className="mb-1 block text-xs font-semibold capitalize text-[var(--vyra-text-primary)]">{key === 'style' ? 'Visual style' : key}</label><input value={editDraft.details?.[key] || ''} onChange={(event) => setEditDraft((current) => current ? { ...current, details: { ...current.details, [key]: event.target.value, origins: { ...current.details?.origins, [key]: 'creator_edited' } } } : current)} className={inputClass} /></div>)}
+              <div><label className="mb-1 block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input value={(editDraft.details?.tags || []).join(', ')} onChange={(event) => setEditDraft((current) => current ? { ...current, details: { ...current.details, tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean), origins: { ...current.details?.origins, tags: 'creator_edited' } } } : current)} className={inputClass} placeholder="Separate tags with commas" /></div>
+              <div className="flex justify-end gap-2 pt-2"><Button type="button" variant="ghost" onClick={() => { setEditingStoryboardId(null); setEditDraft(null); }}>Cancel</Button><Button type="submit">Save details</Button></div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {createOpen && (
+        <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(120, visualViewport.height - 16) }}>
+            <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+              <div className="mb-4">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <h2 id="create-storyboard-title" className="min-w-0 text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
+                  <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Start with an idea. AI can suggest the details, and you can edit anything.</p>
+              </div>
+              <form onSubmit={createStoryboard} className="space-y-4">
+                <div className="min-w-0 space-y-2.5">
+                  <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="font-normal text-[var(--vyra-text-muted)]">(optional — AI can suggest one)</span></label>
+                  <input id="vyra-storyboard-name" type="text" maxLength={100} value={title} onChange={(event) => updateDetail('title', event.target.value)} placeholder="e.g. The Last City" disabled={isSuggesting} className={inputClass} />
+                </div>
+                <div className="min-w-0 space-y-2.5">
+                  <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
+                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => updateDetail('topic', event.target.value)} placeholder="Describe your idea (optional)" disabled={isSuggesting} className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-category" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Category</label><input id="vyra-storyboard-category" value={category} onChange={(event) => updateDetail('category', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-style" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Visual style</label><input id="vyra-storyboard-style" value={style} onChange={(event) => updateDetail('style', event.target.value)} placeholder="e.g. cinematic, documentary" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-mood" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Mood</label><input id="vyra-storyboard-mood" value={mood} onChange={(event) => updateDetail('mood', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
+                  <div className="space-y-1"><label htmlFor="vyra-storyboard-tags" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input id="vyra-storyboard-tags" value={tags} onChange={(event) => updateDetail('tags', event.target.value)} placeholder="Comma-separated" disabled={isSuggesting} className={inputClass} /></div>
+                </div>
+                {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
+                <div className="flex flex-wrap justify-between gap-2 pt-2">
+                  <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
+                  <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? "Preparing…" : "Create Storyboard"}</Button></div>
+                </div>
+              </form>
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+};
