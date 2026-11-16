@@ -1,3 +1,4 @@
+import { getVyralAssetLocalCopy } from './vyralAssetLocalCache';
 export type VyralMediaPlaybackRequest = { assetId: string; versionId: string };
 export type VyralMediaPlaybackResult = { signedUrl: string; expiresInSeconds: number };
 export type VyralPlayableMediaType = 'audio' | 'video' | 'image';
@@ -24,6 +25,14 @@ export async function createVyralMediaPlaybackUrl(
   const user = authData?.user;
   if (authError || !user?.id || !UUID.test(user.id)) {
     throw new Error('Sign in again before previewing this ' + label + ' Asset.');
+  }
+
+  // Prefer the exact immutable copy saved on this device. This also lets
+  // previously cached media open when the network or Cloud Storage is offline.
+  const localCopy = await getVyralAssetLocalCopy(user.id, request.assetId, request.versionId);
+  if (localCopy && localCopy.mimeType.toLowerCase().startsWith(mediaType + '/') &&
+      localCopy.sizeBytes === localCopy.blob.size && typeof URL !== 'undefined') {
+    return { signedUrl: URL.createObjectURL(localCopy.blob), expiresInSeconds: SIGNED_URL_TTL_SECONDS };
   }
 
   const { data: asset, error: assetError } = await db.from('vyral_assets')
