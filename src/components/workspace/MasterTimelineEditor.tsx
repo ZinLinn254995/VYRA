@@ -686,63 +686,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     });
   };
 
-  // Once a visual trim is released, move the complete timeline origin so
-  // the earliest Scenes clip and the ruler's 00:00 mark share the same point.
-  // During the drag, negative starts remain visible; normalization happens only
-  // on release and shifts every media layer equally to preserve synchronization.
-  const normalizeTimelineOrigin = () => {
-    const visualClips = visibleVideoTracks.flatMap((track) => track.clips);
-    if (!visualClips.length) return;
-    const earliestStart = Math.min(...visualClips.map((item) => item.start));
-    // Rebase for either direction: a leftward start trim can make the
-    // first clip negative, while a rightward start trim can leave it positive.
-    // In both cases the earliest Scenes clip becomes the new ruler 00:00.
-    if (!Number.isFinite(earliestStart) || Math.abs(earliestStart) < 0.0001) return;
-    const offset = -earliestStart;
-    const videoTracks = (value?.videoTracks || []).map((track) => ({
-      ...track,
-      clips: track.clips.map((item) => ({ ...item, start: item.start + offset })),
-    }));
-    const sceneInstances = (value?.sceneInstances || []).map((instance) => {
-      const sceneIndex = orderedScenes.findIndex((item) => item.id === instance.sceneId);
-      if (instance.videoClips?.length) {
-        return { ...instance, videoClips: instance.videoClips.map((item) => ({ ...item, start: item.start + offset })) };
-      }
-      if (instance.assetId && instance.assetVersionId &&
-        (instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/'))) {
-        const sourceIn = instance.videoSourceIn ?? 0;
-        const sourceOut = instance.videoSourceOut ?? (orderedScenes[sceneIndex]?.duration ?? 0);
-        return {
-          ...instance,
-          videoClips: [{
-            id: instance.id,
-            name: orderedScenes[sceneIndex]?.title || 'Scene media',
-            start: offset,
-            duration: Math.max(0.1, Math.min(orderedScenes[sceneIndex]?.duration ?? sourceOut - sourceIn, sourceOut - sourceIn)),
-            sourceIn,
-            sourceOut,
-            assetId: instance.assetId,
-            assetVersionId: instance.assetVersionId,
-            assetMimeType: instance.assetMimeType,
-            mediaKind: instance.assetMimeType?.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
-          }],
-        };
-      }
-      return instance;
-    });
-    const shiftTracks = (tracks: TimelineTrack[]) => tracks.map((track) => ({
-      ...track,
-      clips: track.clips.map((item) => ({ ...item, start: item.start + offset })),
-    }));
-    commitChange({
-      sceneRanges: value?.sceneRanges || {},
-      sceneInstances,
-      transitions: value?.transitions || {},
-      audioTracks: shiftTracks(value?.audioTracks || []),
-      videoTracks,
-      textTracks: shiftTracks(value?.textTracks || []),
-    });
-  };
 
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
@@ -2239,7 +2182,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                                   const fixedEnd = initialStart + initialDuration;
                                   // Images have no source-in limit and may extend left of 00:00.
                                   // Videos remain bounded by the actual source media available before sourceIn.
-                                  const sourceStartBoundary = isImage ? Number.NEGATIVE_INFINITY : initialStart - initialSourceIn;
+                                  const sourceStartBoundary = isImage ? 0 : Math.max(0, initialStart - initialSourceIn);
                                   nextClipStart = Math.max(sourceStartBoundary, Math.min(fixedEnd - minDuration, initialStart + delta));
                                   nextClipDuration = fixedEnd - nextClipStart;
                                   rippleDelta = nextClipStart - initialStart;
@@ -2255,7 +2198,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                               onPointerUp={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                normalizeTimelineOrigin();
                                 if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
                               }}
                               onPointerCancel={(event) => {
