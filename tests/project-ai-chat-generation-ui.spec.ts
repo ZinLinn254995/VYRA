@@ -136,3 +136,13 @@ test('video frame sampling includes both the opening and closing edge of the gen
   assert.ok(chat.includes('lastSafeFrameTime * index / (frameCount - 1)'));
   assert.ok(chat.includes('Math.min(0.05, duration / 10)'));
 });
+
+
+test('Project AI Chat compares the previous shot final frame with the current shot opening frame', () => {
+  const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
+  assert.ok(chat.includes('inspectTransition: async'));
+  assert.ok(chat.includes("boundary === 'closing' ? frames[frames.length - 1] : frames[0]"));
+  assert.ok(chat.includes('buildSceneVisualTransitionPrompt'));
+  assert.ok(chat.includes('parseSceneVisualInspection(vision.content, transitionAnchors, [0, 1])'));
+  assert.ok(chat.includes('shot.transitionVerification'));
+});
