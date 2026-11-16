@@ -179,8 +179,8 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
   assert.ok(chat.includes('previous Editor clip remains unchanged until verification passes'));
   assert.ok(chat.includes('The existing Editor clip was kept'));
-  assert.ok(chat.includes('downstream shot boundaries have not yet been re-inspected'));
-  assert.ok(chat.includes('downstream boundaries still need review'));
+  assert.ok(chat.includes('all available downstream shot boundaries were re-inspected'));
+  assert.ok(chat.includes('A fresh quote and your approval are required.'));
   assert.ok(chat.includes('setPendingShotRepair(null)'));
 });
 
@@ -239,7 +239,7 @@ test('continuity findings identify both sides of a failed handoff and never repa
   assert.ok(chat.includes('const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedDownstreamShot?.shotIndex ?? failedShot?.shotIndex'));
   assert.ok(chat.includes('shotIndex: repairTargetShotIndex'));
   assert.ok(chat.includes('buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)'));
-  assert.ok(chat.includes('The earlier repair target will not be regenerated.'));
+  assert.ok(chat.includes('the earlier repair target will not be regenerated.'));
   assert.ok(chat.includes("finding.status === 'mismatch'"));
   assert.ok(chat.includes('const actionableShotVerification = failedShot?.visualVerifications?.find((verification) =>'));
   assert.ok(chat.includes('buildSceneVisualRepairPrompt(actionableShotVerification, repairTargetShotPlan)'));
