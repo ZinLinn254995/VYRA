@@ -255,7 +255,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           project: {
             ...project,
             // Append-only: never replace or edit an earlier repair event.
-            repairHistory: [...history, entry].slice(-100),
+            repairHistory: [...history, entry],
             updatedAt: now,
           },
         };
