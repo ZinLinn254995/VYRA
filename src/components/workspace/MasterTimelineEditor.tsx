@@ -588,18 +588,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const orderedVisualClips = visibleVideoTracks.flatMap((track, trackIndex) =>
     track.clips.map((clip) => ({ clip, trackIndex })),
   ).sort((a, b) => a.clip.start - b.clip.start || a.clip.duration - b.clip.duration);
-  const videoTransitionMarkers = orderedVisualClips.slice(0, -1).flatMap((entry, index) => {
+  let scenesRowBoundary = 0;
+  const videoTransitionMarkers = orderedVisualClips.slice(0, -1).map((entry, index) => {
     const nextEntry = orderedVisualClips[index + 1];
     const clip = entry.clip;
     const nextClip = nextEntry.clip;
-    const clipEnd = clip.start + clip.duration;
-    // A transition can bridge a clean cut or an intentional overlap, but not
-    // an empty gap. This also allows transitions across stacked Video rows.
-    if (nextClip.start > clipEnd + 0.001) return [];
-    const boundary = Math.max(clip.start, Math.min(clipEnd, nextClip.start));
+    // The Scenes row uses the same gapless, edge-to-edge layout as the former
+    // Scene cards. Its transition positions therefore follow clip durations.
+    scenesRowBoundary += clip.duration;
+    const boundary = scenesRowBoundary;
     const legacySceneBoundary = sceneTransitionMarkers.find((item) => Math.abs(item.boundary - boundary) <= 0.001);
     const key = legacySceneBoundary?.key || (clip.id + ':' + nextClip.id);
-    return [{ key, boundary, rowIndex: entry.trackIndex, transition: value?.transitions?.[key] }];
+    return { key, boundary, rowIndex: entry.trackIndex, transition: value?.transitions?.[key] };
   });
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
@@ -1841,39 +1841,47 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                   </div>
                 ))}
               </div>
-              {visibleVideoTracks.map((track, trackIndex) => (
-                <div key={track.id} data-video-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/55">
-                  {track.clips.map((clip) => {
-                    const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
-                    return (
-                      <div key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
-                        title={clip.name + ' · ' + clip.duration.toFixed(1) + 's'}
-                        className={`absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border px-2 text-[10px] font-medium text-[var(--vyra-text-primary)] ${clip.isPlaceholder ? 'border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]/70 text-[var(--vyra-text-secondary)]' : 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-accent-primary)]/15'}`}
-                        style={{ left: clip.start * pixelsPerSecond, width: Math.max(24, clip.duration * pixelsPerSecond) }}>
-                        {isImage ? <ImageIcon size={12} className="mr-1 shrink-0" /> : <Video size={12} className="mr-1 shrink-0" />}
-                        <span className="truncate">{clip.name}</span>
-                      </div>
-                    );
-                  })}
-                  {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex).map(({ key, boundary, transition }) => (
-                    <button key={key} type="button" data-timeline-transition-key={key}
-                      title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
-                      aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
-                      aria-pressed={selectedTransitionKey === key}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedSceneIds([]);
-                        setSelectedTextClip(null);
-                        setSelectedAudioClip(null);
-                        setSelectedTransitionKey((current) => current === key ? null : key);
-                      }}
-                      className={`absolute top-1/2 z-10 grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border text-[11px] font-bold shadow-sm ${selectedTransitionKey === key ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]'}`}
-                      style={{ left: boundary * pixelsPerSecond }}>
-                      {transition ? '↔' : '+'}
-                    </button>
-                  ))}
-                </div>
-              ))}
+              {visibleVideoTracks.map((track, trackIndex) => {
+                const sceneStyleClips = [...track.clips].sort((a, b) => a.start - b.start || a.duration - b.duration);
+                let sceneCardOffset = 0;
+                return (
+                  <div key={track.id} data-video-track-id={track.id} className="relative flex h-16 items-center gap-0 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/55 py-2">
+                    {sceneStyleClips.map((clip, clipIndex) => {
+                      const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
+                      const width = Math.max(24, clip.duration * pixelsPerSecond);
+                      const left = sceneCardOffset;
+                      sceneCardOffset += width;
+                      return (
+                        <button key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
+                          type="button" title={clip.name + ' · ' + clip.duration.toFixed(1) + 's'}
+                          aria-label={(isImage ? 'Image' : 'Video') + ': ' + clip.name}
+                          className="group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10 px-3 text-[10px] font-medium text-[var(--vyra-text-secondary)] transition-colors"
+                          style={{ width }}>
+                          {isImage ? <ImageIcon size={12} className="mr-1 shrink-0" /> : <Video size={12} className="mr-1 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate text-center">{clip.name}</span>
+                        </button>
+                      );
+                    })}
+                    {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex).map(({ key, boundary, transition }) => (
+                      <button key={key} type="button" data-timeline-transition-key={key}
+                        title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
+                        aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
+                        aria-pressed={selectedTransitionKey === key}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedSceneIds([]);
+                          setSelectedTextClip(null);
+                          setSelectedAudioClip(null);
+                          setSelectedTransitionKey((current) => current === key ? null : key);
+                        }}
+                        className={`absolute top-1/2 z-10 inline-flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition-colors ${transition ? 'px-2 text-[10px] font-semibold' : 'w-7 p-0'} ${selectedTransitionKey === key ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white' : transition ? 'border-[var(--vyra-accent-primary)]/60 bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-primary)] hover:border-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-muted)] hover:border-[var(--vyra-accent-primary)] hover:text-[var(--vyra-text-primary)]'}`}
+                        style={{ left: boundary * pixelsPerSecond }}>
+                        {transition ? transition.effect : <Plus aria-hidden="true" className="block shrink-0" size={18} strokeWidth={1.6} />}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
               {textTracks.map((track) => (
                 <div key={track.id} data-text-track-id={track.id} className="relative h-12 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40">
                   {track.clips.map((clip) => {
