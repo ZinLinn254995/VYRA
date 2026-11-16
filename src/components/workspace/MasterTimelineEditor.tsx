@@ -2295,7 +2295,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                               onPointerUp={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                normalizeScenesOrigin();
+                                if (handle.dataset.edge === 'left') normalizeScenesOrigin();
                                 if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
                               }}
                               onPointerCancel={(event) => {
