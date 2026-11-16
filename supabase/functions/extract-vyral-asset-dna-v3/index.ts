@@ -201,9 +201,21 @@ Deno.serve(async (request: Request) => {
   } catch (error) {
     if (uploaded.length) await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
     const detail = error instanceof Error ? error.message : 'Unknown raster extraction error.';
-    return reply({ error: tileUploadStarted
-      ? 'DNA tile upload failed; uploaded tiles were rolled back.'
-      : 'Pinned raster decode failed.', detail }, tileUploadStarted ? 500 : 422);
+    const pixelCount = width > 0 && height > 0 ? width * height : null;
+    const pixelLimitExceeded = detail.includes('10-megapixel DNA v3 limit');
+    console.error('[vyral-dna-v3] raster extraction failed.', JSON.stringify({
+      phase: tileUploadStarted ? 'tile_upload_or_persistence' : 'pinned_decode',
+      detail, source_bytes: size, width: width || null, height: height || null,
+      pixel_count: pixelCount, max_pixels: MAX_PIXELS,
+      elapsed_ms: Math.round(performance.now() - startedAt),
+    }));
+    return reply({
+      error: tileUploadStarted
+        ? 'DNA tile upload failed; uploaded tiles were rolled back.'
+        : 'Pinned raster decode failed.',
+      code: pixelLimitExceeded ? 'IMAGE_PIXEL_LIMIT_EXCEEDED' : (tileUploadStarted ? 'DNA_TILE_UPLOAD_FAILED' : 'RASTER_DECODE_FAILED'),
+      detail, width: width || null, height: height || null, pixelCount, maxPixels: MAX_PIXELS,
+    }, tileUploadStarted ? 500 : (pixelLimitExceeded ? 413 : 422));
   }
 
   logExtractionPhase('image_decoded_and_tiled', startedAt, { width, height, pixel_count: width * height });
