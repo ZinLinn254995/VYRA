@@ -7,6 +7,7 @@ const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePag
 const generation = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
 const masterEditor = readFileSync(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
 const videoPlanner = readFileSync(new URL('../src/server/masterTimelineVideoPlayback.ts', import.meta.url), 'utf8');
+const shotTimeline = readFileSync(new URL('../src/services/directorShotTimeline.ts', import.meta.url), 'utf8');
 
 test('Project AI Chat exposes media creation without changing global chat composer behavior', () => {
   assert.ok(chat.includes('generateRunwayProjectMedia'));
@@ -76,7 +77,7 @@ test('completed Director shots are linked to the selected Scene Project timeline
   assert.ok(workspace.includes('handleShotSequenceReady'));
   assert.ok(workspace.includes('onShotSequenceReady={handleShotSequenceReady}'));
   assert.ok(workspace.includes("'ai-director-shots-' + scene.id"));
-  assert.ok(workspace.includes("source: 'ai_director_shot'"));
+  assert.ok(shotTimeline.includes("source: 'ai_director_shot' as const"));
   assert.ok(workspace.includes('assetVersionId: shot.assetVersionId'));
   assert.ok(workspace.includes('assetMimeType: shot.mimeType'));
   assert.ok(workspace.includes('preservedManualClips'));
@@ -159,10 +160,10 @@ test('shot repair handoff replaces only the matching Editor clip and preserves t
   assert.ok(generation.includes('replaceShot?: boolean'));
   assert.ok(workspace.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
   assert.ok(workspace.includes('sequence.replaceShot'));
-  assert.ok(workspace.includes('const replaced = existingDirectorClips.map((clip) =>'));
-  assert.ok(workspace.includes('return incoming ? { ...incoming, start: clip.start } : clip;'));
-  assert.ok(workspace.includes('const appendAt = existingDirectorClips.reduce'));
-  assert.ok(workspace.includes('cursor = combined.reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);'));
+  assert.ok(shotTimeline.includes('const replaced = existingDirectorClips.map((clip) =>'));
+  assert.ok(shotTimeline.includes('return candidate ? { ...candidate, start: clip.start } : clip;'));
+  assert.ok(shotTimeline.includes('const appendAt = existingDirectorClips.reduce'));
+  assert.ok(shotTimeline.includes('clips = [...replaced, ...missing].sort((a, b) => a.start - b.start);'));
   assert.ok(workspace.includes('const videoClips = generatedClips.map'));
 });
 
