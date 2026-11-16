@@ -258,6 +258,57 @@ test('shot orchestrator completes the ordered sequence only after every Shot and
   assert.equal(result.approvedCostUsd, 0.5);
 });
 
+test('shot sequence cancellation during visual inspection never starts the next paid Shot', async () => {
+  const controller = new AbortController();
+  const generated: number[] = [];
+  const approved: number[] = [];
+  const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
+    mediaRequest: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[1]) => {
+    const shotIndex = generated.length;
+    generated.push(shotIndex);
+    const quote = sequenceQuote(0.2);
+    const approval = await mediaRequest.requestApproval(quote);
+    if (!approval.confirmed) return { status: 'approval_declined' as const, quote };
+    approved.push(shotIndex);
+    return { status: 'ready' as const, quote, jobId: 'cancel-job-' + shotIndex, assets: [sequenceAsset(shotIndex)] };
+  };
+  await assert.rejects(
+    (await import('../src/services/runwayProjectGeneration')).generateRunwayProjectShotSequence(
+      sequenceDb,
+      sequenceRequest({
+        signal: controller.signal,
+        requestApproval: async () => ({ confirmed: true as const, maxCostUsd: 0.25 }),
+        visualVerification: {
+          baselineRevision: 'scene-rev-1',
+          anchors: [{ path: 'character.identity', expectedValue: 'A', scope: 'persistent', visibility: 'required' }],
+          inspect: async ({ anchors }) => {
+            controller.abort();
+            return {
+              inspectionComplete: true,
+              observations: anchors.map((anchor) => ({
+                path: anchor.path, status: 'match' as const, confidence: 0.99,
+                evidence: 'The sampled frames match the approved baseline.',
+              })),
+            };
+          },
+          inspectTransition: async ({ anchors }) => ({
+            inspectionComplete: true,
+            observations: anchors.map((anchor) => ({
+              path: anchor.path, status: 'match' as const, confidence: 0.99,
+              evidence: 'The boundary matches the approved continuity anchors.',
+            })),
+          }),
+          getCurrentBaselineRevision: async () => 'scene-rev-1',
+        },
+      }),
+      { generateMedia: fakeGenerate as typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia },
+    ),
+    (error: unknown) => error instanceof Error && error.name === 'AbortError',
+  );
+  assert.deepEqual(generated, [0]);
+  assert.deepEqual(approved, [0]);
+});
+
 test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
   const calls: number[] = [];
   const fakeGenerate = async (_db: Parameters<typeof import('../src/services/runwayProjectGeneration').generateRunwayProjectMedia>[0],
