@@ -502,6 +502,9 @@ export function validateFinalSceneRepairCoverage(input: {
     || expectedBoundaryIndices.some((index, position) => checkedBoundaryIndices[position] !== index)) {
     reasons.push('One or more incoming/downstream shot boundaries are missing a complete continuity inspection.');
   }
+  if (allVerifications.some((item) => item.status !== 'consistent')) {
+    reasons.push('At least one shot or boundary did not pass visual continuity verification.');
+  }
   if (allVerifications.some((item) => item.baselineRevision !== input.baselineRevision)) {
     reasons.push('The verification results do not share the same approved Scene baseline revision.');
   }
