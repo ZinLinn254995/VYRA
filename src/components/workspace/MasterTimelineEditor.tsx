@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
+import { placeTimelineMediaClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
@@ -42,6 +44,7 @@ export type TimelineClip = {
   assetId?: string;
   assetVersionId?: string;
   assetMimeType?: string;
+  mediaKind?: 'video' | 'image' | 'audio';
 };
 
 export type TimelineTrack = {
@@ -72,6 +75,7 @@ export type SceneTimelineInstance = {
 export type MasterTimelineData = {
   sceneRanges: Record<string, { sourceIn: number; sourceOut: number }>;
   sceneInstances?: SceneTimelineInstance[];
+  videoTracks?: TimelineTrack[];
   transitions: Record<string, { effect: string; duration: number }>;
   audioTracks: TimelineTrack[];
   textTracks: TimelineTrack[];
@@ -87,6 +91,7 @@ type Scene = {
 
 type Props = {
   scenes: Scene[];
+  vyralId?: string;
   value?: MasterTimelineData;
   onChange: (next: MasterTimelineData) => void;
   onSceneOrderChange: (sceneIds: string[]) => void;
@@ -108,8 +113,11 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState('');
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
@@ -523,9 +531,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
   const textTracks = value?.textTracks || [];
   const textContentEnd = textTracks.flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
   const audioContentEnd = (value?.audioTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
+  const videoContentEnd = (value?.videoTracks || []).flatMap((track) => track.clips).reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
   // Audio and Text can extend the shared timeline beyond the Scene sequence.
   // Scene source durations remain unchanged; the ruler grows to fit all content.
-  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd);
+  const totalDuration = Math.max(1, sceneTotalDuration, textContentEnd, audioContentEnd, videoContentEnd);
   const timelineWidth = totalDuration * pixelsPerSecond;
   const stopMasterTimelinePlayback = () => {
     masterPlaybackRequestIdRef.current += 1;
@@ -856,7 +865,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, value, onChange,
       name: 'Audio',
       clips: [{ id: crypto.randomUUID(), name: 'New Audio', content: 'New Audio', start, duration, waveform: [] }],
     };
-    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, videoTracks: value?.videoTracks || [], transitions: value?.transitions || {}, audioTracks: [...(value?.audioTracks || []), nextTrack], textTracks: value?.textTracks || [] });
     revealNewTimelineRow('audio', nextTrackId);
   };
 
