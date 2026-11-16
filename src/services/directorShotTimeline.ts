@@ -49,13 +49,23 @@ export function buildDirectorShotTimelineClips(
       return arranged;
     });
   } else {
-    const replaced = existingDirectorClips.map((clip) => {
-      const candidate = incoming.find((item) => item.shotId === clip.shotId);
-      return candidate ? { ...candidate, start: clip.start } : clip;
+    const replacementByShot = new Map(incoming.map((clip) => [clip.shotId, clip]));
+    const orderedExisting = [...existingDirectorClips].sort((a, b) => a.start - b.start);
+    let shiftAfter = 0;
+    const replaced = orderedExisting.map((clip) => {
+      const shiftedStart = clip.start + shiftAfter;
+      const candidate = replacementByShot.get(clip.shotId);
+      if (!candidate) return { ...clip, start: shiftedStart };
+      const replacementClip = { ...candidate, start: shiftedStart };
+      // Keep the Director sequence contiguous: if a repaired Shot changes
+      // duration, move every later Director Shot by the same delta. This
+      // prevents overlaps and silent gaps while preserving their order.
+      shiftAfter += replacementClip.duration - clip.duration;
+      return replacementClip;
     });
-    const appendAt = existingDirectorClips.reduce(
+    const appendAt = orderedExisting.reduce(
       (end, clip) => Math.max(end, clip.start + clip.duration), 0,
-    );
+    ) + shiftAfter;
     const missing = incoming
       .filter((item) => !existingDirectorClips.some((clip) => clip.shotId === item.shotId))
       .map((clip) => ({ ...clip, start: appendAt }));
