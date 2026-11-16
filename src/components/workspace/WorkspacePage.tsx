@@ -877,17 +877,48 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         .select('id').maybeSingle();
       let saveError = updateError;
       if (!saveError && !updatedRow) {
-        // Insert only when the row is absent. Never use upsert here: it could
-        // overwrite a deletion tombstone created on another device.
-        const { error: insertError } = await client.from('vyral_storyboards').insert(payload);
-        if (insertError) {
-          const { data: latestRow, error: latestError } = await client.from('vyral_storyboards')
-            .select('details').eq('id', item.id).eq('user_id', authData.user.id).maybeSingle();
-          const latestDetails = latestRow?.details && typeof latestRow.details === 'object'
-            ? latestRow.details as Record<string, unknown>
-            : {};
-          const deletionWon = typeof latestDetails.__vyraDeletedAt === 'string';
-          saveError = deletionWon ? null : (latestError || insertError);
+        // A missing update result can mean the Project was deleted, another
+        // device saved a newer snapshot, or the row does not exist yet.
+        // Read before inserting so a stale snapshot never causes a duplicate
+        // insert attempt or a misleading Cloud Sync warning.
+        const { data: existingRow, error: existingError } = await client.from('vyral_storyboards')
+          .select('details,updated_at').eq('id', item.id).eq('user_id', authData.user.id).maybeSingle();
+        const existingDetails = existingRow?.details && typeof existingRow.details === 'object'
+          ? existingRow.details as Record<string, unknown>
+          : {};
+        const deletionWon = typeof existingDetails.__vyraDeletedAt === 'string';
+        const existingUpdatedAt = Date.parse(existingRow?.updated_at || '');
+        const itemUpdatedAt = Date.parse(item.updatedAt);
+        const newerCloudSnapshot = Number.isFinite(existingUpdatedAt) &&
+          Number.isFinite(itemUpdatedAt) && existingUpdatedAt >= itemUpdatedAt;
+
+        if (deletionWon || newerCloudSnapshot) {
+          // The Cloud copy is intentionally authoritative over this stale save.
+          saveError = null;
+        } else if (existingError) {
+          saveError = existingError;
+        } else if (existingRow) {
+          // The row exists but did not satisfy the compare-and-set update.
+          // Do not insert or overwrite it; the next Cloud sync can reconcile it.
+          saveError = new Error('The Cloud Project changed during save. Sync again before retrying.');
+        } else {
+          // Insert only when the row is absent. Never use upsert here: it could
+          // overwrite a deletion tombstone created on another device.
+          const { error: insertError } = await client.from('vyral_storyboards').insert(payload);
+          if (insertError) {
+            const { data: latestRow, error: latestError } = await client.from('vyral_storyboards')
+              .select('details,updated_at').eq('id', item.id).eq('user_id', authData.user.id).maybeSingle();
+            const latestDetails = latestRow?.details && typeof latestRow.details === 'object'
+              ? latestRow.details as Record<string, unknown>
+              : {};
+            const latestUpdatedAt = Date.parse(latestRow?.updated_at || '');
+            const concurrentSaveWon = Number.isFinite(latestUpdatedAt) &&
+              Number.isFinite(itemUpdatedAt) && latestUpdatedAt >= itemUpdatedAt;
+            const deletionWonAfterInsert = typeof latestDetails.__vyraDeletedAt === 'string';
+            saveError = deletionWonAfterInsert || concurrentSaveWon
+              ? null
+              : (latestError || insertError);
+          }
         }
       }
       if (storyboardStorageKeyRef.current === ownerStorageKey && storyboardSaveQueueRef.current.get(item.id) === saveTask) {
