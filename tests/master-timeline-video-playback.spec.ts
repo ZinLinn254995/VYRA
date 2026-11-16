@@ -83,3 +83,58 @@ test('deduplicates repeated Scene instances without replaying a Scene twice', ()
   assert.deepEqual(plan.map((item) => item.sceneId), ['scene-b', 'scene-a', 'scene-c']);
   assert.deepEqual(plan.map((item) => item.playbackStartSeconds), [0, 8, 13]);
 });
+
+test('plays multiple generated shot Assets in order inside one Master Timeline Scene', () => {
+  const shotInstance = [{
+    id: 'scene-shot-sequence',
+    sceneId: 'scene-a',
+    sourceIn: 0,
+    sourceOut: 5,
+    videoClips: [
+      { id: 'shot-1', name: 'Shot 1', start: 0, duration: 2, sourceIn: 0, sourceOut: 2, assetId: 'shot-asset-1', assetVersionId: 'shot-version-1', assetMimeType: 'video/mp4' },
+      { id: 'shot-2', name: 'Shot 2', start: 2, duration: 3, sourceIn: 0, sourceOut: 3, assetId: 'shot-asset-2', assetVersionId: 'shot-version-2', assetMimeType: 'video/webm' },
+    ],
+  }];
+  const plan = buildMasterTimelineVideoPlaybackPlan([scenes[0]], shotInstance, 0);
+  assert.deepEqual(plan.map((item) => ({
+    instanceId: item.instanceId,
+    assetId: item.assetId,
+    start: item.timelineStartSeconds,
+    end: item.timelineEndSeconds,
+    delay: item.delaySeconds,
+    offset: item.sourceOffsetSeconds,
+    duration: item.durationSeconds,
+    playbackStart: item.playbackStartSeconds,
+    playbackEnd: item.playbackEndSeconds,
+  })), [
+    { instanceId: 'scene-shot-sequence:shot-1', assetId: 'shot-asset-1', start: 0, end: 2, delay: 0, offset: 0, duration: 2, playbackStart: 0, playbackEnd: 2 },
+    { instanceId: 'scene-shot-sequence:shot-2', assetId: 'shot-asset-2', start: 2, end: 5, delay: 2, offset: 0, duration: 3, playbackStart: 2, playbackEnd: 5 },
+  ]);
+});
+
+test('seeks into the correct generated shot without replaying earlier shots', () => {
+  const shotInstance = [{
+    id: 'scene-shot-sequence', sceneId: 'scene-a', sourceIn: 0, sourceOut: 5,
+    videoClips: [
+      { id: 'shot-1', start: 0, duration: 2, assetId: 'shot-asset-1', assetVersionId: 'shot-version-1', assetMimeType: 'video/mp4' },
+      { id: 'shot-2', start: 2, duration: 3, assetId: 'shot-asset-2', assetVersionId: 'shot-version-2', assetMimeType: 'video/mp4' },
+    ],
+  }];
+  const plan = buildMasterTimelineVideoPlaybackPlan([scenes[0]], shotInstance, 2.5);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].instanceId, 'scene-shot-sequence:shot-2');
+  assert.equal(plan[0].sourceOffsetSeconds, 0.5);
+  assert.equal(plan[0].playbackStartSeconds, 2.5);
+  assert.equal(plan[0].playbackEndSeconds, 5);
+});
+
+test('ignores malformed or non-video generated shot clips without falling back to a stale Scene render', () => {
+  const shotInstance = [{
+    ...instances[0],
+    videoClips: [
+      { id: 'bad', start: 0, duration: 2, assetId: 'asset-bad', assetVersionId: '', assetMimeType: 'video/mp4' },
+      { id: 'audio', start: 2, duration: 3, assetId: 'asset-audio', assetVersionId: 'version-audio', assetMimeType: 'audio/mpeg' },
+    ],
+  }];
+  assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], shotInstance, 0), []);
+});
