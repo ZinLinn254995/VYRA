@@ -25,7 +25,8 @@ function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?
     async uploadOriginal() { calls.push('uploadOriginal'); if (options.failAt === 'uploadOriginal') throw new Error('storage failed'); },
     async createVersion() { calls.push('createVersion'); if (options.failAt === 'createVersion') throw new Error('version failed'); return versionId; },
     async createFingerprint() { calls.push('createFingerprint'); if (options.failAt === 'createFingerprint') throw new Error('fingerprint failed'); },
-    async extractRasterDna(_assetId, _versionId, signal) { rasterSignal = signal; calls.push('extractRasterDna'); return { status: options.rasterStatus ?? 'extracted', error: 'extract failed' }; },
+    async extractRasterDna(_assetId, _versionId, signal) { rasterSignal = signal; calls.push('extractRasterDna'); return { status: options.rasterStatus ?? 'extracted', dnaRecordId: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45', error: 'extract failed' }; },
+    async verifyRasterDna() { calls.push('verifyRasterDna'); return { status: 'passed' }; },
     async insertDna() { calls.push('insertDna'); if (options.failAt === 'insertDna') throw new Error('DNA insert failed'); },
     async hasDnaRecord() { calls.push('hasDnaRecord'); return options.dnaExists ?? false; },
     async markReady() { calls.push('markReady'); if (options.failAt === 'markReady') throw new Error('ready update failed'); },
@@ -320,8 +321,11 @@ test('generated media uses the same canonical Asset and DNA ingestion path with 
     },
   });
   assert.equal(result.dnaKind, 'raster-v3');
+  assert.equal(result.exactVerificationStatus, 'passed');
   assert.equal(calls[0], 'createAsset');
   assert.equal(calls.includes('extractRasterDna'), true);
+  assert.ok(calls.indexOf('verifyRasterDna') > calls.indexOf('extractRasterDna'));
+  assert.ok(calls.indexOf('verifyRasterDna') < calls.indexOf('markReady'));
   assert.equal(calls.at(-1), 'markReady');
 });
 
