@@ -145,6 +145,51 @@ export function placeTimelineMediaClip(
 
 
 /**
+ * Place Audio or Text on the bottom-most row only. Reuse that row when the
+ * complete new interval is free; otherwise append one new row below it.
+ * A clip touching either endpoint is not an overlap, so exact adjacency fits.
+ */
+export function placeTimelineOverlayClip(
+  tracks: TimelineMediaTrackRow[],
+  clip: TimelineMediaClipPlacement,
+  layerName: 'Audio' | 'Text',
+  createId: () => string,
+): TimelineMediaPlacementResult {
+  if (!clip.id || !Number.isFinite(clip.start) || clip.start < 0 ||
+      !Number.isFinite(clip.duration) || clip.duration <= 0) {
+    throw new Error('Timeline clip start and duration must be valid non-negative values.');
+  }
+
+  const rowIndex = tracks.length - 1;
+  const bottomRow = tracks[rowIndex];
+  const clipEnd = clip.start + clip.duration;
+  const fitsBottomRow = bottomRow && bottomRow.clips.every((existing) => {
+    const existingEnd = existing.start + existing.duration;
+    return clip.start >= existingEnd - EPSILON || clipEnd <= existing.start + EPSILON;
+  });
+
+  if (bottomRow && fitsBottomRow) {
+    const nextTracks = tracks.map((track, index) => index === rowIndex
+      ? { ...track, clips: [...track.clips, clip].sort((a, b) => a.start - b.start) }
+      : track);
+    return { tracks: nextTracks, trackId: bottomRow.id, rowIndex, createdTrack: false };
+  }
+
+  const nextRowIndex = tracks.length;
+  const track = {
+    id: createId(),
+    name: layerName + (nextRowIndex + 1),
+    clips: [clip],
+  };
+  return {
+    tracks: [...tracks, track],
+    trackId: track.id,
+    rowIndex: nextRowIndex,
+    createdTrack: true,
+  };
+}
+
+/**
  * Combine AI Director media and creator-uploaded media into exactly one
  * shared Video row. Overlapping clips remain on that row as layered clips.
  */
