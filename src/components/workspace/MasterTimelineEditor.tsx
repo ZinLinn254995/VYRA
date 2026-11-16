@@ -1053,9 +1053,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else nextVideoTracks = placement.tracks as TimelineTrack[];
         const nextTransitions = { ...(value?.transitions || {}) };
-        if (kind !== 'audio' && previousVisualClip) {
-          nextTransitions[previousVisualClip.id + ':' + clip.id] = { effect: 'dissolve', duration: 0.5 };
-        }
         commitChange({
           sceneRanges: value?.sceneRanges || {},
           sceneInstances: value?.sceneInstances,
@@ -1331,7 +1328,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         : track)
       : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [sampleClip] }];
     const nextTransitions = { ...(value?.transitions || {}) };
-    if (previousClip) nextTransitions[previousClip.id + ':' + clipId] = { effect: 'dissolve', duration: 0.5 };
     commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: value?.sceneInstances,
