@@ -815,25 +815,36 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   }, [pendingSceneStateProposal, activeStoryboard?.id, activeStoryboard?.details?.scenes, onSceneStateProposalConsumed]);
 
   useEffect(() => {
-    if (!activeStoryboard || !activeStoryboardConfirmed) return;
+    const ownerStorageKey = storageKey;
+    if (!activeStoryboard || !activeStoryboardConfirmed || loadedStorageKey !== ownerStorageKey) return;
     const snapshot = activeStoryboard;
     const timer = window.setTimeout(() => {
+      // A timer created for the previous account must not update the next
+      // account's local Project list or schedule a Cloud Save after switching.
+      if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       const saved = { ...snapshot, updatedAt: new Date().toISOString() };
-      setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item));
-      void persistStoryboard(saved);
+      setStoryboards((current) => storyboardStorageKeyRef.current === ownerStorageKey
+        ? current.map((item) => item.id === saved.id ? saved : item)
+        : current);
+      void persistStoryboard(saved, ownerStorageKey);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeStoryboard, activeStoryboardConfirmed]);
+  }, [activeStoryboard, activeStoryboardConfirmed, storageKey, loadedStorageKey]);
 
   useLayoutEffect(() => {
     const content = document.querySelector<HTMLElement>('.profile-subpage-content');
     if (content) updateStoryboardHeaderCompact(content);
   }, [activeStoryboard?.id, activeStoryboard?.title, activeStoryboard?.topic, activeStoryboardConfirmed]);
 
-  const persistStoryboard = async (item: Storyboard) => {
+  const persistStoryboard = async (
+    item: Storyboard,
+    expectedOwnerStorageKey = storyboardStorageKeyRef.current,
+  ) => {
     const client = supabase;
-    const ownerStorageKey = storyboardStorageKeyRef.current;
-    if (!isAuthenticated || !client || !isPersistableStoryboardId(item.id) || deletedStoryboardIdsRef.current.has(item.id)) return;
+    const ownerStorageKey = expectedOwnerStorageKey;
+    if (storyboardStorageKeyRef.current !== ownerStorageKey ||
+        !isAuthenticated || !client || !isPersistableStoryboardId(item.id) ||
+        deletedStoryboardIdsRef.current.has(item.id)) return;
 
     // A queued save belongs to the account that scheduled it. Never let it
     // resume under a different signed-in account after an owner switch.
