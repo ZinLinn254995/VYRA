@@ -13,6 +13,16 @@ export type MasterTimelineVideoInstance = {
   assetMimeType?: string | null;
   videoSourceIn?: number | null;
   videoSourceOut?: number | null;
+  videoClips?: Array<{
+    id: string;
+    start: number;
+    duration: number;
+    sourceIn?: number | null;
+    sourceOut?: number | null;
+    assetId?: string | null;
+    assetVersionId?: string | null;
+    assetMimeType?: string | null;
+  }>;
 };
 
 export type MasterTimelineVideoPlaybackItem = {
@@ -72,12 +82,51 @@ export function buildMasterTimelineVideoPlaybackPlan(
     const sceneEnd = sceneStart + scene.duration;
     timelineCursor = sceneEnd;
 
-    if (!instance || typeof instance.assetId !== 'string' || !instance.assetId ||
+    if (!instance || playheadTime >= sceneEnd) continue;
+
+    if (Array.isArray(instance.videoClips) && instance.videoClips.length) {
+      const orderedClips = [...instance.videoClips].sort((a, b) => a.start - b.start);
+      for (const clip of orderedClips) {
+        if (!clip || typeof clip.id !== 'string' || !clip.id ||
+            !Number.isFinite(clip.start) || clip.start < 0 ||
+            !Number.isFinite(clip.duration) || clip.duration <= 0 ||
+            typeof clip.assetId !== 'string' || !clip.assetId ||
+            typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
+            typeof clip.assetMimeType !== 'string' || !/^video\//i.test(clip.assetMimeType)) continue;
+        const clipStart = sceneStart + clip.start;
+        const clipEnd = Math.min(sceneEnd, clipStart + clip.duration);
+        if (clipEnd <= clipStart || playheadTime >= clipEnd) continue;
+        const sourceIn = Number.isFinite(clip.sourceIn) && (clip.sourceIn as number) >= 0 ? clip.sourceIn as number : 0;
+        const sourceOut = Number.isFinite(clip.sourceOut) && (clip.sourceOut as number) > sourceIn
+          ? clip.sourceOut as number
+          : sourceIn + clip.duration;
+        const elapsed = Math.max(0, playheadTime - clipStart);
+        const sourceOffsetSeconds = sourceIn + elapsed;
+        const playbackStartSeconds = Math.max(clipStart, playheadTime);
+        const available = Math.min(clipEnd - playbackStartSeconds, sourceOut - sourceOffsetSeconds);
+        if (available <= 0 || sourceOffsetSeconds >= sourceOut) continue;
+        plan.push({
+          instanceId: instance.id + ':' + clip.id,
+          sceneId: scene.id,
+          assetId: clip.assetId,
+          assetVersionId: clip.assetVersionId,
+          timelineStartSeconds: clipStart,
+          timelineEndSeconds: clipEnd,
+          delaySeconds: Math.max(0, clipStart - playheadTime),
+          sourceOffsetSeconds,
+          durationSeconds: available,
+          playbackStartSeconds,
+          playbackEndSeconds: playbackStartSeconds + available,
+        });
+      }
+      continue;
+    }
+
+    if (typeof instance.assetId !== 'string' || !instance.assetId ||
         typeof instance.assetVersionId !== 'string' || !instance.assetVersionId ||
         typeof instance.assetMimeType !== 'string' || !/^video\//i.test(instance.assetMimeType) ||
         !Number.isFinite(instance.videoSourceIn) || (instance.videoSourceIn as number) < 0 ||
-        !Number.isFinite(instance.videoSourceOut) || (instance.videoSourceOut as number) <= (instance.videoSourceIn as number) ||
-        playheadTime >= sceneEnd) continue;
+        !Number.isFinite(instance.videoSourceOut) || (instance.videoSourceOut as number) <= (instance.videoSourceIn as number)) continue;
 
     const elapsed = Math.max(0, playheadTime - sceneStart);
     const sourceIn = instance.videoSourceIn as number;
