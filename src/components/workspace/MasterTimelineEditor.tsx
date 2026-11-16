@@ -123,6 +123,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedVisualClipId, setSelectedVisualClipId] = useState<string | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  // Temporary local URLs let newly selected media play immediately while its
+  // canonical Asset and immutable Version upload in the background.
+  const localMediaObjectUrlsRef = useRef(new Map<string, string>());
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
   const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
@@ -1354,72 +1357,112 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const normalizedFile = file.type.toLowerCase().startsWith(kind + '/')
           ? file
           : new File([file], file.name, { type: mimeByExtension[extension] || (kind + '/octet-stream') });
+        // Read only lightweight local metadata first. The selected device file
+        // is used immediately; cloud ingestion continues after the clip appears.
         const duration = await readMediaDuration(normalizedFile, kind);
-        const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
-          vyralId,
-          userId: authData.user.id,
-          folderId: null,
-          file: normalizedFile,
-          metadata: { upload_source: 'creator_workspace', origin: 'project_editor' },
-        });
-        // Editor uploads and Project Assets uploads must point to the same
-        // canonical Project library entry. The Vyral Asset is already durable;
-        // if the Library index is temporarily unavailable, keep the timeline
-        // usable and let the Project Assets reconciliation rebuild the listing.
-        try {
-          await registerVyralAssetInMediaLibrary({
-            assetId: ingestion.assetId,
-            userId: authData.user.id,
-            fileName: file.name,
-            mimeType: ingestion.mimeType,
-            sizeBytes: ingestion.sizeBytes,
-            storagePath: ingestion.storagePath,
-            sourceKind: 'vyral_asset',
-            universeId: vyralId,
-            thumbnailSource: normalizedFile,
-          });
-        } catch {
-          setMediaUploadError(file.name + ' was saved to Project Assets, but its Library listing is still syncing.');
-        }
-        const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
-        // Audio remains playhead-placed. Image/Video insert at the Scenes playhead position.
+        const temporaryAssetId = crypto.randomUUID();
+        const temporaryVersionId = crypto.randomUUID();
+        const localObjectUrl = URL.createObjectURL(normalizedFile);
+        const localKey = temporaryAssetId + ':' + temporaryVersionId;
+        localMediaObjectUrlsRef.current.set(localKey, localObjectUrl);
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
           : 0;
-        const clip: TimelineClip = {
+        const localClip: TimelineClip = {
           id: crypto.randomUUID(),
           name: file.name,
           content: file.name,
           start,
-          duration: clipDuration,
+          duration,
           sourceIn: 0,
-          sourceOut: clipDuration,
-          assetId: ingestion.assetId,
-          assetVersionId: ingestion.versionId,
-          assetMimeType: ingestion.mimeType,
-          waveform: ingestion.audioTechnicalMetadata?.waveformPeaks || [],
+          sourceOut: duration,
+          assetId: temporaryAssetId,
+          assetVersionId: temporaryVersionId,
+          assetMimeType: normalizedFile.type || (kind + '/octet-stream'),
+          waveform: [],
           mediaKind: kind,
         };
         const currentTracks = kind === 'audio' ? nextAudioTracks : nextVideoTracks;
         const placement = kind === 'audio'
-          ? placeTimelineOverlayClip(currentTracks, clip, 'Audio', () => crypto.randomUUID())
-          : placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
+          ? placeTimelineOverlayClip(currentTracks, localClip, 'Audio', () => crypto.randomUUID())
+          : placeTimelineMediaClip(currentTracks, localClip, kind, () => crypto.randomUUID());
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else {
           nextVideoTracks = placement.tracks as TimelineTrack[];
-          sceneOrderedClips.splice(Math.min(sceneInsertionIndex, sceneOrderedClips.length), 0, clip);
+          sceneOrderedClips.splice(Math.min(sceneInsertionIndex, sceneOrderedClips.length), 0, localClip);
           applyScenesClipTrainLayout(sceneOrderedClips);
           sceneInsertionIndex += 1;
         }
-        const nextTransitions = { ...(value?.transitions || {}) };
-        commitChange({
+        const commitCurrentTimeline = () => commitChange({
           sceneRanges: value?.sceneRanges || {},
           sceneInstances: nextSceneInstances,
           videoTracks: nextVideoTracks,
-          transitions: nextTransitions,
+          transitions: { ...(value?.transitions || {}) },
           audioTracks: nextAudioTracks,
           textTracks: value?.textTracks || [],
         });
+        commitCurrentTimeline();
+
+        try {
+          const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
+            vyralId,
+            userId: authData.user.id,
+            folderId: null,
+            file: normalizedFile,
+            metadata: { upload_source: 'creator_workspace', origin: 'project_editor' },
+          });
+          // Replace the temporary local reference with the canonical Project
+          // Asset identity after upload. Until then the Editor plays from device.
+          const replaceClipIdentity = (clip: TimelineClip): TimelineClip => clip.id !== localClip.id ? clip : {
+            ...clip,
+            assetId: ingestion.assetId,
+            assetVersionId: ingestion.versionId,
+            assetMimeType: ingestion.mimeType,
+            duration: kind === 'audio'
+              ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration)
+              : kind === 'video'
+                ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration)
+                : duration,
+            sourceOut: kind === 'audio'
+              ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration)
+              : kind === 'video'
+                ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration)
+                : duration,
+            waveform: ingestion.audioTechnicalMetadata?.waveformPeaks || clip.waveform || [],
+          };
+          if (kind === 'audio') {
+            nextAudioTracks = nextAudioTracks.map((track) => ({ ...track, clips: track.clips.map(replaceClipIdentity) }));
+          } else {
+            nextVideoTracks = nextVideoTracks.map((track) => ({ ...track, clips: track.clips.map(replaceClipIdentity) }));
+            for (let index = 0; index < sceneOrderedClips.length; index += 1) {
+              sceneOrderedClips[index] = replaceClipIdentity(sceneOrderedClips[index]);
+            }
+            applyScenesClipTrainLayout(sceneOrderedClips);
+          }
+          commitCurrentTimeline();
+          try {
+            await registerVyralAssetInMediaLibrary({
+              assetId: ingestion.assetId,
+              userId: authData.user.id,
+              fileName: file.name,
+              mimeType: ingestion.mimeType,
+              sizeBytes: ingestion.sizeBytes,
+              storagePath: ingestion.storagePath,
+              sourceKind: 'vyral_asset',
+              universeId: vyralId,
+              thumbnailSource: normalizedFile,
+            });
+          } catch {
+            setMediaUploadError(file.name + ' was uploaded, but its Project Assets listing is still syncing.');
+          }
+          localMediaObjectUrlsRef.current.delete(localKey);
+          URL.revokeObjectURL(localObjectUrl);
+        } catch (uploadError) {
+          // Keep the local clip available for this editing session. Its local
+          // source remains playable and the user can retry without losing work.
+          setMediaUploadError(file.name + ' is available locally, but its Cloud upload failed: ' +
+            (uploadError instanceof Error ? uploadError.message : 'Upload failed.'));
+        }
       }
     } catch (error) {
       setMediaUploadError(error instanceof Error ? error.message : 'Media upload failed.');
