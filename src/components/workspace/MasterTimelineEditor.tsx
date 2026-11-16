@@ -856,6 +856,87 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       textTracks: value?.textTracks || [],
     });
   };
+  const readMediaDuration = (file: File, kind: 'video' | 'audio' | 'image'): Promise<number> => {
+    if (kind === 'image') return Promise.resolve(5);
+    return new Promise((resolve) => {
+      const element = document.createElement(kind);
+      const objectUrl = URL.createObjectURL(file);
+      element.preload = 'metadata';
+      element.onloadedmetadata = () => {
+        const duration = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : 5;
+        URL.revokeObjectURL(objectUrl);
+        resolve(duration);
+      };
+      element.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(5);
+      };
+      element.src = objectUrl;
+    });
+  };
+
+  const handleMediaFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (!supabase || !vyralId) {
+      setMediaUploadError('Open this Project’s Vyral before uploading media.');
+      return;
+    }
+    setMediaUploadBusy(true);
+    setMediaUploadError('');
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw new Error('Sign in again before uploading media.');
+      for (const file of files) {
+        const mime = file.type.toLowerCase();
+        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        const kind: 'video' | 'image' | 'audio' | null =
+          mime.startsWith('video/') || ['mp4', 'mov', 'webm', 'm4v'].includes(extension) ? 'video' :
+          mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'].includes(extension) ? 'image' :
+          mime.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'].includes(extension) ? 'audio' : null;
+        if (!kind) throw new Error(file.name + ' is not a supported Video, Image or Audio file.');
+        if (file.size <= 0 || file.size > 100 * 1024 * 1024) throw new Error(file.name + ' is empty or exceeds the 100 MB upload limit.');
+        const duration = await readMediaDuration(file, kind);
+        const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
+          vyralId,
+          userId: authData.user.id,
+          folderId: null,
+          file,
+        });
+        const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+        const clip: TimelineClip = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          content: file.name,
+          start,
+          duration,
+          sourceIn: 0,
+          sourceOut: duration,
+          assetId: ingestion.assetId,
+          assetVersionId: ingestion.versionId,
+          assetMimeType: ingestion.mimeType,
+          mediaKind: kind,
+        };
+        const currentTracks = kind === 'audio' ? (value?.audioTracks || []) : (value?.videoTracks || []);
+        const placement = placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
+        const nextTracks = placement.tracks as TimelineTrack[];
+        commitChange({
+          sceneRanges: value?.sceneRanges || {},
+          sceneInstances: value?.sceneInstances,
+          videoTracks: kind === 'audio' ? (value?.videoTracks || []) : nextTracks,
+          transitions: value?.transitions || {},
+          audioTracks: kind === 'audio' ? nextTracks : (value?.audioTracks || []),
+          textTracks: value?.textTracks || [],
+        });
+      }
+    } catch (error) {
+      setMediaUploadError(error instanceof Error ? error.message : 'Media upload failed.');
+    } finally {
+      setMediaUploadBusy(false);
+    }
+  };
+
   const addAudioClip = () => {
     const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond);
     const duration = 10;
