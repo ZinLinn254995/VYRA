@@ -29,6 +29,8 @@ jobs:
         run: npm run test:ai-chat-stream
       - name: Creative Director Intelligence contract tests
         run: npm run test:creative-director
+      - name: Shot-by-shot Project video orchestration tests
+        run: npm run test:shot-orchestrator
       - name: AI Chat history and provider configuration contract tests
         run: npm run test:ai-chat-history
       - name: Global AI Chat safe action tests
