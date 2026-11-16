@@ -160,3 +160,83 @@ test('deleting a middle visual clip ripples the next clip into place and clears 
     };
   }, { key: storageKey, id: storyboardId })).toEqual({ clipCStart: 5, transitions: [] });
 });
+
+
+test('trimming a Scenes start point does not shift Text or Audio layers', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(({ key, id }) => {
+    const now = new Date().toISOString();
+    localStorage.setItem(key, JSON.stringify([{
+      id,
+      title: 'Independent Layer Timing',
+      topic: '',
+      createdAt: now,
+      updatedAt: now,
+      details: {
+        category: 'Test category',
+        scenes: [],
+        masterTimeline: {
+          sceneRanges: {},
+          sceneInstances: [],
+          videoTracks: [{
+            id: 'scenes-track',
+            name: 'Scenes',
+            clips: [{
+              id: 'scene-clip',
+              name: 'Scene Clip',
+              start: 0,
+              duration: 5,
+              sourceIn: 0,
+              sourceOut: 5,
+              mediaKind: 'video',
+            }],
+          }],
+          textTracks: [{
+            id: 'text-track',
+            name: 'Text',
+            clips: [{ id: 'text-clip', name: 'Text 1', content: 'Text 1', start: 0, duration: 3 }],
+          }],
+          audioTracks: [{
+            id: 'audio-track',
+            name: 'Audio',
+            clips: [{ id: 'audio-clip', name: 'Audio 1', content: 'Audio 1', start: 0, duration: 3, sourceIn: 0 }],
+          }],
+          transitions: {},
+        },
+      },
+    }]));
+  }, { key: storageKey, id: storyboardId });
+
+  await openStoryboard(page);
+  const editor = page.getByRole('region', { name: 'Master timeline editor' });
+  const sceneClip = editor.locator('[data-timeline-video-clip-id="scene-clip"]');
+  await sceneClip.click();
+  const startHandle = sceneClip.locator('[data-trim-handle="true"]').first();
+  const bounds = await startHandle.boundingBox();
+  if (!bounds) throw new Error('Scene start trim handle is not visible');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 80, bounds.y + bounds.height / 2, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(() => page.evaluate(({ key, id }) => {
+    const records = JSON.parse(localStorage.getItem(key) || '[]') as Array<{
+      id: string;
+      details?: { masterTimeline?: {
+        videoTracks?: Array<{ clips: Array<{ id: string; start: number }> }>;
+        textTracks?: Array<{ clips: Array<{ id: string; start: number }> }>;
+        audioTracks?: Array<{ clips: Array<{ id: string; start: number }> }>;
+      } };
+    }>;
+    const timeline = records.find((item) => item.id === id)?.details?.masterTimeline;
+    return {
+      sceneStart: timeline?.videoTracks?.[0]?.clips.find((clip) => clip.id === 'scene-clip')?.start,
+      textStart: timeline?.textTracks?.[0]?.clips.find((clip) => clip.id === 'text-clip')?.start,
+      audioStart: timeline?.audioTracks?.[0]?.clips.find((clip) => clip.id === 'audio-clip')?.start,
+    };
+  }, { key: storageKey, id: storyboardId })).toEqual({
+    sceneStart: 2,
+    textStart: 0,
+    audioStart: 0,
+  });
+});
