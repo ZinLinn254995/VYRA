@@ -952,12 +952,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           mime.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'].includes(extension) ? 'audio' : null;
         if (!kind) throw new Error(file.name + ' is not a supported Video, Image or Audio file.');
         if (file.size <= 0 || file.size > 100 * 1024 * 1024) throw new Error(file.name + ' is empty or exceeds the 100 MB upload limit.');
-        const duration = await readMediaDuration(file, kind);
+        const mimeByExtension: Record<string, string> = {
+          mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif',
+          mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', flac: 'audio/flac',
+        };
+        const normalizedFile = file.type.toLowerCase().startsWith(kind + '/')
+          ? file
+          : new File([file], file.name, { type: mimeByExtension[extension] || (kind + '/octet-stream') });
+        const duration = await readMediaDuration(normalizedFile, kind);
         const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
           vyralId,
           userId: authData.user.id,
           folderId: null,
-          file,
+          file: normalizedFile,
         });
         const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
         const clip: TimelineClip = {
