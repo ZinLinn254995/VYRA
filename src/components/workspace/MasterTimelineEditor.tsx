@@ -120,6 +120,7 @@ const toolbarItems = [
  */
 export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [selectedVisualClipId, setSelectedVisualClipId] = useState<string | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
@@ -162,6 +163,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       onSelectionChange({ kind: 'audio-clip', id: selectedAudioClip.clipId, trackId: selectedAudioClip.trackId, label: clip?.name || 'Audio clip' });
       return;
     }
+    if (selectedVisualClipId) {
+      const clip = (value?.videoTracks || []).flatMap((track) => track.clips).find((item) => item.id === selectedVisualClipId);
+      onSelectionChange({ kind: 'scene', id: selectedVisualClipId, label: clip?.name || 'Selected visual clip' });
+      return;
+    }
     if (selectedTransitionKey) {
       onSelectionChange({ kind: 'transition', id: selectedTransitionKey, label: 'Selected transition' });
       return;
@@ -172,7 +178,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       return;
     }
     onSelectionChange(null);
-  }, [onSelectionChange, selectedSceneIds, selectedTransitionKey, selectedTextClip, selectedAudioClip, scenes, value?.audioTracks, value?.textTracks]);
+  }, [onSelectionChange, selectedSceneIds, selectedVisualClipId, selectedTransitionKey, selectedTextClip, selectedAudioClip, scenes, value?.audioTracks, value?.textTracks, value?.videoTracks]);
 
   const [isTextEditMode, setIsTextEditMode] = useState(false);
   const [draggingTextClipId, setDraggingTextClipId] = useState<string | null>(null);
@@ -297,7 +303,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       const selectableTarget = ignoreSelection
         ? null
         : rawTarget.closest<HTMLElement>(
-            '[data-timeline-scene-id], [data-timeline-transition-key], [data-timeline-text-track-id][data-timeline-text-clip-id], [data-timeline-audio-track-id][data-timeline-audio-clip-id]',
+            '[data-timeline-scene-id], [data-timeline-video-clip-id], [data-timeline-transition-key], [data-timeline-text-track-id][data-timeline-text-clip-id], [data-timeline-audio-track-id][data-timeline-audio-clip-id]',
           );
       touchPointers.set(event.pointerId, {
         x: event.clientX,
@@ -314,13 +320,25 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         setSelectedTransitionKey(null);
         setSelectedTextClip(null);
         setSelectedAudioClip(null);
+        setSelectedVisualClipId(null);
         setSelectedSceneIds((current) => current[0] === sceneId ? [] : [sceneId]);
+        return;
+      }
+
+      const visualClipId = target.closest<HTMLElement>('[data-timeline-video-clip-id]')?.getAttribute('data-timeline-video-clip-id');
+      if (visualClipId) {
+        setSelectedSceneIds([]);
+        setSelectedTransitionKey(null);
+        setSelectedTextClip(null);
+        setSelectedAudioClip(null);
+        setSelectedVisualClipId((current) => current === visualClipId ? null : visualClipId);
         return;
       }
 
       const transitionKey = target.closest<HTMLElement>('[data-timeline-transition-key]')?.getAttribute('data-timeline-transition-key');
       if (transitionKey) {
         setSelectedSceneIds([]);
+        setSelectedVisualClipId(null);
         setSelectedTextClip(null);
         setSelectedAudioClip(null);
         setSelectedTransitionKey(transitionKey);
@@ -332,6 +350,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       const textClipId = textElement?.getAttribute('data-timeline-text-clip-id');
       if (textTrackId && textClipId) {
         setSelectedSceneIds([]);
+        setSelectedVisualClipId(null);
         setSelectedTransitionKey(null);
         setSelectedAudioClip(null);
         setSelectedTextClip((current) =>
@@ -347,6 +366,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       const audioClipId = audioElement?.getAttribute('data-timeline-audio-clip-id');
       if (audioTrackId && audioClipId) {
         setSelectedSceneIds([]);
+        setSelectedVisualClipId(null);
         setSelectedTransitionKey(null);
         setSelectedTextClip(null);
         setSelectedAudioClip((current) =>
@@ -359,6 +379,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
 
       if (!target.closest('button')) {
         setSelectedSceneIds([]);
+        setSelectedVisualClipId(null);
         setSelectedTransitionKey(null);
         setSelectedTextClip(null);
         setSelectedAudioClip(null);
@@ -1845,24 +1866,35 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                 const sceneStyleClips = [...track.clips].sort((a, b) => a.start - b.start || a.duration - b.duration);
                 let sceneCardOffset = 0;
                 return (
-                  <div key={track.id} data-video-track-id={track.id} className="relative flex h-16 items-center gap-0 border-b border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/55 py-2">
+                  <div key={track.id} data-video-track-id={track.id} className="relative flex h-16 items-center gap-0 py-2">
                     {sceneStyleClips.map((clip, clipIndex) => {
                       const isImage = clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/');
                       const width = Math.max(24, clip.duration * pixelsPerSecond);
                       const left = sceneCardOffset;
                       sceneCardOffset += width;
+                      const isSelected = selectedVisualClipId === clip.id;
                       return (
                         <button key={clip.id} data-timeline-video-track-id={track.id} data-timeline-video-clip-id={clip.id}
                           type="button" title={clip.name + ' · ' + clip.duration.toFixed(1) + 's'}
                           aria-label={(isImage ? 'Image' : 'Video') + ': ' + clip.name}
-                          className="group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10 px-3 text-[10px] font-medium text-[var(--vyra-text-secondary)] transition-colors"
+                          aria-pressed={isSelected}
+                          onClick={(event) => {
+                            if (consumeSuppressedGestureClick(event)) return;
+                            event.stopPropagation();
+                            setSelectedSceneIds([]);
+                            setSelectedTransitionKey(null);
+                            setSelectedTextClip(null);
+                            setSelectedAudioClip(null);
+                            setSelectedVisualClipId(isSelected ? null : clip.id);
+                          }}
+                          className={`group relative flex h-11 shrink-0 items-center justify-center overflow-hidden rounded-md border px-3 transition-colors ${isSelected ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/25 ring-2 ring-[var(--vyra-accent-primary)]' : 'border-[var(--vyra-accent-primary)]/50 bg-[var(--vyra-accent-primary)]/10'}`}
                           style={{ width }}>
-                          {isImage ? <ImageIcon size={12} className="mr-1 shrink-0" /> : <Video size={12} className="mr-1 shrink-0" />}
-                          <span className="min-w-0 flex-1 truncate text-center">{clip.name}</span>
+                          {isImage ? <ImageIcon size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" /> : <Video size={12} className="mr-1 shrink-0 text-[var(--vyra-text-secondary)]" />}
+                          <span className="min-w-0 flex-1 truncate text-center text-[10px] font-medium text-[var(--vyra-text-secondary)]">{clip.name}</span>
                         </button>
                       );
                     })}
-                    {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex).map(({ key, boundary, transition }) => (
+                    {videoTransitionMarkers.filter((marker) => marker.rowIndex === trackIndex && !selectedVisualClipId).map(({ key, boundary, transition }) => (
                       <button key={key} type="button" data-timeline-transition-key={key}
                         title={transition ? transition.effect + ' transition · ' + transition.duration.toFixed(1) + 's' : 'Add transition'}
                         aria-label={transition ? 'Edit ' + transition.effect + ' transition' : 'Add transition'}
@@ -1870,6 +1902,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedSceneIds([]);
+                          setSelectedVisualClipId(null);
                           setSelectedTextClip(null);
                           setSelectedAudioClip(null);
                           setSelectedTransitionKey((current) => current === key ? null : key);
