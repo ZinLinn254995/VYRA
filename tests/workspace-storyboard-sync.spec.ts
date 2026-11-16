@@ -50,3 +50,27 @@ test('Storyboard suggestion cache ignores AI-filled title but changes after crea
   });
   assert.notEqual(creatorEdited, seed);
 });
+
+test('cloud merge preserves the complete Editor timeline and exact video Asset version metadata', () => {
+  const timelineDetails = {
+    scenes: [{ id: 'scene-1', title: 'Opening', duration: 8, project: {
+      timeline: { tracks: [{ id: 'track-1', type: 'video', clips: [{
+        id: 'clip-1', start: 2, duration: 4, sourceIn: 1, sourceOut: 5,
+        assetId: 'asset-1', assetVersionId: 'version-7', assetMimeType: 'video/mp4',
+      }] }] },
+    } }],
+    masterTimeline: { sceneInstances: [{
+      sceneId: 'scene-1', duration: 8, videoClips: [{
+        id: 'clip-1', start: 2, duration: 4, sourceIn: 1, sourceOut: 5,
+        assetId: 'asset-1', assetVersionId: 'version-7', assetMimeType: 'video/mp4',
+      }],
+    }] },
+  };
+  const local = item({ details: timelineDetails });
+  const result = mergeWorkspaceStoryboards([local], []);
+  const restored = result.storyboards[0].details as typeof timelineDetails;
+  assert.deepEqual(restored, timelineDetails);
+  assert.equal(restored.masterTimeline.sceneInstances[0].videoClips[0].assetVersionId, 'version-7');
+  assert.equal(restored.masterTimeline.sceneInstances[0].videoClips[0].sourceIn, 1);
+  assert.equal(restored.masterTimeline.sceneInstances[0].videoClips[0].sourceOut, 5);
+});
