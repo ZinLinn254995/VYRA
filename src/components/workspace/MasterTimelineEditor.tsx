@@ -997,7 +997,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           folderId: null,
           file: normalizedFile,
         });
-        const start = Math.max(0, ((scrollRef.current?.scrollLeft ?? 0) + viewportWidth / 2) / pixelsPerSecondRef.current);
+        const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
         const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
