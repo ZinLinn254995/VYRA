@@ -163,6 +163,29 @@ test('does not retry a browser-blocked autoplay request on every animation frame
   handle.stop();
 });
 
+test('ignores a stale Video URL resolution failure after a later Shot has become active', async () => {
+  const mock = createVideo();
+  let rejectOld!: (error: Error) => void;
+  const errors: string[] = [];
+  const handle = startMasterTimelineVideoPlayback(plan, {
+    video: mock.video,
+    resolveAssetUrl: async (assetId) => {
+      if (assetId === 'asset-a') return new Promise<string>((_resolve, reject) => { rejectOld = reject; });
+      return 'https://private.example/asset-b';
+    },
+    onError: (error) => { errors.push(error.message); },
+  });
+  handle.sync(0);
+  await new Promise((resolve) => setImmediate(resolve));
+  handle.sync(5);
+  await new Promise((resolve) => setImmediate(resolve));
+  rejectOld(new Error('Stale URL lookup failed'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(errors, []);
+  assert.equal(mock.video.src, 'https://private.example/asset-b');
+  handle.stop();
+});
+
 test('switches between ordered generated shots within the same Scene', async () => {
   const shotPlan: MasterTimelineVideoPlaybackItem[] = [
     { instanceId: 'scene-a:shot-1', sceneId: 'scene-a', assetId: 'shot-asset-1', assetVersionId: 'shot-version-1', timelineStartSeconds: 0, timelineEndSeconds: 2, delaySeconds: 0, sourceOffsetSeconds: 0, durationSeconds: 2, playbackStartSeconds: 0, playbackEndSeconds: 2 },
