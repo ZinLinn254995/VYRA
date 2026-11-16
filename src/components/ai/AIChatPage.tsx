@@ -2582,7 +2582,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       } else if ('completedShots' in result && result.status === 'needs_review') {
         const linkedShots = result.completedShots.flatMap((shot) => {
           const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
-          const shotPlan = directorScenePlan?.shots[shot.shotIndex];
+          const shotPlan = activeDirectorScenePlan?.shots[shot.shotIndex];
           return asset && shotPlan ? [{
             shotId: shot.shotId, shotIndex: shot.shotIndex, durationSeconds: shotPlan.durationSeconds,
             assetId: asset.assetId, assetVersionId: asset.versionId, mimeType: asset.mimeType,
