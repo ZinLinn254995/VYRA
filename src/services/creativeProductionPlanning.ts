@@ -34,7 +34,7 @@ export type CreativeShotPlan = {
   focus: string;
   sound: string;
   action: string;
-  continuityNotes: string;
+  continuityNotes: string[];
 };
 
 export type CreativeScenePlan = {
@@ -100,6 +100,9 @@ export function validateCreativeProductionPlan(
       shotIds.add(shot.id);
       if (!finitePositive(shot.durationSeconds)) errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} needs a positive duration.`);
       else totalShotDurationSeconds += shot.durationSeconds;
+      if (!Array.isArray(shot.continuityNotes) || shot.continuityNotes.length > 12 || shot.continuityNotes.some((note) => typeof note !== 'string' || !note.trim())) {
+        errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} has invalid continuity notes.`);
+      }
       if (![shot.purpose, shot.framing, shot.cameraAngle, shot.cameraMovement, shot.composition, shot.lighting, shot.focus, shot.sound, shot.action].every((value) => value.trim())) {
         errors.push(`Scene ${sceneIndex + 1}, shot ${shotIndex + 1} is missing direction details.`);
       }
