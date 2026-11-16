@@ -1,5 +1,5 @@
 import { saveVyralAssetLocalCopy } from './vyralAssetLocalCache';
-import { uploadVyralAssetResumably } from './vyralResumableUpload';
+import { clearVyralResumableUpload, uploadVyralAssetResumably } from './vyralResumableUpload';
 import { createVyralFileDnaV1 } from './vyralFileDnaV1';
 import { buildVyralGeneratedAssetMetadata, type VyralGeneratedAssetProvenanceInput } from './vyralGeneratedAssetProvenance';
 
@@ -60,6 +60,7 @@ export type VyralAssetIngestionPort = {
   hasDnaRecord(assetId: string, userId: string): Promise<boolean>;
   markReady(assetId: string, userId: string): Promise<void>;
   removeStorage(path: string): Promise<void>;
+  clearResumableUpload?(path: string, file: File): Promise<void>;
   deleteFingerprints(assetId: string): Promise<void>;
   deleteVersions(assetId: string): Promise<void>;
   deleteAsset(assetId: string): Promise<void>;
@@ -389,6 +390,10 @@ export async function ingestVyralAsset(
       userId: input.userId, assetId, versionId, mimeType, sizeBytes: file.size, blob: file,
     });
     assertNotAborted();
+    // Clear the resumable session only after the full Asset lifecycle commits.
+    if (file.size > 6 * 1024 * 1024 && port.clearResumableUpload) {
+      await port.clearResumableUpload(storagePath, file).catch(() => undefined);
+    }
     return {
       assetId, versionId, storagePath, sha256, assetType, mimeType,
       sizeBytes: file.size, dnaKind: rasterDna ? 'raster-v3' : 'universal-file-v1',
@@ -504,6 +509,9 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
     async removeStorage(path) {
       const { error } = await db.storage.from('vyral-assets').remove([path]);
       if (error) throw error;
+    },
+    async clearResumableUpload(path, file) {
+      await clearVyralResumableUpload(db, path, file);
     },
     async deleteFingerprints(assetId) {
       const { error } = await db.from('vyral_fingerprints').delete().eq('asset_id', assetId);
