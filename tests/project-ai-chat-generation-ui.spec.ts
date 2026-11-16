@@ -155,12 +155,12 @@ test('generation success message renders its summary on separate lines', () => {
 
 
 test('shot repair handoff replaces only the matching Editor clip and preserves the remaining Director sequence', () => {
-  assert.ok(workspacePage.includes('replaceShot?: boolean'));
-  assert.ok(workspacePage.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
-  assert.ok(workspacePage.includes('sequence.replaceShot'));
-  assert.ok(workspacePage.includes('!sequence.shots.some((shot) => shot.shotId === clip.shotId)'));
-  assert.ok(workspacePage.includes('...incomingClips'));
-  assert.ok(workspacePage.includes('const videoClips = generatedClips.map'));
+  assert.ok(workspace.includes('replaceShot?: boolean'));
+  assert.ok(workspace.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
+  assert.ok(workspace.includes('sequence.replaceShot'));
+  assert.ok(workspace.includes('!sequence.shots.some((shot) => shot.shotId === clip.shotId)'));
+  assert.ok(workspace.includes('...incomingClips'));
+  assert.ok(workspace.includes('const videoClips = generatedClips.map'));
 });
 
 
@@ -172,5 +172,8 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('repair: { shotIndex: repairRequest.shotIndex'));
   assert.ok(chat.includes('A paid shot repair requires the same creator-approved visual verification adapter.'));
   assert.ok(chat.includes('replaceShot: true'));
+  assert.ok(chat.includes('if (!repairRequest && linkedShots.length'));
+  assert.ok(chat.includes('?? repairRequest?.previousShotAsset'));
   assert.ok(chat.includes('setPendingShotRepair(null)'));
+  assert.ok(chat.includes("join('\\\\n\\\\n')") === false || chat.includes("join('\\n\\n')"));
 });
