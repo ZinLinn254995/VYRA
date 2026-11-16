@@ -170,9 +170,10 @@ test('shot repair handoff replaces only the matching Editor clip and preserves t
   assert.ok(generation.includes('replaceShot?: boolean'));
   assert.ok(workspace.includes('const existingDirectorClips = (existingTrack?.clips || []).filter((clip) => clip.source === \'ai_director_shot\')'));
   assert.ok(workspace.includes('sequence.replaceShot'));
-  assert.ok(shotTimeline.includes('const replaced = existingDirectorClips.map((clip) =>'));
-  assert.ok(shotTimeline.includes('return candidate ? { ...candidate, start: clip.start } : clip;'));
-  assert.ok(shotTimeline.includes('const appendAt = existingDirectorClips.reduce'));
+  assert.ok(shotTimeline.includes('const replaced = orderedExisting.map((clip) =>'));
+  assert.ok(shotTimeline.includes('const shiftedStart = clip.start + shiftAfter;'));
+  assert.ok(shotTimeline.includes('shiftAfter += replacementClip.duration - clip.duration;'));
+  assert.ok(shotTimeline.includes('const appendAt = orderedExisting.reduce'));
   assert.ok(shotTimeline.includes('clips = [...replaced, ...missing].sort((a, b) => a.start - b.start);'));
   assert.ok(workspace.includes('const videoClips = generatedClips.map'));
 });
