@@ -456,7 +456,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const verificationResults = await Promise.all([...fileDnaVerificationTasks, ...rasterDnaVerificationTasks]);
     const exactVerificationComplete = !hasUnverifiedAsset && verificationResults.every(Boolean);
     if (!exactVerificationComplete) {
-      setMasterDnaMessage('Your collection is still being prepared. VYRA will retry exact Asset verification automatically.');
+      setMasterDnaMessage('Your collection is still being prepared. VYRA will retry exact Asset verification when you return to this collection.');
       return;
     }
 
