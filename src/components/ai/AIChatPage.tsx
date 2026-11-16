@@ -25,10 +25,22 @@ import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.t
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
+import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
 import { buildSceneVisualInspectionPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 
+type PendingShotRepair = {
+  scene: CreativeScenePlan;
+  shotIndex: number;
+  previousShotAsset?: RunwayProjectOutputAsset;
+  promptText: string;
+  productionTitle: string;
+  logline: string;
+  genre: string;
+  tone: string;
+  sceneIndex?: number;
+};
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
 type ChatSession = {
@@ -433,6 +445,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [mediaBudgetUsd, setMediaBudgetUsd] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [mediaGenerationStatus, setMediaGenerationStatus] = useState<string | null>(null);
+  const [pendingShotRepair, setPendingShotRepair] = useState<PendingShotRepair | null>(null);
   const [projectRecoveryJobs, setProjectRecoveryJobs] = useState<RunwayProjectRecoveryJob[]>([]);
   const [projectRecoveryLoading, setProjectRecoveryLoading] = useState(false);
   const [recoveringProjectJobId, setRecoveringProjectJobId] = useState<string | null>(null);
@@ -2323,14 +2336,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     }
   };
 
-  const startProjectMediaGeneration = async () => {
-    const prompt = draft.trim();
+  const startProjectMediaGeneration = async (repairRequest?: PendingShotRepair) => {
+    const prompt = repairRequest?.promptText ?? draft.trim();
     if (!storyboardId || !storyboardUniverseId || !supabase) {
       setMediaGenerationStatus('Open a Project before creating media.');
       return;
     }
     if (!isAuthenticated) { onLoginRequired(); return; }
     if (!prompt) { setMediaGenerationStatus('Describe the media you want to create first.'); textareaRef.current?.focus(); return; }
+    const effectiveMediaTask = repairRequest ? 'video' : mediaTask;
     const budget = Number(mediaBudgetUsd);
     if (!Number.isFinite(budget) || budget <= 0) {
       setMediaGenerationStatus('Enter the maximum USD budget you are willing to approve.');
@@ -2389,10 +2403,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           shots: plannedShots,
         }
         : null;
+      const activeDirectorScenePlan = repairRequest?.scene ?? directorScenePlan;
       let visualVerification: Parameters<typeof generateRunwayProjectShotSequence>[1]['visualVerification'];
       const visualBaseline = workspaceContext?.activeSceneId === selectedSceneId
         ? workspaceContext.sceneContinuity : null;
-      if (mediaTask === 'video' && directorScenePlan && visualBaseline?.contextComplete
+      if (effectiveMediaTask === 'video' && directorScenePlan && visualBaseline?.contextComplete
         && !visualBaseline.entrySnapshotStale && visualBaseline.validationStatus === 'creator_approved'
         && visualBaseline.currentEntryState) {
         const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState).filter((anchor) => anchor.scope === 'persistent');
@@ -2519,19 +2534,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\\n');
         return window.confirm(details) ? { confirmed: true as const, maxCostUsd: budget } : { confirmed: false as const };
       };
-      const result = mediaTask === 'video' && directorScenePlan
+      const result = effectiveMediaTask === 'video' && directorScenePlan
         ? await generateRunwayProjectShotSequence(supabase, {
           targetVyralId: storyboardUniverseId,
           quality: mediaQuality,
           maxTotalCostUsd: budget,
           maxCostUsdPerShot: budget,
-          scene: directorScenePlan,
-          productionTitle: direction?.productionTitle || workspaceContext?.activeStoryboard?.title || 'Project production',
-          logline: direction?.logline || workspaceContext?.activeStoryboard?.topic || prompt,
-          genre: direction?.genre || 'Unspecified',
-          tone: direction?.tone || 'Unspecified',
-          sceneIndex: direction?.sceneIndex,
+          scene: activeDirectorScenePlan,
+          productionTitle: repairRequest?.productionTitle || direction?.productionTitle || workspaceContext?.activeStoryboard?.title || 'Project production',
+          logline: repairRequest?.logline || direction?.logline || workspaceContext?.activeStoryboard?.topic || prompt,
+          genre: repairRequest?.genre || direction?.genre || 'Unspecified',
+          tone: repairRequest?.tone || direction?.tone || 'Unspecified',
+          sceneIndex: repairRequest?.sceneIndex ?? direction?.sceneIndex,
           promptText: prompt,
+          ...(repairRequest ? { repair: { shotIndex: repairRequest.shotIndex, ...(repairRequest.previousShotAsset ? { previousShotAsset: repairRequest.previousShotAsset } : {}) } } : {}),
           sceneContext,
           signal: controller.signal,
           ...(visualVerification ? { visualVerification } : {}),
@@ -2540,7 +2556,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           requestApproval: (quote, shot, shotIndex) => approveQuote(quote, 'Shot ' + (shotIndex + 1) + ' — ' + shot.purpose),
         })
         : await generateRunwayProjectMedia(supabase, {
-          targetVyralId: storyboardUniverseId, task: mediaTask, quality: mediaQuality,
+          targetVyralId: storyboardUniverseId, task: effectiveMediaTask, quality: mediaQuality,
           maxCostUsd: budget, input: { promptText: prompt },
           sceneContext,
           signal: controller.signal,
