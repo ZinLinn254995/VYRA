@@ -3,11 +3,12 @@ import { getSceneContinuityContext, hydrateSceneContinuityLedger } from './unive
 
 type ProjectContextDb = {
   from(table: string): any;
+  storage?: { from(bucket: string): { createSignedUrl(path: string, expiresIn: number): Promise<{ data: { signedUrl?: string } | null; error: unknown }> } };
 };
 type JsonRecord = Record<string, unknown>;
 type ProjectAssetRow = {
   id: string; name: string; asset_type?: string | null; mime_type?: string | null;
-  metadata?: JsonRecord | null;
+  metadata?: JsonRecord | null; storage_path?: string | null;
 };
 type AssetDnaRow = {
   asset_id: string; payload?: JsonRecord | null; dna_status?: string | null;
@@ -61,12 +62,12 @@ export async function buildRunwayProjectConsistencyContext(
   input: { userId: string; targetVyralId: string; promptText: string },
 ): Promise<{ promptText: string; assetCount: number; selectedAssetCount: number; mode: 'broad' | 'targeted' | 'fallback' }> {
   const { data: rows, error } = await db.from('vyral_assets')
-    .select('id,name,asset_type,mime_type,metadata')
+    .select('id,name,asset_type,mime_type,metadata,storage_path')
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
     .eq('processing_status', 'ready').order('created_at', { ascending: false }).limit(120);
   if (error) throw new Error('Project consistency Assets could not be loaded: ' + error.message);
   const assets = (Array.isArray(rows) ? rows : []) as ProjectAssetRow[];
-  if (!assets.length) return { promptText: input.promptText, assetCount: 0, selectedAssetCount: 0, mode: 'fallback' };
+  if (!assets.length) return { promptText: input.promptText, assetCount: 0, selectedAssetCount: 0, mode: 'fallback', referenceImages: [] as Array<{ uri: string }> };
 
   const ids = assets.map((asset) => asset.id).filter((id) => typeof id === 'string');
   const { data: dnaRows, error: dnaError } = await db.from('vyral_dna_records')
@@ -122,6 +123,24 @@ export async function buildRunwayProjectConsistencyContext(
     maxRelationships: 24,
   });
   const selected = new Set(retrieval.selectedAssetIds);
+  // Only owner- and Project-scoped, ready raster image Assets selected by the
+  // same semantic retrieval are exposed to Runway through short-lived private URLs.
+  const referenceCandidates = assets.filter((asset) =>
+    selected.has(asset.id) &&
+    typeof asset.storage_path === 'string' && asset.storage_path.length > 0 &&
+    ['image/png', 'image/jpeg', 'image/webp'].includes(String(asset.mime_type ?? '').toLowerCase())
+  ).slice(0, 4);
+  const referenceImages: Array<{ uri: string }> = [];
+  if (db.storage && referenceCandidates.length) {
+    const signed = await Promise.all(referenceCandidates.map(async (asset) => {
+      try {
+        const result = await db.storage!.from('vyral-assets').createSignedUrl(asset.storage_path!, 3600);
+        const uri = result.data?.signedUrl;
+        return typeof uri === 'string' && uri.startsWith('https://') && uri.length <= 2048 ? { uri } : null;
+      } catch { return null; }
+    }));
+    referenceImages.push(...signed.filter((item): item is { uri: string } => item !== null));
+  }
   const lines = assets.filter((asset) => selected.has(asset.id)).map((asset) => {
     const dna = dnaByAsset.get(asset.id) ?? [];
     const approved = [...new Set(dna.filter((record) => record.verification_status === 'creator_confirmed')
@@ -159,7 +178,7 @@ export async function buildRunwayProjectConsistencyContext(
     ...(relationshipLines.length ? ['CREATOR-APPROVED RELATIONSHIPS', ...relationshipLines] : []),
   ].join('\n');
   const promptText = (input.promptText + '\n\n' + context).slice(0, 14_000);
-  return { promptText, assetCount: assets.length, selectedAssetCount: lines.length, mode: retrieval.mode };
+  return { promptText, assetCount: assets.length, selectedAssetCount: lines.length, mode: retrieval.mode, referenceImages };
 }
 
 
