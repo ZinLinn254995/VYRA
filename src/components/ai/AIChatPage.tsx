@@ -2660,7 +2660,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           });
           if (linkedShots.length === result.completedShots.length && onShotSequenceReady) {
             onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots, ...(repairRequest ? { replaceShot: true } : {}) });
-            shotSequenceLinkMessage = 'All generated shots are linked to the Scene Project timeline in production order.';
+            shotSequenceLinkMessage = repairRequest
+              ? 'The verified replacement is in the original Shot position; all other Director shots were preserved.'
+              : 'All generated shots are linked to the Scene Project timeline in production order.';
           } else {
             shotSequenceLinkMessage = 'All outputs are saved in Project Assets, but the complete sequence could not be linked to the Editor timeline.';
           }
