@@ -221,13 +221,25 @@ test('shot orchestrator completes the ordered sequence only after every Shot and
       visualVerification: {
         baselineRevision: 'scene-rev-1',
         anchors: [{ path: 'character.identity', expectedValue: 'A', scope: 'persistent', visibility: 'required' }],
-        inspect: async ({ asset, shotIndex }) => {
+        inspect: async ({ anchors, shotIndex }) => {
           inspected.push(shotIndex);
-          return { inspectionComplete: true, observations: [] };
+          return {
+            inspectionComplete: true,
+            observations: anchors.map((anchor) => ({
+              path: anchor.path, status: 'match' as const, confidence: 0.99,
+              evidence: 'The sampled video frames match the approved baseline.',
+            })),
+          };
         },
-        inspectTransition: async ({ previousAsset, currentAsset, previousShotIndex, currentShotIndex }) => {
+        inspectTransition: async ({ anchors, previousAsset, currentAsset, previousShotIndex, currentShotIndex }) => {
           transitions.push([previousAsset.assetId, currentAsset.assetId, previousShotIndex, currentShotIndex]);
-          return { inspectionComplete: true, observations: [] };
+          return {
+            inspectionComplete: true,
+            observations: anchors.map((anchor) => ({
+              path: anchor.path, status: 'match' as const, confidence: 0.99,
+              evidence: 'The adjacent shot boundary preserves the approved visual handoff.',
+            })),
+          };
         },
         getCurrentBaselineRevision: async () => 'scene-rev-1',
       },
