@@ -1561,6 +1561,18 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       if (key.split(':').includes(selected.id)) delete transitions[key];
     });
 
+    // Legacy Director transitions are keyed by scene IDs, not clip IDs.
+    // Remove both boundaries belonging to the deleted scene as well.
+    const selectedSceneInstance = (value?.sceneInstances || []).find((instance) =>
+      instance.id === selected.id || instance.videoClips?.some((clip) => clip.id === selected.id),
+    );
+    const selectedSceneIndex = selectedSceneInstance
+      ? orderedScenes.findIndex((scene) => scene.id === selectedSceneInstance.sceneId)
+      : -1;
+    [sceneTransitionMarkers[selectedSceneIndex - 1], sceneTransitionMarkers[selectedSceneIndex]]
+      .filter(Boolean)
+      .forEach((marker) => { delete transitions[marker.key]; });
+
     // The newly adjacent pair must start with no transition. "None" is
     // represented by the absence of a transition record in this timeline.
     if (previousClip && nextClip) {
