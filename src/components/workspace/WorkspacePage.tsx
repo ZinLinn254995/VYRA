@@ -25,7 +25,7 @@ type SceneProjectClip = { id: string; name: string; start: number; duration: num
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
 type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; composition: string; lighting: string; focus: string; sound: string; action: string; continuityNotes: string[] }> };
-type SceneShotRepairHistoryEntry = { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; approvedCostUsd: number };
+type SceneShotRepairHistoryEntry = { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number };
 type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection; repairHistory?: SceneShotRepairHistoryEntry[] };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
@@ -741,6 +741,17 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         }))
         .filter((clip) => clip.shotIndex >= 0)
         .slice(0, 30),
+      activeSceneRepairHistory: (scenes.find((scene) => scene.id === (selectedTimelineItem?.kind === 'scene' ? selectedTimelineItem.id : activeSceneId))?.project?.repairHistory ?? [])
+        .slice(-12)
+        .map((entry) => ({
+          shotIndex: entry.shotIndex,
+          outcome: entry.outcome,
+          createdAt: entry.createdAt,
+          baselineRevision: entry.baselineRevision,
+          checkedBoundaryIndices: entry.checkedBoundaryIndices.slice(0, 30),
+          findings: entry.findings.slice(0, 12).map((finding) => finding.slice(0, 320)),
+          approvedCostUsd: entry.approvedCostUsd,
+        })),
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
