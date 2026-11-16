@@ -81,10 +81,8 @@ Deno.serve(async (request: Request) => {
   const size = Number(version.size_bytes);
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES) return reply({ error: 'Image exceeds the 20 MB extraction limit.' }, 413);
 
-  let sourceBlob: Blob | null = null;
-  const download = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
-  sourceBlob = download.data;
-  if (download.error || !sourceBlob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
+  let { data: sourceBlob, error: downloadError } = await ctx.supabaseAdmin.storage.from(BUCKET).download(version.storage_path);
+  if (downloadError || !sourceBlob) return reply({ error: 'Could not retrieve the original from private Storage.' }, 502);
   if (sourceBlob.size !== size) return reply({ error: 'Downloaded byte size does not match the source Version.' }, 409);
   logExtractionPhase('source_downloaded', startedAt, { source_bytes: sourceBlob.size });
   let original: Uint8Array | null = new Uint8Array(await sourceBlob.arrayBuffer());
