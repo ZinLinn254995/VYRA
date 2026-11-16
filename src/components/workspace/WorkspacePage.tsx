@@ -177,6 +177,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             id: scene.id, sceneId: scene.id, sourceIn: 0, sourceOut: nextSceneDuration,
           }),
           sceneId: scene.id,
+          assetId: videoClips[0]?.assetId,
+          assetVersionId: videoClips[0]?.assetVersionId,
+          assetMimeType: videoClips[0]?.assetMimeType,
+          videoSourceIn: videoClips[0]?.sourceIn ?? 0,
+          videoSourceOut: videoClips[0]?.sourceOut,
           videoClips,
         };
         const nextInstances = previousInstance
