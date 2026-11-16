@@ -21,8 +21,20 @@ export async function createVyralMediaPlaybackUrl(
     throw new Error('A valid ' + label + ' Asset and immutable Version are required.');
   }
 
-  const { data: authData, error: authError } = await db.auth.getUser();
-  const user = authData?.user;
+  // Supabase keeps the signed-in session on this device. Read it locally first
+  // so an already-cached Asset can still open without contacting the server.
+  let user: { id?: string } | null = null;
+  let authError: unknown = null;
+  if (typeof db.auth.getSession === 'function') {
+    const { data, error } = await db.auth.getSession();
+    user = data?.session?.user ?? null;
+    authError = error;
+  }
+  if (!user?.id && typeof db.auth.getUser === 'function') {
+    const { data, error } = await db.auth.getUser();
+    user = data?.user ?? null;
+    authError = error;
+  }
   if (authError || !user?.id || !UUID.test(user.id)) {
     throw new Error('Sign in again before previewing this ' + label + ' Asset.');
   }
