@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { mergeTimelineVideoRows, placeTimelineMediaClip, type TimelineMediaClipPlacement, type TimelineMediaTrackRow } from '../src/services/timelineMediaPlacement';
 
 const clip = (id: string, start: number, duration: number, mime = 'video/mp4'): TimelineMediaClipPlacement => ({
@@ -64,6 +66,18 @@ test('keeps overlapping Director and uploaded Video/Image clips in exactly one r
   ];
   const rows = mergeTimelineVideoRows(director, uploaded);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'Video');
+  assert.equal(rows[0].name, 'Scenes');
   assert.deepEqual(rows[0].clips.map((item) => item.id), ['director-1', 'manual-video', 'image']);
+});
+
+
+test('bottom timeline toolbar exposes Image and Video sample actions that append placeholders to Scenes', () => {
+  const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
+  assert.match(editor, /\{ label: 'Image', Icon: ImageIcon \}/);
+  assert.match(editor, /\{ label: 'Video', Icon: Video \}/);
+  assert.match(editor, /const addSampleVisualClip = \(mediaKind: 'image' \| 'video'\)/);
+  assert.match(editor, /isPlaceholder: true/);
+  assert.match(editor, /name: 'Scenes'/);
+  assert.match(editor, /nextTransitions\[previousClip\.id \+ ':' \+ clipId\] = \{ effect: 'dissolve', duration: 0\.5 \}/);
+  assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
 });
