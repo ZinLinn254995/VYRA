@@ -2694,6 +2694,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               : '. Review the saved shot in Editor; VYRA will not spend credits to regenerate it without your approval.'));
       } else if (result.status === 'ready') {
         let shotSequenceLinkMessage = '';
+        const repairVerificationScope = repairRequest && activeDirectorScenePlan
+          ? [
+              'shot-level',
+              ...(repairRequest.shotIndex > 0 ? ['incoming-boundary'] : []),
+              ...(repairRequest.shotIndex + 1 < activeDirectorScenePlan.shots.length ? ['outgoing-boundary'] : []),
+            ].join(', ')
+          : 'shot-level';
         if ('completedShots' in result && activeDirectorScenePlan && storyboardId) {
           const linkedShots = result.completedShots.flatMap((shot) => {
             const asset = shot.assets.find((item) => item.mimeType.toLowerCase().startsWith('video/'));
@@ -2735,7 +2742,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: repairRequest
-            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its shot-level and available incoming-boundary checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ${repairVerificationScope} checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
             : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
@@ -2747,7 +2754,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }]);
         if (repairRequest) setPendingShotRepair(null); else setDraft('');
         setMediaGenerationStatus(repairRequest
-          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified against its approved shot-level and available incoming-boundary checks. The matching Editor clip has been replaced; downstream boundaries still need review.'
+          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified against its approved ' + repairVerificationScope + ' checks. The matching Editor clip has been replaced; downstream boundaries still need review.'
           : isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
