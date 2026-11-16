@@ -88,6 +88,7 @@ test('Master Editor preview schedules each generated Scene shot Asset in order',
   assert.ok(workspace.includes('videoClips,'));
   assert.ok(workspace.includes('const videoClips = generatedClips.map'));
   assert.ok(masterEditor.includes('videoClips?: TimelineClip[]'));
+  assert.ok(masterEditor.includes('instance.videoClips?.some((clip)'));
   assert.ok(videoPlanner.includes('Array.isArray(instance.videoClips)'));
   assert.ok(videoPlanner.includes("instance.id + ':' + clip.id"));
   assert.ok(videoPlanner.includes('clipStart = sceneStart + clip.start'));
