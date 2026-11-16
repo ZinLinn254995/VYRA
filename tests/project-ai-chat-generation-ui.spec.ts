@@ -267,6 +267,7 @@ test('AI Chat never replaces a repaired Editor clip without final Scene continui
 
 test('shot repair history records verified and review outcomes without mutating prior events', () => {
   assert.ok(chat.includes('onShotRepairHistory?:'));
+  assert.ok(chat.includes('onShotSequenceReady, onShotRepairHistory, workspaceContext'));
   assert.ok(chat.includes("outcome: 'needs_review'"));
   assert.ok(chat.includes("outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review'"));
   assert.ok(chat.includes('previousAssetVersionId: original?.assetVersionId ?? null'));
