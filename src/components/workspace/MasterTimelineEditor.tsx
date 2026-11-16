@@ -983,7 +983,6 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           videoTracks: kind === 'audio' ? (value?.videoTracks || []) : nextTracks,
           transitions: value?.transitions || {},
           audioTracks: kind === 'audio' ? nextTracks : (value?.audioTracks || []),
-          videoTracks: value?.videoTracks || [],
           textTracks: value?.textTracks || [],
         });
       }
