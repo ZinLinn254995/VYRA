@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isCanonicalOwnedStoragePath } from '../_shared/canonical-storage-path.ts';
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
@@ -92,34 +93,14 @@ Deno.serve(async (request: Request) => {
   logExtractionPhase('source_hash_verified', startedAt);
 
   let width = 0, height = 0;
-  let samples: Uint8Array;
-  try {
-    // Hand the verified source bytes to the pinned decoder, then release the
-    // original JS buffer immediately after decoding. Keeping both the encoded
-    // file and the full RGBA sample stream alive is a major avoidable memory peak.
-    let decodeInput: Uint8Array | null = original;
-    original = null;
-    samples = await ImageMagick.read(decodeInput!, (image) => {
-      width = image.width; height = image.height;
-      const pixels = width * height;
-      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) throw new Error('Image exceeds the 10-megapixel DNA v3 limit.');
-      const rgba = image.getPixels((collection) => collection.toByteArray(0, 0, width, height, 'rgba')?.slice() ?? null);
-      if (!rgba || rgba.byteLength !== pixels * 4) throw new Error('Pinned decoder did not return a complete RGBA8 sample stream.');
-      return rgba;
-    });
-    decodeInput = null;
-  } catch (error) {
-    return reply({ error: error instanceof Error ? error.message : 'Pinned raster decode failed.' }, 422);
-  }
-
-  logExtractionPhase('image_decoded', startedAt, { width, height, pixel_count: width * height, decoded_bytes: samples.byteLength });
-
+  let decodedHash = '';
+  let visualFingerprint = '';
   const recordId = crypto.randomUUID();
   const storagePrefix = userId + '/' + asset.vyral_id + '/' + assetId + '/dna/v3/' + recordId + '/tiles/';
   const tileMetadata: Record<string, unknown>[] = [];
   const uploaded: string[] = [];
-  const rowBytes = width * 4;
   const pending: Array<{ x: number; y: number; width: number; height: number; bytes: Uint8Array; path: string }> = [];
+  const decodedHasher = createHash('sha256');
   const persistBatch = async () => {
     const batch = pending.splice(0, pending.length);
     const outcomes = await Promise.allSettled(batch.map(async (tile) => {
@@ -141,36 +122,89 @@ Deno.serve(async (request: Request) => {
           package_path: 'dna/v3/' + recordId + '/tiles/' + tile.x + '_' + tile.y + '.raw',
           storage_path: tile.path,
         });
+        // The tile is now safely stored and its integrity digest is recorded.
+        // Drop the JS copy immediately instead of retaining an entire image row.
+        tile.bytes = new Uint8Array(0);
       } else if (!failure) failure = outcome.reason instanceof Error ? outcome.reason.message : 'Unknown Storage upload error.';
     }
     if (failure) throw new Error('DNA tile batch failed: ' + failure);
   };
+  let tileUploadStarted = false;
   try {
-    for (let y = 0; y < height; y += TILE) {
-      for (let x = 0; x < width; x += TILE) {
-        const tileWidth = Math.min(TILE, width - x), tileHeight = Math.min(TILE, height - y);
-        const bytes = new Uint8Array(tileWidth * tileHeight * 4);
-        for (let row = 0; row < tileHeight; row++) {
-          const offset = (y + row) * rowBytes + x * 4;
-          bytes.set(samples.subarray(offset, offset + tileWidth * 4), row * tileWidth * 4);
-        }
-        pending.push({ x, y, width: tileWidth, height: tileHeight, bytes, path: storagePrefix + x + '_' + y + '.raw' });
-        if (pending.length >= 2) await persistBatch();
+    // Decode once, but only copy one 512px-high tile row into JS memory at a
+    // time. Hash each scanline from left to right so the aggregate digest is
+    // byte-for-byte identical to the former full RGBA sample buffer.
+    let decodeInput: Uint8Array | null = original;
+    original = null;
+    await ImageMagick.read(decodeInput!, async (image) => {
+      width = image.width; height = image.height;
+      const pixels = width * height;
+      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 || pixels > MAX_PIXELS) {
+        throw new Error('Image exceeds the 10-megapixel DNA v3 limit.');
       }
-    }
-    if (pending.length) await persistBatch();
+      for (let y = 0; y < height; y += TILE) {
+        const tileRow: Array<{ x: number; y: number; width: number; height: number; bytes: Uint8Array; path: string }> = [];
+        const tileHeight = Math.min(TILE, height - y);
+        for (let x = 0; x < width; x += TILE) {
+          const tileWidth = Math.min(TILE, width - x);
+          const bytes = image.getPixels((collection) =>
+            collection.toByteArray(x, y, tileWidth, tileHeight, 'rgba')?.slice() ?? null
+          );
+          if (!bytes || bytes.byteLength !== tileWidth * tileHeight * 4) {
+            throw new Error('Pinned decoder did not return a complete RGBA8 tile.');
+          }
+          tileRow.push({ x, y, width: tileWidth, height: tileHeight, bytes,
+            path: storagePrefix + x + '_' + y + '.raw' });
+        }
+        // Tile-major byte order is not image-major byte order. Feed one row
+        // from every horizontal tile before advancing to the next scanline.
+        for (let row = 0; row < tileHeight; row++) {
+          for (const tile of tileRow) {
+            const start = row * tile.width * 4;
+            decodedHasher.update(tile.bytes.subarray(start, start + tile.width * 4));
+          }
+        }
+        for (const tile of tileRow) {
+          pending.push(tile);
+          if (pending.length >= 2) {
+            tileUploadStarted = true;
+            await persistBatch();
+          }
+        }
+      }
+      if (pending.length) {
+        tileUploadStarted = true;
+        await persistBatch();
+      }
+
+      // Sample the same 9x8 source coordinates as computeVyralDHash64 without
+      // materializing the full decoded image in a second JS buffer.
+      const fingerprintSamples = new Uint8Array(9 * 8 * 4);
+      for (let row = 0; row < 8; row++) {
+        const sourceY = Math.min(height - 1, Math.floor((row + 0.5) * height / 8));
+        for (let column = 0; column < 9; column++) {
+          const sourceX = Math.min(width - 1, Math.floor((column + 0.5) * width / 9));
+          const pixel = image.getPixels((collection) =>
+            collection.toByteArray(sourceX, sourceY, 1, 1, 'rgba')?.slice() ?? null
+          );
+          if (!pixel || pixel.byteLength !== 4) throw new Error('Pinned decoder could not read a fingerprint sample.');
+          fingerprintSamples.set(pixel, (row * 9 + column) * 4);
+        }
+      }
+      visualFingerprint = computeVyralDHash64(fingerprintSamples, 9, 8, 4);
+    });
+    decodeInput = null;
+    decodedHash = decodedHasher.digest('hex');
   } catch (error) {
     if (uploaded.length) await ctx.supabaseAdmin.storage.from(BUCKET).remove(uploaded);
-    return reply({ error: 'DNA tile upload failed; uploaded tiles were rolled back.', detail: error instanceof Error ? error.message : 'Unknown tile error.' }, 500);
+    const detail = error instanceof Error ? error.message : 'Unknown raster extraction error.';
+    return reply({ error: tileUploadStarted
+      ? 'DNA tile upload failed; uploaded tiles were rolled back.'
+      : 'Pinned raster decode failed.', detail }, tileUploadStarted ? 500 : 422);
   }
 
+  logExtractionPhase('image_decoded_and_tiled', startedAt, { width, height, pixel_count: width * height });
   logExtractionPhase('tiles_uploaded', startedAt, { tile_count: tileMetadata.length, tile_bytes: tileMetadata.reduce((total, tile) => total + Number(tile.byte_length ?? 0), 0) });
-  const decodedHash = await sha256(samples);
-  // The perceptual fingerprint is the final consumer of the full decoded
-  // sample stream. Compute it now, then release that large buffer before
-  // database writes and fingerprint persistence.
-  const visualFingerprint = computeVyralDHash64(samples, width, height, 4);
-  samples = new Uint8Array(0);
   logExtractionPhase('decoded_samples_released', startedAt, { width, height });
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
