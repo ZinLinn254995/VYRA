@@ -268,6 +268,7 @@ test('shot repair history records verified and review outcomes without mutating 
   assert.ok(chat.includes("outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review'"));
   assert.ok(chat.includes('previousAssetVersionId: original?.assetVersionId ?? null'));
   assert.ok(chat.includes('candidateAssetVersionId: candidate?.versionId ?? null'));
+  assert.ok(chat.includes('const historyShotIndex = repairTargetShotIndex ?? repairRequest.shotIndex'));
   assert.ok(chat.includes('downstreamShotVerifications ?? []'));
   assert.ok(chat.includes('visual inspection'));
   assert.ok(workspace.includes('type SceneShotRepairHistoryEntry'));
