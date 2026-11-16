@@ -144,8 +144,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               ...existingDirectorClips.filter((clip) => !sequence.shots.some((shot) => shot.shotId === clip.shotId)),
               ...incomingClips,
             ].sort((a, b) => {
-              const aIndex = Number(a.name.match(/^Shot (\\d+)/)?.[1] || 0);
-              const bIndex = Number(b.name.match(/^Shot (\\d+)/)?.[1] || 0);
+              const aIndex = Number(a.name.match(/^Shot (\d+)/)?.[1] || 0);
+              const bIndex = Number(b.name.match(/^Shot (\d+)/)?.[1] || 0);
               return aIndex - bIndex;
             })
           : incomingClips;
