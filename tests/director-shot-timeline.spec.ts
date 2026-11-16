@@ -114,11 +114,14 @@ test('Project Editor autosaves every confirmed edit and restores the saved Proje
   const { readFileSync } = await import('node:fs');
   const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
   const sync = readFileSync(new URL('../src/services/workspaceStoryboards.ts', import.meta.url), 'utf8');
-  assert.ok(workspace.includes('if (!activeStoryboard || !activeStoryboardConfirmed) return;'));
+  assert.ok(workspace.includes('if (!activeStoryboard || !activeStoryboardConfirmed || loadedStorageKey !== ownerStorageKey) return;'));
+  assert.ok(workspace.includes('const ownerStorageKey = storageKey;'));
   assert.ok(workspace.includes('window.setTimeout(() => {'));
   assert.ok(workspace.includes('}, 500);'));
-  assert.ok(workspace.includes('setStoryboards((current) => current.map((item) => item.id === saved.id ? saved : item))'));
-  assert.ok(workspace.includes('void persistStoryboard(saved)'));
+  assert.ok(workspace.includes('if (storyboardStorageKeyRef.current !== ownerStorageKey) return;'));
+  assert.ok(workspace.includes('current.map((item) => item.id === saved.id ? saved : item)'));
+  assert.ok(workspace.includes('void persistStoryboard(saved, ownerStorageKey)'));
+  assert.ok(workspace.includes('expectedOwnerStorageKey = storyboardStorageKeyRef.current'));
   assert.ok(workspace.includes('setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } })'));
   assert.ok(workspace.includes('const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId)'));
   assert.ok(sync.includes('storyboards: Array.from(merged.values())'));
