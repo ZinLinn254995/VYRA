@@ -272,12 +272,17 @@ test('shot repair history records verified and review outcomes without mutating 
   assert.ok(chat.includes("outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review'"));
   assert.ok(chat.includes('previousAssetVersionId: original?.assetVersionId ?? null'));
   assert.ok(chat.includes('candidateAssetVersionId: candidate?.versionId ?? null'));
+  assert.ok(chat.includes('findings: [...findings, ...finalValidationReasons].filter(Boolean).slice(0, 20)'));
+  assert.ok(chat.includes('findings: result.finalSceneValidation?.reasons ?? []'));
+  assert.ok(chat.includes('activeSceneRepairHistory: workspaceContext.activeSceneRepairHistory'));
   assert.ok(chat.includes('const historyShotIndex = repairTargetShotIndex ?? repairRequest.shotIndex'));
   assert.ok(chat.includes('!failedDownstreamShot && failedShot.shotIndex === historyShotIndex'));
   assert.ok(chat.includes('downstreamShotVerifications ?? []'));
   assert.ok(chat.includes('visual inspection'));
   assert.ok(workspace.includes('type SceneShotRepairHistoryEntry'));
   assert.ok(workspace.includes('repairHistory: [...history, entry]'));
+  assert.ok(workspace.includes('activeSceneRepairHistory: (scenes.find((scene) => scene.id === (selectedTimelineItem?.kind === \'scene\' ? selectedTimelineItem.id : activeSceneId))?.project?.repairHistory ?? [])'));
+  assert.ok(workspace.includes('.slice(-12)'));
   assert.ok(workspace.includes('Append-only: never replace or edit an earlier repair event.'));
   assert.ok(workspace.includes('onShotRepairHistory={handleShotRepairHistory}'));
 });
