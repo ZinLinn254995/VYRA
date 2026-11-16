@@ -62,6 +62,12 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   const thumbnailFailure = backfill.slice(backfill.indexOf('if (!thumbnailBlob)'), backfill.indexOf('const thumbnailType'));
   assert.ok(thumbnailFailure.includes('await scheduleRetry(row)'), 'Thumbnail decode failures must use bounded retry rather than being permanently skipped after one attempt.');
   assert.ok(!thumbnailFailure.includes('thumbnail_backfill_attempted_at: new Date().toISOString()'), 'A single decode timeout must not permanently suppress thumbnail retries.');
+  assert.ok(backfill.includes('let latestRowExists = false'), 'Ambiguous metadata responses must be reconciled against the current row before cleanup.');
+  assert.ok(backfill.includes('latestMetadata?.thumbnail_path === thumbnailPath'), 'A committed thumbnail must be retained even when the update response reports an error.');
+  assert.ok(backfill.includes('if (!couldVerifyRow) continue'), 'An unreadable row must never cause deletion of a possibly referenced thumbnail.');
+  assert.ok(backfill.includes("media_library_storage_cleanup_jobs').insert"), 'Failed cleanup of an unclaimed thumbnail must be persisted for retry.');
+  assert.ok(backfill.includes('if (latestRowExists && latestMetadata?.thumbnail_path == null) await scheduleRetry(row)'), 'A verified surviving row without a thumbnail must remain eligible for bounded retry.');
+  assert.ok(backfill.includes('await applyUniverseScope('), 'Thumbnail attachment and reconciliation reads must retain the active Library scope.');
   for (const snippet of [
     'MAX_FILE_BYTES = 100 * 1024 * 1024',
     "storage.from('vyral-assets').upload",
