@@ -199,6 +199,14 @@ export function buildSceneVisualRepairPrompt(
   if (!findings.length && result.status === 'consistent') {
     return 'Visual inspection found no required-anchor mismatch for this shot. Keep the approved Scene canon unchanged.';
   }
+  if (!findings.length) {
+    return [
+      'VYRA VISUAL CONTINUITY REVIEW — NO AUTOMATIC CORRECTION',
+      ...result.limitations.slice(0, 8).map((limitation) => '- ' + limitation),
+      'Refresh the approved Scene baseline or complete a new visual inspection before continuing.',
+      'Do not change canon or spend credits without explicit creator approval.',
+    ].join('\\n').slice(0, 4000);
+  }
   const lines = [
     'VYRA VISUAL CONTINUITY REPAIR — REVIEW REQUIRED',
     'Shot purpose (quoted creative data): ' + JSON.stringify(shot.purpose.slice(0, 300)),
