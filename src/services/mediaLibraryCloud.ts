@@ -718,7 +718,8 @@ async function runMediaLibraryThumbnailBackfill(
 
   let generated = 0;
   const scheduleRetry = async (row: { id: string; metadata: Record<string, unknown> | null }) => {
-    const attempts = Number(row.metadata?.thumbnail_backfill_attempts ?? 0) + 1;
+    const previousAttempts = Number(row.metadata?.thumbnail_backfill_attempts ?? 0);
+    const attempts = (Number.isFinite(previousAttempts) ? Math.max(0, Math.floor(previousAttempts)) : 0) + 1;
     const retryMetadata: Record<string, unknown> = {
       ...(row.metadata ?? {}),
       thumbnail_backfill_attempts: attempts,
