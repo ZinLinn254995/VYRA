@@ -2674,9 +2674,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const repairDownstreamShotAssets = repairTargetShotIndex !== undefined
           ? downstreamShotAssets.filter((item) => item.shotIndex > repairTargetShotIndex)
           : [];
-        const repairInstruction = failedBoundary && repairTargetShotPlan
-          ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)
+        const hasActionableBoundaryMismatch = failedBoundary?.verification.findings.some((finding) => finding.status === 'mismatch') === true;
+        const repairInstruction = failedBoundary
+          ? hasActionableBoundaryMismatch && repairTargetShotPlan
+            ? buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)
+            : undefined
           : failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
+        const targetedRepairPrepared = repairTargetShotIndex !== undefined && repairTargetShotPlan
+          && activeDirectorScenePlan && Boolean(repairInstruction) && Boolean(visualVerification) && !baselineChangedDuringReview;
         const reviewPreviews: ProjectMediaPreview[] = [];
         for (const asset of failedShot?.assets ?? []) {
           const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
@@ -2689,7 +2694,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}),
           });
         }
-        if (repairTargetShotIndex !== undefined && repairTargetShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification && !baselineChangedDuringReview) {
+        if (targetedRepairPrepared && repairTargetShotIndex !== undefined && repairTargetShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: repairTargetShotIndex,
             storyboardId,
@@ -2717,7 +2722,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               : '. The generated Asset is saved in Project Assets and linked to the Editor for review.\n\n') +
             detail +
             (failedBoundary
-              ? '\n\nThe failed handoff is Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. VYRA has prepared a separate repair for the receiving Shot ' + (failedBoundary.currentShotIndex + 1) + '; the earlier repair target will not be regenerated.'
+              ? targetedRepairPrepared
+                ? '\n\nThe failed handoff is Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. VYRA has prepared a separate repair for the receiving Shot ' + (failedBoundary.currentShotIndex + 1) + '; the earlier repair target will not be regenerated.'
+                : '\n\nThe handoff inspection did not identify a specific mismatch that can safely guide regeneration. No paid repair was offered; inspect again or review this boundary manually.'
               : '') +
             (baselineChangedDuringReview ? '\n\nThe approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.' : '') + (repair.length ? '\n\n' + repair.join('\n\n') : '') +
             '\n\nNo later shots were generated and no automatic paid regeneration was attempted.',
@@ -2725,7 +2732,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMediaGenerationStatus(baselineChangedDuringReview
           ? 'The approved Scene baseline changed during inspection. Refresh the Scene and inspect again before attempting a repair.'
           : failedBoundary
-          ? 'Continuity mismatch at Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. A targeted repair is ready for Shot ' + (failedBoundary.currentShotIndex + 1) + '.'
+          ? targetedRepairPrepared
+            ? 'Continuity mismatch at Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. A targeted repair is ready for Shot ' + (failedBoundary.currentShotIndex + 1) + '.'
+            : 'Continuity review needs clearer evidence at Shot ' + (failedBoundary.previousShotIndex + 1) + ' → Shot ' + (failedBoundary.currentShotIndex + 1) + '. No paid repair was offered.'
           : 'Paused for visual continuity review at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
             (repairRequest
               ? '. The existing Editor clip was kept; the new candidate is available in Project Assets for review.'
