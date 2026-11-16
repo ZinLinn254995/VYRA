@@ -972,8 +972,15 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         setIsDeletingStoryboard(false);
         return;
       }
+      const deletionDetails = {
+        ...(item.details ?? {}),
+        __vyraDeletedAt: new Date().toISOString(),
+      };
+      // Keep a small cloud tombstone so another device's stale local cache
+      // cannot interpret the missing row as a new Project and upload it again.
       const { error: deleteError } = await client.from('vyral_storyboards')
-        .delete().eq('id', item.id).eq('user_id', authData.user.id);
+        .update({ details: deletionDetails, updated_at: deletionDetails.__vyraDeletedAt })
+        .eq('id', item.id).eq('user_id', authData.user.id);
       if (deleteError) {
         deletedStoryboardIdsRef.current.delete(item.id);
         setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
