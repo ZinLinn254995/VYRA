@@ -29,6 +29,31 @@ export type TimelineMediaKind = 'video' | 'image' | 'audio';
 const EPSILON = 0.000001;
 
 /**
+ * Scenes behaves as one continuous clip train anchored at 0s.
+ * Empty row starts at 0; a playhead inside a clip inserts after it;
+ * a playhead between clips inserts at that boundary; any trailing empty
+ * space after the final clip is ignored and insertion appends to the train.
+ */
+export function getScenesInsertionTime(
+  clips: Array<Pick<TimelineMediaClipPlacement, 'start' | 'duration'>>,
+  playheadTime: number,
+): number {
+  if (clips.length === 0) return 0;
+  const ordered = [...clips].sort((a, b) => a.start - b.start);
+  const playhead = Math.max(0, Number.isFinite(playheadTime) ? playheadTime : 0);
+  let previousEnd = 0;
+
+  for (const clip of ordered) {
+    const start = Math.max(0, clip.start);
+    const end = start + Math.max(0, clip.duration);
+    if (playhead < start - EPSILON) return previousEnd;
+    if (playhead < end - EPSILON) return end;
+    previousEnd = Math.max(previousEnd, end);
+  }
+  return previousEnd;
+}
+
+/**
  * Video and Image always occupy one shared visual row, even when clips overlap.
  * Audio remains on its own independent track and may use additional rows.
  */
