@@ -735,7 +735,8 @@ async function runMediaLibraryThumbnailBackfill(
     }
     await applyUniverseScope(db.from('media_library_items')
       .update({ metadata: retryMetadata })
-      .eq('id', row.id).eq('user_id', userId), universeId)
+      .eq('id', row.id).eq('user_id', userId)
+      .eq('metadata', row.metadata ?? {}), universeId)
       .is('metadata->thumbnail_path', null)
       .is('metadata->thumbnail_backfill_attempted_at', null);
   };
@@ -771,6 +772,7 @@ async function runMediaLibraryThumbnailBackfill(
         db.from('media_library_items')
           .update({ metadata })
           .eq('id', row.id).eq('user_id', userId)
+          .eq('metadata', row.metadata ?? {})
           .is('metadata->thumbnail_path', null)
           .select('id')
           .maybeSingle(),
