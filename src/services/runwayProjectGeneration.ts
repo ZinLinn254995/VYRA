@@ -9,6 +9,7 @@ import {
 import {
   evaluateSceneVisualVerification,
   buildSceneVisualRepairPrompt,
+  buildSceneVisualTransitionAnchors,
   type SceneVisualAnchor,
   type SceneVisualObservation,
   type SceneVisualVerificationResult,
@@ -374,6 +375,18 @@ export type RunwayShotVisualVerificationAdapter = {
     anchors: SceneVisualAnchor[];
     signal?: AbortSignal;
   }) => Promise<{ observations: SceneVisualObservation[]; inspectionComplete: boolean }>;
+  /** Inspect the previous shot's final frame against the current shot's opening frame. */
+  inspectTransition?: (input: {
+    previousAsset: RunwayProjectOutputAsset;
+    currentAsset: RunwayProjectOutputAsset;
+    previousShot: CreativeShotPlan;
+    currentShot: CreativeShotPlan;
+    previousShotIndex: number;
+    currentShotIndex: number;
+    scene: CreativeScenePlan;
+    anchors: SceneVisualAnchor[];
+    signal?: AbortSignal;
+  }) => Promise<{ observations: SceneVisualObservation[]; inspectionComplete: boolean }>;
   /** Read the latest approved baseline revision after inspection to detect stale results. */
   getCurrentBaselineRevision: () => Promise<string>;
 };
@@ -434,6 +447,7 @@ export type RunwayProjectShotSequenceResult = {
     jobId: string;
     assets: RunwayProjectOutputAsset[];
     visualVerifications?: SceneVisualVerificationResult[];
+    transitionVerification?: SceneVisualVerificationResult;
     repairPrompts?: string[];
   }>;
   stoppedAtShotIndex: number | null;
@@ -503,6 +517,10 @@ export async function generateRunwayProjectShotSequence(
       request.visualVerification.anchors.length === 0
   )) {
     throw new Error('Visual verification requires a creator-approved baseline revision and at least one visual anchor before paid generation.');
+  }
+  if (request.visualVerification && request.scene.shots.length > 1
+    && typeof request.visualVerification.inspectTransition !== 'function') {
+    throw new Error('Multi-shot visual verification requires a shot-boundary continuity inspector.');
   }
   const validation = validateCreativeProductionPlan({
     title: request.productionTitle,
@@ -626,14 +644,57 @@ export async function generateRunwayProjectShotSequence(
         repairPrompts.push(buildSceneVisualRepairPrompt(verification, shot));
       }
     }
+    let transitionVerification: SceneVisualVerificationResult | undefined;
+    if (request.visualVerification && shotIndex > 0) {
+      const previousCompleted = completedShots[shotIndex - 1];
+      const previousShot = request.scene.shots[shotIndex - 1];
+      const previousAsset = previousCompleted?.assets.find((asset) => /^video\\//i.test(asset.mimeType));
+      const currentAsset = shotAssets.find((asset) => /^video\\//i.test(asset.mimeType));
+      let transitionObservations: SceneVisualObservation[] = [];
+      let transitionInspectionComplete = false;
+      let currentBaselineRevision = request.visualVerification.baselineRevision;
+      try {
+        if (previousAsset && currentAsset && request.visualVerification.inspectTransition) {
+          const transition = await request.visualVerification.inspectTransition({
+            previousAsset, currentAsset, previousShot, currentShot: shot,
+            previousShotIndex: shotIndex - 1, currentShotIndex: shotIndex,
+            scene: request.scene, anchors: buildSceneVisualTransitionAnchors(), signal: request.signal,
+          });
+          transitionObservations = Array.isArray(transition.observations) ? transition.observations : [];
+          transitionInspectionComplete = transition.inspectionComplete === true && Array.isArray(transition.observations);
+        }
+      } catch (error) {
+        if (request.signal?.aborted) throw error;
+        transitionInspectionComplete = false;
+      }
+      try {
+        const latestRevision = await request.visualVerification.getCurrentBaselineRevision();
+        if (typeof latestRevision !== 'string' || !latestRevision.trim()) throw new Error('The approved Scene baseline revision is unavailable.');
+        currentBaselineRevision = latestRevision;
+      } catch {
+        transitionInspectionComplete = false;
+      }
+      transitionVerification = evaluateSceneVisualVerification({
+        mediaId: currentAsset?.assetId ?? shot.id,
+        mediaKind: 'video',
+        baselineRevision: request.visualVerification.baselineRevision,
+        currentBaselineRevision,
+        anchors: buildSceneVisualTransitionAnchors(),
+        observations: transitionObservations,
+        inspectionComplete: transitionInspectionComplete,
+      });
+      repairPrompts.push(buildSceneVisualRepairPrompt(transitionVerification, shot));
+    }
     completedShots.push({
       shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets,
       ...(request.visualVerification ? { visualVerifications, repairPrompts } : {}),
+      ...(transitionVerification ? { transitionVerification } : {}),
     });
-    if (visualVerifications.some((verification) => verification.status !== 'consistent')) {
+    if (visualVerifications.some((verification) => verification.status !== 'consistent')
+      || (transitionVerification && transitionVerification.status !== 'consistent')) {
       request.onShotProgress?.({
         shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
-        status: 'visual-verification-needs-review', jobId: result.jobId,
+        status: transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
       });
       // Do not generate later shots against an unverified handoff, and never
       // auto-regenerate a paid output. Return targeted repair guidance for review.
@@ -641,7 +702,7 @@ export async function generateRunwayProjectShotSequence(
         status: 'needs_review',
         visualVerificationStatus: 'needs_review',
         completedShots, stoppedAtShotIndex: shotIndex,
-        stoppedStatus: 'visual_verification_needs_review',
+        stoppedStatus: transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
         stoppedJobId: result.jobId,
         approvedCostUsd,
       };
