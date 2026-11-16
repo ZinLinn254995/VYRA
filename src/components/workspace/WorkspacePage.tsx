@@ -154,8 +154,42 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             ...track,
             clips: track.clips.filter((clip) => clip.source !== 'ai_director_shot'),
           }));
+        const nextSceneDuration = Math.max(scene.duration, cursor);
+        const masterTimeline: MasterTimelineData = current.details?.masterTimeline || {
+          sceneRanges: {}, transitions: {}, audioTracks: [], textTracks: [],
+        };
+        const previousInstances = masterTimeline.sceneInstances || [];
+        const previousInstance = previousInstances.find((instance) => instance.sceneId === scene.id);
+        const videoClips = generatedClips.map((clip) => ({
+          id: clip.id,
+          name: clip.name,
+          start: clip.start,
+          duration: clip.duration,
+          sourceIn: 0,
+          sourceOut: clip.duration,
+          assetId: clip.assetId,
+          assetVersionId: clip.assetVersionId,
+          assetMimeType: clip.assetMimeType,
+        }));
+        const nextInstance = {
+          ...(previousInstance || {
+            id: scene.id, sceneId: scene.id, sourceIn: 0, sourceOut: nextSceneDuration,
+          }),
+          sceneId: scene.id,
+          videoClips,
+        };
+        const nextInstances = previousInstance
+          ? previousInstances.map((instance) => instance.sceneId === scene.id ? nextInstance : instance)
+          : (() => {
+              const sceneOrder = (current.details?.scenes || []).map((item) => item.id);
+              const targetOrder = sceneOrder.indexOf(scene.id);
+              const insertAt = previousInstances.findIndex((instance) => sceneOrder.indexOf(instance.sceneId) > targetOrder);
+              const index = insertAt < 0 ? previousInstances.length : insertAt;
+              return [...previousInstances.slice(0, index), nextInstance, ...previousInstances.slice(index)];
+            })();
         return {
           ...scene,
+          duration: nextSceneDuration,
           project: {
             ...project,
             timeline: {
@@ -165,12 +199,26 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             },
             updatedAt: now,
           },
-        };
+          __shotSequenceTimeline: { sceneInstances: nextInstances },
+        } as StoryboardScene & { __shotSequenceTimeline: { sceneInstances: typeof nextInstances } };
       });
       if (!sceneMatched) return current;
+      const nextSceneInstances = scenes.find((scene) => '__shotSequenceTimeline' in scene)?.__shotSequenceTimeline.sceneInstances;
+      const cleanScenes = scenes.map((scene) => {
+        if (!('__shotSequenceTimeline' in scene)) return scene;
+        const { __shotSequenceTimeline: _internal, ...clean } = scene;
+        return clean as StoryboardScene;
+      });
       return {
         ...current,
-        details: { ...current.details, scenes },
+        details: {
+          ...current.details,
+          scenes: cleanScenes,
+          masterTimeline: {
+            ...(current.details?.masterTimeline || { sceneRanges: {}, transitions: {}, audioTracks: [], textTracks: [] }),
+            ...(nextSceneInstances ? { sceneInstances: nextSceneInstances } : {}),
+          },
+        },
         updatedAt: now,
       };
     });
