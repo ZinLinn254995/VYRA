@@ -2651,12 +2651,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           for (const shotIndex of downstreamIndices) {
             const existing = workspaceContext?.activeSceneDirectorShots?.find((item) => item.shotIndex === shotIndex);
             if (!existing) continue;
-            const [{ data: asset }, { data: version }] = await Promise.all([
+            const [assetResult, versionResult] = await Promise.all([
               projectSupabase.from('vyral_assets').select('id,vyral_id,storage_path,mime_type,size_bytes,sha256')
                 .eq('id', existing.assetId).eq('vyral_id', storyboardUniverseId).eq('user_id', requestOwnerId).maybeSingle(),
               projectSupabase.from('vyral_asset_versions').select('id,storage_path,mime_type,size_bytes,sha256')
                 .eq('id', existing.assetVersionId).eq('asset_id', existing.assetId).eq('user_id', requestOwnerId).maybeSingle(),
             ]);
+            const asset = assetResult.data as {
+              id: string; vyral_id: string; storage_path: string; mime_type: string | null;
+              size_bytes: number | string | null; sha256: string | null;
+            } | null;
+            const version = versionResult.data as {
+              id: string; storage_path: string; mime_type: string | null;
+              size_bytes: number | string | null; sha256: string | null;
+            } | null;
             if (asset && version && asset.id === existing.assetId && asset.vyral_id === storyboardUniverseId
               && version.id === existing.assetVersionId && asset.storage_path === version.storage_path
               && /^video\//i.test(version.mime_type || '') && Number.isSafeInteger(Number(version.size_bytes))
