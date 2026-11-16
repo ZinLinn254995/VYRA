@@ -1286,6 +1286,33 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       if (authError || !authData.user) throw new Error('Sign in again before uploading media.');
       let nextVideoTracks = value?.videoTracks || [];
       let nextAudioTracks = value?.audioTracks || [];
+      let nextSceneInstances = value?.sceneInstances || [];
+      // Visual insertion follows the playhead, but never splits an existing clip.
+      // If the playhead is inside a Scenes clip, insert immediately after that clip.
+      const sceneClipsAtStart = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks)
+        .flatMap((track) => track.clips);
+      const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+      const containingSceneClips = sceneClipsAtStart.filter((clip) =>
+        playheadTime > clip.start + 0.001 && playheadTime < clip.start + clip.duration - 0.001,
+      );
+      let sceneInsertionTime = containingSceneClips.length
+        ? Math.max(...containingSceneClips.map((clip) => clip.start + clip.duration))
+        : playheadTime;
+      const shiftDirectorSceneClips = (instances: typeof nextSceneInstances, insertionTime: number, amount: number) =>
+        instances.map((instance) => {
+          const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
+          const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
+            .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
+          if (!instance.videoClips?.length) return instance;
+          return {
+            ...instance,
+            videoClips: instance.videoClips.map((clip) =>
+              sceneStart + clip.start >= insertionTime - 0.001
+                ? { ...clip, start: clip.start + amount }
+                : clip,
+            ),
+          };
+        });
       for (const file of files) {
         const mime = file.type.toLowerCase();
         const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -1311,11 +1338,22 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           file: normalizedFile,
         });
         const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
-        // Visual uploads always append after the final Scene-row clip; audio keeps playhead placement.
-        const existingVisualClips = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks).flatMap((track) => track.clips);
+        // Audio remains playhead-placed. Image/Video insert at the Scenes playhead position.
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
-          : existingVisualClips.reduce((end, existing) => Math.max(end, existing.start + existing.duration), 0);
+          : sceneInsertionTime;
+        if (kind !== 'audio') {
+          nextVideoTracks = nextVideoTracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((existing) =>
+              existing.start >= sceneInsertionTime - 0.001
+                ? { ...existing, start: existing.start + clipDuration }
+                : existing,
+            ),
+          }));
+          nextSceneInstances = shiftDirectorSceneClips(nextSceneInstances, sceneInsertionTime, clipDuration);
+          sceneInsertionTime += clipDuration;
+        }
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
           name: file.name,
@@ -1337,7 +1375,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const nextTransitions = { ...(value?.transitions || {}) };
         commitChange({
           sceneRanges: value?.sceneRanges || {},
-          sceneInstances: value?.sceneInstances,
+          sceneInstances: nextSceneInstances,
           videoTracks: nextVideoTracks,
           transitions: nextTransitions,
           audioTracks: nextAudioTracks,
@@ -1763,9 +1801,31 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   const addSampleVisualClip = (mediaKind: 'image' | 'video') => {
     const currentTracks = value?.videoTracks || [];
     const existingClips = visibleVideoTracks.flatMap((track) => track.clips);
-    const previousClip = existingClips.reduce<TimelineClip | null>((latest, clip) =>
-      !latest || clip.start + clip.duration > latest.start + latest.duration ? clip : latest, null);
-    const start = previousClip ? previousClip.start + previousClip.duration : 0;
+    const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+    const containingClips = existingClips.filter((clip) =>
+      playheadTime > clip.start + 0.001 && playheadTime < clip.start + clip.duration - 0.001,
+    );
+    const start = containingClips.length
+      ? Math.max(...containingClips.map((clip) => clip.start + clip.duration))
+      : playheadTime;
+    const shiftedTracks = currentTracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) =>
+        clip.start >= start - 0.001 ? { ...clip, start: clip.start + 3 } : clip,
+      ),
+    }));
+    const nextSceneInstances = (value?.sceneInstances || []).map((instance) => {
+      const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
+      const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
+        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
+      if (!instance.videoClips?.length) return instance;
+      return {
+        ...instance,
+        videoClips: instance.videoClips.map((clip) =>
+          sceneStart + clip.start >= start - 0.001 ? { ...clip, start: clip.start + 3 } : clip,
+        ),
+      };
+    });
     const clipId = crypto.randomUUID();
     const sampleClip: TimelineClip = {
       id: clipId,
@@ -1780,13 +1840,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     };
     const nextTracks: TimelineTrack[] = currentTracks.length
       ? currentTracks.map((track, index) => index === 0
-        ? { ...track, name: 'Scenes', clips: [...track.clips, sampleClip] }
+        ? { ...track, name: 'Scenes', clips: [...track.clips, sampleClip].sort((a, b) => a.start - b.start) }
         : track)
       : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [sampleClip] }];
     const nextTransitions = { ...(value?.transitions || {}) };
     commitChange({
       sceneRanges: value?.sceneRanges || {},
-      sceneInstances: value?.sceneInstances,
+      sceneInstances: nextSceneInstances,
       transitions: nextTransitions,
       audioTracks: value?.audioTracks || [],
       videoTracks: nextTracks,
