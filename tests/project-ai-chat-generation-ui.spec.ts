@@ -129,3 +129,10 @@ test('Project AI Chat samples generated video frames and invokes the grounded vi
   assert.ok(chat.includes('result.status === \'needs_review\''));
   assert.ok(chat.includes('No later shots were generated and no automatic paid regeneration was attempted.'));
 });
+
+
+test('video frame sampling includes both the opening and closing edge of the generated shot', () => {
+  const chat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
+  assert.ok(chat.includes('lastSafeFrameTime * index / (frameCount - 1)'));
+  assert.ok(chat.includes('Math.min(0.05, duration / 10)'));
+});
