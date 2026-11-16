@@ -85,3 +85,14 @@ test('Project Editor wires the verified handoff into both Scene Timeline and Mas
   assert.ok(workspace.includes('storyboardSaveQueueRef.current.get(item.id) === saveTask'));
   assert.ok(workspace.includes('onShotSequenceReady={handleShotSequenceReady}'));
 });
+
+test('queued storyboard saves cannot recreate a deleted Project', async () => {
+  const { readFileSync } = await import('node:fs');
+  const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePage.tsx', import.meta.url), 'utf8');
+  assert.ok(workspace.includes('deletedStoryboardIdsRef = useRef<Set<string>>(new Set())'));
+  assert.ok(workspace.includes('deletedStoryboardIdsRef.current.has(item.id)'));
+  assert.ok(workspace.includes('deletedStoryboardIdsRef.current.add(item.id)'));
+  assert.ok(workspace.includes('const queuedSave = storyboardSaveQueueRef.current.get(item.id)'));
+  assert.ok(workspace.includes('if (queuedSave) await queuedSave.catch(() => undefined)'));
+  assert.ok(workspace.includes('deletedStoryboardIdsRef.current.delete(item.id)'));
+});
