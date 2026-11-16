@@ -259,3 +259,16 @@ test('AI Chat never replaces a repaired Editor clip without final Scene continui
   assert.ok(chat.includes('final continuity validation for the repaired Shot and every following Shot/boundary'));
   assert.ok(chat.includes('final continuity validation was not confirmed; the previous Editor clip was kept'));
 });
+
+
+test('shot repair history records verified and review outcomes without mutating prior events', () => {
+  assert.ok(chat.includes('onShotRepairHistory?:'));
+  assert.ok(chat.includes("outcome: 'needs_review'"));
+  assert.ok(chat.includes("outcome: result.finalSceneValidation?.status === 'verified' ? 'verified' : 'needs_review'"));
+  assert.ok(chat.includes('previousAssetVersionId: original?.assetVersionId ?? null'));
+  assert.ok(chat.includes('candidateAssetVersionId: candidate?.versionId ?? null'));
+  assert.ok(workspace.includes('type SceneShotRepairHistoryEntry'));
+  assert.ok(workspace.includes('repairHistory: [...history, entry].slice(-100)'));
+  assert.ok(workspace.includes('Append-only: never replace or edit an earlier repair event.'));
+  assert.ok(workspace.includes('onShotRepairHistory={handleShotRepairHistory}'));
+});
