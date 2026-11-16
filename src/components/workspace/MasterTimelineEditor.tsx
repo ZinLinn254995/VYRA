@@ -19,6 +19,7 @@ import {
   Underline,
   Redo2,
   Scissors,
+  Slash,
   Trash2,
   Type,
   Undo2,
