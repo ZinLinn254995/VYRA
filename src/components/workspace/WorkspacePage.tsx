@@ -715,7 +715,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
           mimeType: clip.assetMimeType!,
         }))
         .filter((clip) => clip.shotIndex >= 0)
-        .slice(0, 12),
+        .slice(0, 30),
       selectedTimelineItem: selectedTimelineItem ?? null,
       capturedAt: new Date().toISOString(),
     };
