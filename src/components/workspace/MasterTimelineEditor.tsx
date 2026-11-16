@@ -694,7 +694,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const visualClips = visibleVideoTracks.flatMap((track) => track.clips);
     if (!visualClips.length) return;
     const earliestStart = Math.min(...visualClips.map((item) => item.start));
-    if (!Number.isFinite(earliestStart) || earliestStart >= -0.0001) return;
+    // Rebase for either direction: a leftward start trim can make the
+    // first clip negative, while a rightward start trim can leave it positive.
+    // In both cases the earliest Scenes clip becomes the new ruler 00:00.
+    if (!Number.isFinite(earliestStart) || Math.abs(earliestStart) < 0.0001) return;
     const offset = -earliestStart;
     const videoTracks = (value?.videoTracks || []).map((track) => ({
       ...track,
