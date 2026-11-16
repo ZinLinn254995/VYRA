@@ -8,6 +8,7 @@ import {
   ingestVyralAsset,
   ingestGeneratedVyralAsset,
   VyralAssetIngestionError,
+  createSupabaseVyralAssetIngestionPort,
   type VyralAssetIngestionPort,
 } from '../src/services/vyralAssetIngestion';
 
@@ -38,6 +39,91 @@ function makePort(options: { rasterStatus?: string; dnaExists?: boolean; failAt?
 
 const makeFile = (name: string, type: string, content = 'source bytes') =>
   new File([content], name, { type });
+
+test('Supabase Asset adapter uses conflict-ignore and verifies immutable source identity', async () => {
+  const calls: Array<{ kind: string; options?: Record<string, unknown>; columns?: string }> = [];
+  const record = {
+    id: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45',
+    vyral_id: vyralId,
+    user_id: userId,
+    folder_id: null,
+    name: 'Image',
+    original_filename: 'image.png',
+    asset_type: 'image',
+    mime_type: 'image/png',
+    size_bytes: 12,
+    storage_path: userId + '/' + vyralId + '/asset.png',
+    sha256: 'a'.repeat(64),
+    processing_status: 'uploading',
+    metadata: {},
+  };
+  const db = {
+    from(table: string) {
+      assert.equal(table, 'vyral_assets');
+      return {
+        async upsert(_value: unknown, options: Record<string, unknown>) {
+          calls.push({ kind: 'upsert', options });
+          return { error: null };
+        },
+        select(columns: string) {
+          calls.push({ kind: 'select', columns });
+          return {
+            eq(column: string, value: string) {
+              assert.equal(column, 'id');
+              assert.equal(value, record.id);
+              return { maybeSingle: async () => ({ data: record, error: null }) };
+            },
+          };
+        },
+      };
+    },
+  };
+  await createSupabaseVyralAssetIngestionPort(db).createAsset(record);
+  assert.deepEqual(calls[0], {
+    kind: 'upsert',
+    options: { onConflict: 'id', ignoreDuplicates: true },
+  });
+  assert.equal(calls[1].kind, 'select');
+  assert.match(calls[1].columns ?? '', /sha256/);
+});
+
+test('Supabase Asset adapter rejects an existing ID bound to different source bytes', async () => {
+  const record = {
+    id: '5c901d33-2e54-4f65-8a76-9d0e1f2a3b45',
+    vyral_id: vyralId,
+    user_id: userId,
+    folder_id: null,
+    name: 'Image',
+    original_filename: 'image.png',
+    asset_type: 'image',
+    mime_type: 'image/png',
+    size_bytes: 12,
+    storage_path: userId + '/' + vyralId + '/asset.png',
+    sha256: 'a'.repeat(64),
+    processing_status: 'uploading',
+    metadata: {},
+  };
+  const db = {
+    from() {
+      return {
+        async upsert() { return { error: null }; },
+        select() {
+          return {
+            eq() {
+              return {
+                maybeSingle: async () => ({ data: { ...record, sha256: 'b'.repeat(64) }, error: null }),
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  await assert.rejects(
+    createSupabaseVyralAssetIngestionPort(db).createAsset(record),
+    /different owner or source file/,
+  );
+});
 
 test('classifies image, video, audio and common Vyral file types', () => {
   assert.equal(classifyVyralAssetFile(makeFile('a.png', 'image/png')), 'image');
