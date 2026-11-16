@@ -2188,7 +2188,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           }
           pendingVyralUploadFilesRef.current.delete(clientDraftId);
           let masterDnaMessage = 'Master DNA will update after exact Asset verification.';
-          if (ingested.dnaKind !== 'raster-v3' || ingested.exactVerificationStatus === 'passed') {
+          if (ingested.exactVerificationStatus === 'passed') {
             try {
               const { data: masterResult, error: masterError } = await awaitForCurrentRequest(supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } }));
               masterDnaMessage = !masterError && masterResult?.status === 'ready'
