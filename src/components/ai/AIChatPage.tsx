@@ -2457,7 +2457,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             },
             inspectTransition: async ({ previousAsset, currentAsset, previousShot, currentShot, scene, anchors: transitionAnchors, signal }) => {
               if (!supabase) return { observations: [], inspectionComplete: false };
-              const loadBoundaryFrame = async (asset: typeof previousAsset, boundary: 'opening' | 'closing') => {
+              const loadBoundaryFrame = async (asset: NonNullable<typeof previousAsset>, boundary: 'opening' | 'closing') => {
                 const { data: signed, error: signedError } = await supabase.storage
                   .from('vyral-assets').createSignedUrl(asset.storagePath, 300);
                 if (signedError || !signed?.signedUrl) throw new Error('A private shot boundary frame could not be opened.');
