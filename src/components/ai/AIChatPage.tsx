@@ -2589,7 +2589,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           }] : [];
         });
         if (linkedShots.length && linkedShots.length === result.completedShots.length && onShotSequenceReady && activeDirectorScenePlan && storyboardId) {
-          onShotSequenceReady({ storyboardId, sceneId: directorScenePlan.id, shots: linkedShots });
+          onShotSequenceReady({ storyboardId, sceneId: activeDirectorScenePlan.id, shots: linkedShots, ...(repairRequest ? { replaceShot: true } : {}) });
         }
         const repair = result.completedShots.flatMap((shot) => shot.repairPrompts ?? []).filter(Boolean);
         const findings = result.completedShots.flatMap((shot) => [
@@ -2977,6 +2977,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               )}
               {projectRecoveryError && <p role="alert" className="mt-2 break-words text-[10px] text-[var(--vyra-text-muted)]">{projectRecoveryError}</p>}
               {mediaComposerOpen && (
+                <>
                 {pendingShotRepair && (
                   <div className="mb-3 rounded-lg border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/5 p-3">
                     <p className="text-xs font-medium text-[var(--vyra-text-primary)]">Shot {pendingShotRepair.shotIndex + 1} needs a continuity repair</p>
@@ -2988,6 +2989,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
                       <button type="button" onClick={() => setPendingShotRepair(null)} disabled={isGeneratingMedia} className="h-8 rounded-full px-3 text-[11px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40">Dismiss</button>
                     </div>
                   </div>
+                </>
                 )}
                 <div className="mt-2 rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-base)] p-3">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
