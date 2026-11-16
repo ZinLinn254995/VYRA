@@ -2604,14 +2604,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         const failedShot = result.completedShots.find((shot) => shot.shotIndex === result.stoppedAtShotIndex) ?? result.completedShots[result.completedShots.length - 1];
         const failedShotPlan = failedShot ? activeDirectorScenePlan?.shots[failedShot.shotIndex] : undefined;
         const previousShotAsset = failedShot && failedShot.shotIndex > 0
-          ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\\//i.test(asset.mimeType))
+          ? result.completedShots.find((shot) => shot.shotIndex === failedShot.shotIndex - 1)?.assets.find((asset) => /^video\//i.test(asset.mimeType))
           : undefined;
-        const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\\n\\n');
+        const repairInstruction = failedShot?.repairPrompts?.filter(Boolean).join('\n\n');
         if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
             ...(previousShotAsset ? { previousShotAsset } : {}),
-            promptText: (repairRequest?.originalPromptText ?? prompt) + '\\n\\nDIRECTOR-LED SHOT REPAIR:\\n' + repairInstruction,
+            promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED SHOT REPAIR:\n' + repairInstruction,
             originalPromptText: repairRequest?.originalPromptText ?? prompt,
             productionTitle: repairRequest?.productionTitle ?? direction?.productionTitle ?? workspaceContext?.activeStoryboard?.title ?? 'Project production',
             logline: repairRequest?.logline ?? direction?.logline ?? workspaceContext?.activeStoryboard?.topic ?? prompt,
