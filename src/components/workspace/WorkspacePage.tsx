@@ -23,7 +23,8 @@ type SceneRenderRevision = { id: string; createdAt: string; duration: number; st
 type SceneProjectClip = { id: string; name: string; start: number; duration: number; assetId?: string | null; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
 type SceneProjectTimeline = { duration: number; fps: number; width: number; height: number; tracks: SceneProjectTrack[] };
-type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline };
+type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; productionTitle: string; logline: string; genre: string; tone: string; sceneIndex: number; sceneCount: number; purpose: string; location: string; characters: string[]; entryState: string; action: string; exitState: string; shots: Array<{ id: string; purpose: string; durationSeconds: number; framing: string; cameraAngle: string; cameraMovement: string; action: string; continuityNotes: string[] }> };
+type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
@@ -1141,6 +1142,60 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     )}
                   </div>
                 </section>
+                {scene.project?.creativeDirection && (
+                  <section className="space-y-3 border-t border-[var(--vyra-border)] pt-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Director’s Shot Plan</h2>
+                      <span className="text-[10px] text-[var(--vyra-text-secondary)]">
+                        Scene {scene.project.creativeDirection.sceneIndex} of {scene.project.creativeDirection.sceneCount}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.productionTitle}</p>
+                      <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.purpose}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Location</p>
+                          <p className="mt-1 text-xs text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.location}</p>
+                        </div>
+                        <div className="rounded-lg bg-[var(--vyra-bg-subtle)] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Characters</p>
+                          <p className="mt-1 text-xs text-[var(--vyra-text-primary)]">{scene.project.creativeDirection.characters.join(', ') || 'No characters'}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Entry State</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.entryState}</p>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Scene Action</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.action}</p>
+                      </div>
+                      <div className="rounded-lg border border-[var(--vyra-border)] p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--vyra-text-muted)]">Exit State</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--vyra-text-secondary)]">{scene.project.creativeDirection.exitState}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold text-[var(--vyra-text-primary)]">Shots</h3>
+                      {scene.project.creativeDirection.shots.map((shot, index) => (
+                        <article key={shot.id} className="space-y-2 rounded-lg border border-[var(--vyra-border)] p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-[var(--vyra-text-primary)]">{String(index + 1).padStart(2, '0')} · {shot.purpose}</p>
+                            <span className="shrink-0 text-[10px] tabular-nums text-[var(--vyra-text-secondary)]">{shot.durationSeconds}s</span>
+                          </div>
+                          <p className="text-[11px] text-[var(--vyra-text-secondary)]">{shot.framing} · {shot.cameraAngle} · {shot.cameraMovement}</p>
+                          <p className="text-xs leading-5 text-[var(--vyra-text-secondary)]">{shot.action}</p>
+                          {shot.continuityNotes.length > 0 && (
+                            <ul className="list-disc space-y-1 pl-4 text-[11px] text-[var(--vyra-text-muted)]">
+                              {shot.continuityNotes.map((note, noteIndex) => <li key={shot.id + '-note-' + noteIndex}>{note}</li>)}
+                            </ul>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 <section className="space-y-2 border-t border-[var(--vyra-border)] pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Story Continuity</h2>
