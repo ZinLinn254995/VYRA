@@ -133,3 +133,11 @@ test('production plan rejects duplicate scene/shot identities and incomplete dir
   assert.ok(result.errors.some((error) => error.includes('unique ID')));
   assert.ok(result.errors.some((error) => error.includes('missing direction details')));
 });
+
+test('shot duration budgets must match their parent Scene runtime', () => {
+  const broken: CreativeProductionPlan = structuredClone(validPlan);
+  broken.scenes[1].shots[0].durationSeconds = 12;
+  const result = validateCreativeProductionPlan(broken);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.includes('shot durations')));
+});
