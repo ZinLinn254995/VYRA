@@ -27,6 +27,7 @@ import {
 import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
+import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
 import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
@@ -126,6 +127,19 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   // Temporary local URLs let newly selected media play immediately while its
   // canonical Asset and immutable Version upload in the background.
   const localMediaObjectUrlsRef = useRef(new Map<string, string>());
+  const localMediaUserIdRef = useRef<string | null>(null);
+  const resolveLocalMediaUrl = async (assetId: string, versionId: string): Promise<string | null> => {
+    const key = assetId + ':' + versionId;
+    const activeUrl = localMediaObjectUrlsRef.current.get(key);
+    if (activeUrl) return activeUrl;
+    const userId = localMediaUserIdRef.current;
+    if (!userId) return null;
+    const cached = await getVyralAssetLocalCopy(userId, assetId, versionId);
+    if (!cached) return null;
+    const objectUrl = URL.createObjectURL(cached.blob);
+    localMediaObjectUrlsRef.current.set(key, objectUrl);
+    return objectUrl;
+  };
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
   const [timelinePlayheadTime, setTimelinePlayheadTime] = useState(0);
@@ -808,15 +822,17 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       setImagePreviewUrl(null);
       return;
     }
-    const localImageUrl = localMediaObjectUrlsRef.current.get(activeImageClip.assetId + ':' + activeImageClip.assetVersionId);
-    if (localImageUrl) {
-      setImagePreviewUrl(localImageUrl);
-      return () => { cancelled = true; };
-    }
-    void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId })
-      .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
-      .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
+    void resolveLocalMediaUrl(activeImageClip.assetId, activeImageClip.assetVersionId).then((localImageUrl) => {
+      if (cancelled) return;
+      if (localImageUrl) { setImagePreviewUrl(localImageUrl); return; }
+      void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId })
+        .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
+        .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
+    });
+    /* local-first image lookup above; cloud lookup is the fallback */
     return () => { cancelled = true; };
+    /* legacy cloud lookup removed */
+    void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId });
   }, [activeImageClip?.assetId, activeImageClip?.assetVersionId]);
 
   const visualContentEnd = visibleVideoTracks.flatMap((track) => track.clips)
@@ -877,7 +893,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         context,
         resolveAssetUrl: async (assetId, assetVersionId, signal) => {
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
-          const localUrl = localMediaObjectUrlsRef.current.get(assetId + ':' + assetVersionId);
+          const localUrl = await resolveLocalMediaUrl(assetId, assetVersionId);
           if (localUrl) return localUrl;
           const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
@@ -902,7 +918,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           video: masterVideoPreviewRef.current,
           resolveAssetUrl: async (assetId, assetVersionId, signal) => {
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
-            const localUrl = localMediaObjectUrlsRef.current.get(assetId + ':' + assetVersionId);
+            const localUrl = await resolveLocalMediaUrl(assetId, assetVersionId);
             if (localUrl) return localUrl;
             const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
@@ -1306,6 +1322,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         uploadUser = authData?.user ?? null;
       }
       if (sessionError || !uploadUser) throw new Error('Sign in again before uploading media.');
+      localMediaUserIdRef.current = uploadUser.id;
       let nextVideoTracks = value?.videoTracks || [];
       let nextAudioTracks = value?.audioTracks || [];
       let nextSceneInstances = value?.sceneInstances || [];
@@ -1382,6 +1399,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const localObjectUrl = URL.createObjectURL(normalizedFile);
         const localKey = temporaryAssetId + ':' + temporaryVersionId;
         localMediaObjectUrlsRef.current.set(localKey, localObjectUrl);
+        // Persist a pending local copy too, so an interrupted upload or page
+        // refresh does not discard the device file from this editing session.
+        void saveVyralAssetLocalCopy({ userId: uploadUser.id, assetId: temporaryAssetId, versionId: temporaryVersionId, mimeType: normalizedFile.type || (kind + '/octet-stream'), sizeBytes: normalizedFile.size, blob: normalizedFile });
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
           : 0;
@@ -1474,6 +1494,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           }
           localMediaObjectUrlsRef.current.delete(localKey);
           URL.revokeObjectURL(localObjectUrl);
+          void removeVyralAssetLocalCopy(uploadUser.id, temporaryAssetId, temporaryVersionId);
         } catch (uploadError) {
           // Keep the local clip available for this editing session. Its local
           // source remains playable and the user can retry without losing work.
