@@ -42,6 +42,7 @@ type PendingShotRepair = {
   sceneIndex?: number;
   originalPromptText: string;
 };
+  storyboardId: string;
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
 type ChatSession = {
@@ -2339,6 +2340,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
 
   const startProjectMediaGeneration = async (repairRequest?: PendingShotRepair) => {
     const prompt = repairRequest?.promptText ?? draft.trim();
+    if (repairRequest && repairRequest.storyboardId !== storyboardId) {
+      setPendingShotRepair(null);
+      setMediaGenerationStatus('This repair belongs to a different Project. Reinspect the active Scene before repairing.');
+      return;
+    }
     if (!storyboardId || !storyboardUniverseId || !supabase) {
       setMediaGenerationStatus('Open a Project before creating media.');
       return;
@@ -2610,6 +2616,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         if (failedShot && failedShotPlan && activeDirectorScenePlan && repairInstruction && visualVerification) {
           setPendingShotRepair({
             scene: activeDirectorScenePlan, shotIndex: failedShot.shotIndex,
+            storyboardId,
             ...(previousShotAsset ? { previousShotAsset } : {}),
             promptText: (repairRequest?.originalPromptText ?? prompt) + '\n\nDIRECTOR-LED SHOT REPAIR:\n' + repairInstruction,
             originalPromptText: repairRequest?.originalPromptText ?? prompt,
@@ -2682,7 +2689,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             '\n\n' + summary,
         }]);
         if (repairRequest) setPendingShotRepair(null); else setDraft('');
-        setMediaGenerationStatus(isShotSequence
+        setMediaGenerationStatus(repairRequest
+          ? 'Shot ' + (repairRequest.shotIndex + 1) + ' repaired and verified. The matching Editor clip has been replaced; the rest of the sequence was preserved.'
+          : isShotSequence
           ? 'Completed. All planned shots are saved in Project Assets. ' +
             (isShotSequence && 'visualVerificationStatus' in result && result.visualVerificationStatus === 'verified'
               ? 'Sampled-frame visual continuity checks passed; creator review is still required. '
