@@ -112,6 +112,9 @@ test('shot sequence verifies each ingested video output before continuing and st
   assert.ok(workflow.includes('shot-boundary continuity inspector'));
   assert.ok(workflow.includes('transitionVerification.status !== \'consistent\''));
   assert.ok(workflow.includes('buildSceneVisualTransitionAnchors'));
+  assert.ok(workflow.includes('previousCompleted?.assets.find'));
+  assert.ok(workflow.includes('transitionInspectionComplete = transition.inspectionComplete === true'));
+  assert.ok(workflow.includes("stoppedStatus: transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review'"));
   assert.ok(workflow.includes('getAnchorsForShot?.(shot, shotIndex, request.scene)'));
   assert.ok(workflow.includes('anchors: shotAnchors'));
   assert.ok(workflow.includes('Visual verification requires a creator-approved baseline revision'));
