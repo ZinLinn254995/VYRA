@@ -2408,7 +2408,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       let visualVerification: Parameters<typeof generateRunwayProjectShotSequence>[1]['visualVerification'];
       const visualBaseline = workspaceContext?.activeSceneId === selectedSceneId
         ? workspaceContext.sceneContinuity : null;
-      if (effectiveMediaTask === 'video' && activeDirectorScenePlan && visualBaseline?
+      if (effectiveMediaTask === 'video' && activeDirectorScenePlan && visualBaseline?.contextComplete
         && !visualBaseline.entrySnapshotStale && visualBaseline.validationStatus === 'creator_approved'
         && visualBaseline.currentEntryState) {
         const anchors = collectSceneVisualAnchors(visualBaseline.currentEntryState).filter((anchor) => anchor.scope === 'persistent');
