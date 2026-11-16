@@ -235,8 +235,18 @@ test('successful repair status reports the actual incoming and outgoing verifica
 
 test('continuity findings identify both sides of a failed handoff and never repair the original wrong Shot', () => {
   assert.ok(chat.includes("label: 'Shot ' + (item.previousShotIndex + 1) + ' → Shot ' + (item.currentShotIndex + 1)"));
-  assert.ok(chat.includes('downstreamFailureTargetsDifferentShot'));
-  assert.ok(chat.includes('The original repair target cannot fix this later handoff'));
-  assert.ok(chat.includes('the correct next repair target is Shot '));
-  assert.ok(chat.includes('!downstreamFailureTargetsDifferentShot && failedShot'));
+  assert.ok(chat.includes('const repairTargetShotIndex = failedBoundary?.currentShotIndex ?? failedShot?.shotIndex'));
+  assert.ok(chat.includes('shotIndex: repairTargetShotIndex'));
+  assert.ok(chat.includes('buildSceneVisualRepairPrompt(failedBoundary.verification, repairTargetShotPlan)'));
+  assert.ok(chat.includes('The earlier repair target will not be regenerated.'));
+  assert.ok(chat.includes('Review quote & repair Shot'));
 });
+
+test('targeted downstream repair uses the receiving Shot boundary references and keeps later shots ordered', () => {
+  assert.ok(chat.includes('downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex - 1)'));
+  assert.ok(chat.includes('downstreamShotAssets.find((item) => item.shotIndex === repairTargetShotIndex + 1)'));
+  assert.ok(chat.includes('downstreamShotAssets.filter((item) => item.shotIndex > repairTargetShotIndex)'));
+  assert.ok(chat.includes('previousShotAsset: repairPreviousShotAsset'));
+  assert.ok(chat.includes('nextShotAsset: repairNextShotAsset'));
+});
+
