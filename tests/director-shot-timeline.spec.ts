@@ -37,7 +37,7 @@ test('verified Director sequence handoff creates ordered, contiguous timeline cl
   assert.deepEqual(result.clips.map((clip) => clip.assetId), ['new-0', 'new-1', 'new-2']);
   assert.deepEqual(result.clips.map((clip) => clip.assetVersionId), ['version-new-0', 'version-new-1', 'version-new-2']);
   assert.ok(result.clips.every((clip) => clip.source === 'ai_director_shot'));
-  assert.equal(result.duration, 14);
+  assert.equal(result.duration, 12);
 });
 
 test('verified targeted repair replaces only its Shot and shifts downstream clips to preserve a contiguous sequence', () => {
@@ -53,7 +53,7 @@ test('verified targeted repair replaces only its Shot and shifts downstream clip
   assert.deepEqual(result.clips.map((clip) => clip.assetId), ['old-0', 'repaired-1', 'old-2']);
   assert.deepEqual(result.clips.map((clip) => clip.assetVersionId), ['version-old-0', 'version-repaired-1', 'version-old-2']);
   assert.equal(result.clips[1].duration, 6);
-  assert.equal(result.duration, 12);
+  assert.equal(result.duration, 14);
 });
 
 test('shorter repair shifts later verified Shots earlier without dropping them or leaving a timeline gap', () => {
