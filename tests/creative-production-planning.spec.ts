@@ -83,6 +83,15 @@ test('production planning instructions are connected to authenticated Project ch
   assert.match(planning, /CONTINUITY PLAN/);
   assert.match(planning, /GENERATION PLAN/);
   assert.match(planning, /propose_scene_mutation/);
+  assert.match(planning, /propose_scene_batch_create/);
+  assert.match(edge, /name: 'propose_scene_batch_create'/);
+  assert.match(edge, /operation: 'scene\\.batch_create'/);
+  assert.match(edge, /isSceneBatchCreate/);
+  assert.match(edge, /createdScenes/);
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  assert.match(workspace, /creativeDirection/);
+  assert.match(workspace, /Director’s Shot Plan/);
+  assert.match(workspace, /shot\\.cameraMovement/);
   assert.match(edge, /CREATIVE_PRODUCTION_PLANNING_INSTRUCTION/);
   assert.match(edge, /CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION \+ CREATIVE_PRODUCTION_PLANNING_INSTRUCTION/);
 });
