@@ -466,6 +466,57 @@ export type RunwayProjectShotSequenceResult = {
   approvedCostUsd: number;
 };
 
+export function validateFinalSceneRepairCoverage(input: {
+  targetShotIndex: number;
+  shotCount: number;
+  baselineRevision: string;
+  latestBaselineRevision: string | null;
+  shotVerifications: Array<{ shotIndex: number; verification: SceneVisualVerificationResult }>;
+  boundaryVerifications: Array<{ previousShotIndex: number; currentShotIndex: number; verification: SceneVisualVerificationResult }>;
+}): NonNullable<RunwayProjectShotSequenceResult['finalSceneValidation']> {
+  const expectedShotIndices = Array.from(
+    { length: Math.max(0, input.shotCount - input.targetShotIndex) },
+    (_item, offset) => input.targetShotIndex + offset,
+  );
+  const checkedShotIndices = [...new Set(input.shotVerifications
+    .filter((item) => item.verification.status === 'consistent')
+    .map((item) => item.shotIndex))].sort((a, b) => a - b);
+  const expectedBoundaryIndices = Array.from(
+    { length: Math.max(0, input.shotCount - 1 - Math.max(0, input.targetShotIndex - 1)) },
+    (_item, offset) => Math.max(0, input.targetShotIndex - 1) + offset,
+  );
+  const checkedBoundaryIndices = [...new Set(input.boundaryVerifications
+    .filter((item) => item.verification.status === 'consistent'
+      && item.currentShotIndex === item.previousShotIndex + 1)
+    .map((item) => item.previousShotIndex))].sort((a, b) => a - b);
+  const allVerifications = [
+    ...input.shotVerifications.map((item) => item.verification),
+    ...input.boundaryVerifications.map((item) => item.verification),
+  ];
+  const reasons: string[] = [];
+  if (checkedShotIndices.length !== expectedShotIndices.length
+    || expectedShotIndices.some((index, position) => checkedShotIndices[position] !== index)) {
+    reasons.push('One or more repaired/downstream shots are missing a complete visual inspection.');
+  }
+  if (checkedBoundaryIndices.length !== expectedBoundaryIndices.length
+    || expectedBoundaryIndices.some((index, position) => checkedBoundaryIndices[position] !== index)) {
+    reasons.push('One or more incoming/downstream shot boundaries are missing a complete continuity inspection.');
+  }
+  if (allVerifications.some((item) => item.baselineRevision !== input.baselineRevision)) {
+    reasons.push('The verification results do not share the same approved Scene baseline revision.');
+  }
+  if (!input.latestBaselineRevision) {
+    reasons.push('The latest approved Scene baseline revision could not be confirmed.');
+  } else if (input.latestBaselineRevision !== input.baselineRevision) {
+    reasons.push('The approved Scene baseline changed before final validation completed.');
+  }
+  return {
+    status: reasons.length === 0 ? 'verified' : 'needs_review',
+    checkedShotIndices, expectedShotIndices, checkedBoundaryIndices, expectedBoundaryIndices,
+    baselineRevision: input.baselineRevision, reasons,
+  };
+}
+
 /** Build a bounded, single-shot prompt while retaining the approved Scene context. */
 export function buildRunwayProjectShotPrompt(
   request: Pick<RunwayProjectShotSequenceRequest, 'productionTitle' | 'logline' | 'genre' | 'tone' | 'sceneIndex' | 'promptText'>,
@@ -798,52 +849,31 @@ export async function generateRunwayProjectShotSequence(
         previousShot = nextShot;
         previousShotIndex = currentShotIndex;
       }
-      const expectedShotIndices = request.scene.shots.map((_item, index) => index).filter((index) => index >= shotIndex);
-      const checkedShotIndices = [
-        ...(visualVerifications.length > 0 && visualVerifications.every((item) => item.status === 'consistent') ? [shotIndex] : []),
-        ...downstreamShotVerifications.filter((item) => item.verification.status === 'consistent').map((item) => item.shotIndex),
-      ].sort((a, b) => a - b);
-      const expectedBoundaryIndices = request.scene.shots
-        .map((_item, index) => index)
-        .filter((index) => index < request.scene.shots.length - 1 && index >= Math.max(0, shotIndex - 1));
-      const checkedBoundaryIndices = [
-        ...(shotIndex > 0 && transitionVerification?.status === 'consistent' ? [shotIndex - 1] : []),
-        ...downstreamTransitionVerifications.filter((item) => item.verification.status === 'consistent').map((item) => item.previousShotIndex),
-      ].sort((a, b) => a - b);
-      const allRepairVerifications = [
-        ...visualVerifications,
-        ...(shotIndex > 0 && transitionVerification ? [transitionVerification] : []),
-        ...downstreamShotVerifications.map((item) => item.verification),
-        ...downstreamTransitionVerifications.map((item) => item.verification),
+      const repairShotVerifications = [
+        ...visualVerifications.map((verification) => ({ shotIndex, verification })),
+        ...downstreamShotVerifications,
       ];
-      const reasons: string[] = [];
-      if (checkedShotIndices.length !== expectedShotIndices.length
-        || expectedShotIndices.some((index, position) => checkedShotIndices[position] !== index)) {
-        reasons.push('One or more repaired/downstream shots are missing a complete visual inspection.');
-      }
-      if (checkedBoundaryIndices.length !== expectedBoundaryIndices.length
-        || expectedBoundaryIndices.some((index, position) => checkedBoundaryIndices[position] !== index)) {
-        reasons.push('One or more incoming/downstream shot boundaries are missing a complete continuity inspection.');
-      }
-      if (allRepairVerifications.some((item) => item.status !== 'consistent')) {
-        reasons.push('At least one shot or boundary did not pass visual continuity verification.');
-      }
-      if (allRepairVerifications.some((item) => item.baselineRevision !== request.visualVerification.baselineRevision)) {
-        reasons.push('The verification results do not share the same approved Scene baseline revision.');
-      }
+      const repairBoundaryVerifications = [
+        ...(shotIndex > 0 && transitionVerification
+          ? [{ previousShotIndex: shotIndex - 1, currentShotIndex: shotIndex, verification: transitionVerification }]
+          : []),
+        ...downstreamTransitionVerifications,
+      ];
+      let latestBaselineRevision: string | null = null;
       try {
         const latestRevision = await request.visualVerification.getCurrentBaselineRevision();
-        if (latestRevision !== request.visualVerification.baselineRevision) {
-          reasons.push('The approved Scene baseline changed before final validation completed.');
-        }
+        if (typeof latestRevision === 'string' && latestRevision.trim()) latestBaselineRevision = latestRevision;
       } catch {
-        reasons.push('The latest approved Scene baseline revision could not be confirmed.');
+        latestBaselineRevision = null;
       }
-      finalSceneValidation = {
-        status: reasons.length === 0 ? 'verified' : 'needs_review',
-        checkedShotIndices, expectedShotIndices, checkedBoundaryIndices, expectedBoundaryIndices,
-        baselineRevision: request.visualVerification.baselineRevision, reasons,
-      };
+      finalSceneValidation = validateFinalSceneRepairCoverage({
+        targetShotIndex: shotIndex,
+        shotCount: request.scene.shots.length,
+        baselineRevision: request.visualVerification.baselineRevision,
+        latestBaselineRevision,
+        shotVerifications: repairShotVerifications,
+        boundaryVerifications: repairBoundaryVerifications,
+      });
     }
     completedShots.push({
       shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets,
