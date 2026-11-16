@@ -19,7 +19,7 @@ import {
   Underline,
   Redo2,
   Scissors,
-  Slash,
+  Minus,
   Trash2,
   Type,
   Undo2,
@@ -2360,7 +2360,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               }}
               className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
             >
-              {isMagneticEnabled ? <Magnet size={22} strokeWidth={1.8} /> : <span className="relative grid place-items-center"><Magnet size={22} strokeWidth={1.8} /><Slash size={22} strokeWidth={1.8} className="absolute" /></span>}
+              {isMagneticEnabled ? <Magnet size={22} strokeWidth={1.8} /> : <span className="relative grid place-items-center"><Magnet size={22} strokeWidth={1.8} /><span className="absolute -right-2 -top-2 grid size-3.5 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)]"><Minus size={9} strokeWidth={2.4} /></span></span>}
               <span className="sr-only">Magnetic</span>
             </button>}
           </>
