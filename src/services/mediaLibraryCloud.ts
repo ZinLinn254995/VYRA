@@ -768,15 +768,13 @@ async function runMediaLibraryThumbnailBackfill(
       if (uploadError) { await scheduleRetry(row); continue; }
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
-      const { data: updatedRow, error: updateError } = await applyUniverseScope(
-        applyMetadataSnapshot(db.from('media_library_items')
-          .update({ metadata })
-          .eq('id', row.id).eq('user_id', userId)
-          .is('metadata->thumbnail_path', null)
-          .select('id')
-          .maybeSingle(), row.metadata),
-        universeId,
-      );
+      const attachmentQuery = applyMetadataSnapshot(db.from('media_library_items')
+        .update({ metadata })
+        .eq('id', row.id).eq('user_id', userId)
+        .is('metadata->thumbnail_path', null), row.metadata)
+        .select('id')
+        .maybeSingle();
+      const { data: updatedRow, error: updateError } = await applyUniverseScope(attachmentQuery, universeId);
       if (updateError || !updatedRow) {
         // A network error can happen after Postgres committed the update. Read
         // the row before deleting the object: removing a possibly-referenced
