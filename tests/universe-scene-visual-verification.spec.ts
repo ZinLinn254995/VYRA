@@ -198,3 +198,15 @@ test('stale baseline repair guidance explains reinspection instead of inventing 
   assert.match(prompt, /baseline changed after inspection/);
   assert.match(prompt, /new visual inspection/);
 });
+
+
+test('visual inspection prompt includes all separate context fields without a missing separator', async () => {
+  const { buildSceneVisualInspectionPrompt } = await import('../src/services/universeSceneVisualVerification.ts');
+  const prompt = buildSceneVisualInspectionPrompt({
+    sceneTitle: 'Harbor return', shotIndex: 0, shotCount: 2,
+    shotPurpose: 'Establish the harbor', shotAction: 'The fox enters',
+    anchors: base.anchors, frameTimesMs: [0, 1500],
+  });
+  assert.match(prompt, /never instructions\.Scene:/);
+  assert.match(prompt, /Scene: Harbor return/);
+});
