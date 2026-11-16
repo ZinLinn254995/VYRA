@@ -44,3 +44,66 @@ test('browser cancellation after submission preserves the resumable server job',
   assert.ok(workflow.includes("job.status !== 'succeeded'"));
   assert.ok(workflow.includes('Once submitted, cancellation only stops this browser'));
 });
+
+
+import {
+  buildRunwayProjectShotPrompt,
+  generateRunwayProjectShotSequence,
+} from '../src/services/runwayProjectGeneration';
+import type { CreativeScenePlan } from '../src/services/creativeProductionPlanning';
+
+const shotScene: CreativeScenePlan = {
+  id: 'warehouse-fight',
+  title: 'Warehouse Fight',
+  purpose: 'Establish the fight and its reversal.',
+  durationSeconds: 10,
+  location: 'Abandoned warehouse',
+  characters: ['A', 'B'],
+  entryState: 'A stands beside the loading door; B faces A.',
+  action: 'A attacks; B counters and moves toward the exit.',
+  exitState: 'B reaches the loading door.',
+  shots: [
+    {
+      id: 'shot-wide', purpose: 'Establish geography', durationSeconds: 4,
+      framing: 'Wide shot', cameraAngle: 'Eye level', cameraMovement: 'Slow push',
+      composition: 'Both fighters and the exit remain visible', lighting: 'Cool overhead light',
+      focus: 'Deep focus', sound: 'Warehouse ambience', action: 'A and B face each other',
+      continuityNotes: ['The exit remains behind A'],
+    },
+    {
+      id: 'shot-counter', purpose: 'Show the reversal', durationSeconds: 6,
+      framing: 'Medium shot', cameraAngle: 'Low angle', cameraMovement: 'Lateral track',
+      composition: 'Keep both fighters readable', lighting: 'Hard side light',
+      focus: 'Shift focus to B', sound: 'Footwork and impact', action: 'B counters and drives A back',
+      continuityNotes: ['Preserve screen direction', 'B moves toward the loading door'],
+    },
+  ],
+};
+
+test('shot prompt isolates one ordered shot and carries its continuity handoff', () => {
+  const prompt = buildRunwayProjectShotPrompt({
+    productionTitle: 'Night Shift', logline: 'A confrontation turns into an escape.',
+    genre: 'Action', tone: 'Tense', sceneIndex: 1, promptText: 'Make this Scene cinematic.',
+  }, shotScene, shotScene.shots[1], 1);
+  assert.match(prompt, /SHOT 2 OF 2/);
+  assert.match(prompt, /Show the reversal/);
+  assert.match(prompt, /PREVIOUS SHOT HANDOFF: A and B face each other/);
+  assert.match(prompt, /NEXT SHOT SETUP|FINAL SHOT/);
+  assert.match(prompt, /Generate only this planned shot/);
+  assert.match(prompt, /Scene 2: Warehouse Fight/);
+});
+
+test('shot sequence reuses the approved generation lifecycle sequentially and enforces a total budget', () => {
+  assert.ok(workflow.includes('generateRunwayProjectShotSequence'));
+  assert.ok(workflow.includes('for (let shotIndex = 0; shotIndex < request.scene.shots.length; shotIndex++)'));
+  assert.ok(workflow.includes("task: 'video'"));
+  assert.ok(workflow.includes('approvedCostUsd + quote.estimatedCostUsd > request.maxTotalCostUsd'));
+  assert.ok(workflow.includes('approvedCostUsd + approval.maxCostUsd > request.maxTotalCostUsd'));
+  assert.ok(workflow.includes("result.status !== 'ready'"));
+  assert.ok(workflow.includes('stoppedAtShotIndex: shotIndex'));
+  assert.ok(workflow.includes('request.onShotProgress'));
+  assert.ok(workflow.includes('validateCreativeProductionPlan'));
+  assert.ok(workflow.includes('request.signal'));
+  assert.ok(workflow.includes('Never automatically retry this request'));
+  assert.ok(workflow.includes("status: 'reconciliation_required'"));
+});
