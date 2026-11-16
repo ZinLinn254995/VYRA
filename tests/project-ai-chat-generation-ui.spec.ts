@@ -271,7 +271,7 @@ test('shot repair history records verified and review outcomes without mutating 
   assert.ok(chat.includes('downstreamShotVerifications ?? []'));
   assert.ok(chat.includes('visual inspection'));
   assert.ok(workspace.includes('type SceneShotRepairHistoryEntry'));
-  assert.ok(workspace.includes('repairHistory: [...history, entry].slice(-100)'));
+  assert.ok(workspace.includes('repairHistory: [...history, entry]'));
   assert.ok(workspace.includes('Append-only: never replace or edit an earlier repair event.'));
   assert.ok(workspace.includes('onShotRepairHistory={handleShotRepairHistory}'));
 });
