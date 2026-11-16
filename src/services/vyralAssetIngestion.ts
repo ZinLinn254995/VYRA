@@ -1,4 +1,5 @@
 import { saveVyralAssetLocalCopy } from './vyralAssetLocalCache';
+import { uploadVyralAssetResumably } from './vyralResumableUpload';
 import { createVyralFileDnaV1 } from './vyralFileDnaV1';
 import { buildVyralGeneratedAssetMetadata, type VyralGeneratedAssetProvenanceInput } from './vyralGeneratedAssetProvenance';
 
@@ -448,6 +449,10 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       if (error) throw error;
     },
     async uploadOriginal(path, file, mimeType) {
+      if (file.size > 6 * 1024 * 1024) {
+        await uploadVyralAssetResumably(db, path, file, mimeType);
+        return;
+      }
       const { error } = await db.storage.from('vyral-assets').upload(path, file, {
         contentType: mimeType, upsert: false, cacheControl: '3600',
       });
