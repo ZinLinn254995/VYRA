@@ -138,3 +138,11 @@ test('ignores malformed or non-video generated shot clips without falling back t
   }];
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], shotInstance, 0), []);
 });
+
+test('an explicit empty shot track does not fall back to a stale single-clip Scene render', () => {
+  const cleared = [{
+    ...instances[0],
+    videoClips: [],
+  }];
+  assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([scenes[0]], cleared, 0), []);
+});
