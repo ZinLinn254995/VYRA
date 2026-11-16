@@ -82,8 +82,8 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.doesNotMatch(editor, /data-video-track-id=\{track\.id\} className="relative flex h-16 items-center gap-0 border-b/);
   assert.match(editor, /selectedVisualClipId === clip\.id/);
   assert.match(editor, /data-timeline-video-clip-id=\{clip\.id\}/);
-  assert.match(editor, /ring-2 ring-\\\[var\\\(--vyra-accent-primary\\\)\\\]/);
-  assert.match(editor, /border-\\\[var\\\(--vyra-accent-primary\\\)\\\]\\/50 bg-\\\[var\\\(--vyra-accent-primary\\\)\\\]\\/10/);
+  assert.match(editor, /ring-2 ring-\[var\(--vyra-accent-primary\)\]/);
+  assert.match(editor, /border-\[var\(--vyra-accent-primary\)\]\/50 bg-\[var\(--vyra-accent-primary\)\]\/10/);
   assert.match(editor, /sceneCardOffset \+= width/);
   assert.match(editor, /nextTransitions\[previousClip\.id \+ ':' \+ clipId\] = \{ effect: 'dissolve', duration: 0\.5 \}/);
   assert.match(editor, /label === 'Image' \? \(\) => addSampleVisualClip\('image'\) : label === 'Video' \? \(\) => addSampleVisualClip\('video'\)/);
