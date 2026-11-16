@@ -166,6 +166,12 @@ Deno.serve(async (request: Request) => {
 
   logExtractionPhase('tiles_uploaded', startedAt, { tile_count: tileMetadata.length, tile_bytes: tileMetadata.reduce((total, tile) => total + Number(tile.byte_length ?? 0), 0) });
   const decodedHash = await sha256(samples);
+  // The perceptual fingerprint is the final consumer of the full decoded
+  // sample stream. Compute it now, then release that large buffer before
+  // database writes and fingerprint persistence.
+  const visualFingerprint = computeVyralDHash64(samples, width, height, 4);
+  samples = new Uint8Array(0);
+  logExtractionPhase('decoded_samples_released', startedAt, { width, height });
   const record = {
     schema_id: 'vyra.asset-dna', schema_version: 3, record_id: recordId,
     source: { asset_id: assetId, asset_version_id: versionId, sha256: sourceHash, size_bytes: size, mime_type: mime },
@@ -199,9 +205,7 @@ Deno.serve(async (request: Request) => {
   }
   logExtractionPhase('dna_record_saved', startedAt, { tile_count: tileMetadata.length });
   let visualFingerprintStatus: 'recorded' | 'failed' = 'failed';
-  let visualFingerprint = '';
   try {
-    visualFingerprint = computeVyralDHash64(samples, width, height, 4);
     const fingerprintMetadata = {
       verification_status: 'server_verified',
       computed_by: 'extract-vyral-asset-dna-v3',
