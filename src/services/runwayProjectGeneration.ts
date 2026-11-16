@@ -657,9 +657,8 @@ export async function generateRunwayProjectShotSequence(
     if (request.visualVerification && shotIndex > 0) {
       const previousCompleted = completedShots.find((completed) => completed.shotIndex === shotIndex - 1);
       const previousShot = request.scene.shots[shotIndex - 1];
-      const previousAsset = previousCompleted?.assets.find((asset) => /^video\\//i.test(asset.mimeType))
+      const previousAsset = previousCompleted?.assets.find((asset) => /^video\//i.test(asset.mimeType))
         ?? (request.repair?.shotIndex === shotIndex ? request.repair.previousShotAsset : undefined);
-      const previousAsset = previousCompleted?.assets.find((asset) => /^video\//i.test(asset.mimeType));
       const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
       let transitionObservations: SceneVisualObservation[] = [];
       let transitionInspectionComplete = false;
