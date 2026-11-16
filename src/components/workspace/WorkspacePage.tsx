@@ -1073,26 +1073,65 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       const updateActiveScene = (patch: Partial<StoryboardScene>) => setActiveStoryboard((current) => {
         if (!current) return current;
         const now = new Date().toISOString();
-        return {
-          ...current,
-          details: {
-            ...current.details,
-            scenes: (current.details?.scenes || []).map((item) => item.id === scene.id ? {
-              ...item,
-              ...patch,
-              project: item.project ? { ...item.project, updatedAt: now } : item.project,
-            } : item),
-            // Editing a Scene invalidates its old approval. Preserve the old
-            // exit state as history, but block it from the next Scene's handoff.
-            continuityLedger: invalidateSceneContinuity(
-              current.details?.continuityLedger,
-              current.details?.scenes || [],
-              scene.id,
-              now,
-            ),
-          },
-          updatedAt: now,
+        const currentScenes = current.details?.scenes || [];
+        const nextScenes = currentScenes.map((item) => item.id === scene.id ? {
+          ...item,
+          ...patch,
+          project: item.project ? { ...item.project, updatedAt: now } : item.project,
+        } : item);
+        const details = {
+          ...current.details,
+          scenes: nextScenes,
+          // Editing a Scene invalidates its old approval. Preserve the old
+          // exit state as history, but block it from the next Scene's handoff.
+          continuityLedger: invalidateSceneContinuity(
+            current.details?.continuityLedger,
+            currentScenes,
+            scene.id,
+            now,
+          ),
         };
+        if (patch.project?.timeline) {
+          const master: MasterTimelineData = current.details?.masterTimeline || {
+            sceneRanges: {}, transitions: {}, audioTracks: [], textTracks: [],
+          };
+          const previousInstances = master.sceneInstances || [];
+          const previousInstance = previousInstances.find((instance) => instance.sceneId === scene.id);
+          const videoClips = patch.project.timeline.tracks
+            .filter((track) => track.type === 'video')
+            .flatMap((track) => track.clips)
+            .filter((clip) => Boolean(clip.assetId && clip.assetVersionId && /^video\\//i.test(clip.assetMimeType || '')))
+            .sort((a, b) => a.start - b.start)
+            .map((clip) => ({
+              id: clip.id,
+              name: clip.name,
+              start: clip.start,
+              duration: clip.duration,
+              sourceIn: Math.max(0, clip.sourceIn ?? 0),
+              sourceOut: Math.max(0, clip.sourceOut ?? (clip.sourceIn ?? 0) + clip.duration),
+              assetId: clip.assetId,
+              assetVersionId: clip.assetVersionId,
+              assetMimeType: clip.assetMimeType,
+            }));
+          const nextInstance = {
+            ...(previousInstance || {
+              id: scene.id, sceneId: scene.id, sourceIn: 0, sourceOut: patch.project.timeline.duration,
+            }),
+            sceneId: scene.id,
+            videoClips,
+          };
+          const nextInstances = previousInstance
+            ? previousInstances.map((instance) => instance.sceneId === scene.id ? nextInstance : instance)
+            : (() => {
+                const sceneOrder = currentScenes.map((item) => item.id);
+                const targetOrder = sceneOrder.indexOf(scene.id);
+                const insertAt = previousInstances.findIndex((instance) => sceneOrder.indexOf(instance.sceneId) > targetOrder);
+                const index = insertAt < 0 ? previousInstances.length : insertAt;
+                return [...previousInstances.slice(0, index), nextInstance, ...previousInstances.slice(index)];
+              })();
+          details.masterTimeline = { ...master, sceneInstances: nextInstances };
+        }
+        return { ...current, details, updatedAt: now };
       });
       const sceneLedger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, activeStoryboard.details?.scenes || []);
       const sceneContinuityRecord = sceneLedger.scenes[scene.id];
