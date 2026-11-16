@@ -2381,20 +2381,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       const isShotSequence = 'completedShots' in result;
       if (result.status === 'approval_declined') {
         setMediaGenerationStatus('Cancelled. No new job was created for the declined shot.');
-      } else if (result.status === 'budget_exceeded') {
-        const completed = isShotSequence ? result.completedShots.length : 0;
+      } else if ('completedShots' in result && result.status === 'budget_exceeded') {
+        const completed = result.completedShots.length;
         setMediaGenerationStatus('Shot sequence paused at Shot ' + ((result.stoppedAtShotIndex ?? 0) + 1) +
           ': the approved total budget would be exceeded. ' + completed + ' earlier shot(s) remain saved in Project Assets.');
-      } else if (result.status === 'partial') {
+      } else if ('completedShots' in result && result.status === 'partial') {
         const completed = result.completedShots.length;
         const stoppedShot = (result.stoppedAtShotIndex ?? 0) + 1;
         setMediaGenerationStatus('Shot sequence paused at Shot ' + stoppedShot + ' (' + (result.stoppedStatus ?? 'pending') + '). ' +
           completed + ' earlier shot(s) are saved in Project Assets.' +
           (result.stoppedJobId ? ' Recover or check Job ' + result.stoppedJobId + ' before continuing.' : ' Review the failed shot before continuing.'));
       } else if (result.status === 'ready') {
-        const generatedAssets = isShotSequence
+        const generatedAssets = 'completedShots' in result
           ? result.completedShots.flatMap((shot) => shot.assets.map((asset) => ({ ...asset, shotIndex: shot.shotIndex })))
-          : result.assets.map((asset) => ({ ...asset, shotIndex: null as number | null }));
+          : Array.isArray(result.assets) ? result.assets.map((asset) => ({ ...asset, shotIndex: null as number | null })) : [];
         if (!generatedAssets.length) throw new Error('The generation job completed without verified Project Assets.');
         const previews: ProjectMediaPreview[] = [];
         for (let index = 0; index < generatedAssets.length; index++) {
