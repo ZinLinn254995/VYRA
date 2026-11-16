@@ -59,6 +59,7 @@ export type VyralAssetIngestionPort = {
   createFingerprint(input: { assetId: string; versionId: string; userId: string; sha256: string }): Promise<void>;
   extractRasterDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string; dnaRecordId?: string }>;
   verifyRasterDna(assetId: string, versionId: string, dnaRecordId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
+  verifyUniversalFileDna(assetId: string, versionId: string, signal?: AbortSignal): Promise<{ status: string; error?: string }>;
   insertDna(record: VyralAssetDnaInsert): Promise<void>;
   hasDnaRecord(assetId: string, userId: string): Promise<boolean>;
   markReady(assetId: string, userId: string): Promise<void>;
@@ -404,6 +405,18 @@ export async function ingestVyralAsset(
       });
       assertNotAborted();
       dnaCommitted = true;
+      try {
+        const verification = await port.verifyUniversalFileDna(assetId, versionId, input.signal);
+        assertNotAborted();
+        exactVerificationStatus = verification.status === 'verified' ? 'passed' : 'pending';
+        if (exactVerificationStatus !== 'passed') {
+          console.warn('[vyral-file-dna] Upload succeeded, but exact binary readback remains pending.', verification.error ?? verification.status);
+        }
+      } catch (verificationError) {
+        if (input.signal?.aborted) throw verificationError;
+        exactVerificationStatus = 'pending';
+        console.warn('[vyral-file-dna] Upload succeeded, but exact binary readback could not complete and will be retried.', verificationError);
+      }
     }
 
     assertNotAborted();
@@ -562,6 +575,14 @@ export function createSupabaseVyralAssetIngestionPort(db: any): VyralAssetIngest
       });
       if (!error && data?.status === 'passed' && data?.originalBytesUnchanged === true) return { status: 'passed' };
       const detail = data?.error ?? error?.message ?? 'Exact DNA readback has not passed yet.';
+      return { status: data?.status ?? 'failed', error: detail };
+    },
+    async verifyUniversalFileDna(assetId, versionId, signal) {
+      const { data, error } = await db.functions.invoke('verify-vyral-asset', {
+        body: { assetId, versionId }, signal,
+      });
+      if (!error && data?.status === 'verified' && data?.sourceFileReconstruction === 'byte_exact') return { status: 'verified' };
+      const detail = data?.detail ?? data?.error ?? error?.message ?? 'Exact source-file readback has not passed yet.';
       return { status: data?.status ?? 'failed', error: detail };
     },
     async insertDna(record) {
