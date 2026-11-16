@@ -779,7 +779,7 @@ export async function generateRunwayProjectShotSequence(
       // auto-regenerate a paid output. Return targeted repair guidance for review.
       const failedDownstreamBoundary = downstreamTransitionVerifications.find((item) => item.verification.status !== 'consistent');
       const failedTransitionBoundary = failedDownstreamBoundary
-        ? { ...failedDownstreamBoundary, status: failedDownstreamBoundary.verification.status }
+        ? { previousShotIndex: failedDownstreamBoundary.previousShotIndex, currentShotIndex: failedDownstreamBoundary.currentShotIndex, status: failedDownstreamBoundary.verification.status, verification: failedDownstreamBoundary.verification }
         : transitionVerification && transitionVerification.status !== 'consistent' && shotIndex > 0
           ? { previousShotIndex: shotIndex - 1, currentShotIndex: shotIndex, status: transitionVerification.status, verification: transitionVerification }
           : outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' && shotIndex + 1 < request.scene.shots.length
