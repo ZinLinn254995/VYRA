@@ -389,6 +389,8 @@ export type RunwayProjectShotSequenceResult = {
     assets: Awaited<ReturnType<typeof ingestRunwayProjectOutput>>['ingestion'][];
   }>;
   stoppedAtShotIndex: number | null;
+  stoppedStatus: string | null;
+  stoppedJobId?: string;
   approvedCostUsd: number;
 };
 
@@ -511,7 +513,10 @@ export async function generateRunwayProjectShotSequence(
       });
       return {
         status: budgetExceeded ? 'budget_exceeded' : result.status === 'approval_declined' ? 'approval_declined' : 'partial',
-        completedShots, stoppedAtShotIndex: shotIndex, approvedCostUsd,
+        completedShots, stoppedAtShotIndex: shotIndex,
+        stoppedStatus: budgetExceeded ? 'budget_exceeded' : result.status,
+        ...('jobId' in result && result.jobId ? { stoppedJobId: result.jobId } : {}),
+        approvedCostUsd,
       };
     }
     completedShots.push({ shotId: shot.id, shotIndex, jobId: result.jobId, assets: result.assets });
@@ -520,5 +525,5 @@ export async function generateRunwayProjectShotSequence(
       status: 'ready', jobId: result.jobId,
     });
   }
-  return { status: 'ready', completedShots, stoppedAtShotIndex: null, approvedCostUsd };
+  return { status: 'ready', completedShots, stoppedAtShotIndex: null, stoppedStatus: null, approvedCostUsd };
 }
