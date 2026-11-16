@@ -178,3 +178,12 @@ test('AI Chat requires a fresh quote and explicit approval for a targeted shot r
   assert.ok(chat.includes('The existing Editor clip was kept'));
   assert.ok(chat.includes('setPendingShotRepair(null)'));
 });
+
+
+test('uncertain repair jobs clear the retry action until recovery is checked', () => {
+  assert.ok(chat.includes("if (repairRequest) setPendingShotRepair(null);"));
+  assert.ok(chat.includes("result.status === 'submitted_pending'"));
+  assert.ok(chat.includes("result.status === 'reconciliation_required'"));
+  assert.ok(chat.includes('Do not submit this job again.'));
+  assert.ok(chat.includes('VYRA will not submit it again automatically.'));
+});
