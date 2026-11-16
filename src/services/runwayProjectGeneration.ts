@@ -415,7 +415,7 @@ export type RunwayProjectShotSequenceRequest = Omit<
   /** When supplied, every generated output is inspected before the next shot is submitted. */
   visualVerification?: RunwayShotVisualVerificationAdapter;
   /** A one-shot repair retains the original Scene and may inspect its incoming cut. */
-  repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset };
+  repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset; nextShotAsset?: RunwayProjectOutputAsset };
   onShotProgress?: (event: {
     shotId: string;
     shotIndex: number;
@@ -452,6 +452,7 @@ export type RunwayProjectShotSequenceResult = {
     assets: RunwayProjectOutputAsset[];
     visualVerifications?: SceneVisualVerificationResult[];
     transitionVerification?: SceneVisualVerificationResult;
+    outgoingTransitionVerification?: SceneVisualVerificationResult;
     repairPrompts?: string[];
   }>;
   stoppedAtShotIndex: number | null;
@@ -659,6 +660,7 @@ export async function generateRunwayProjectShotSequence(
       }
     }
     let transitionVerification: SceneVisualVerificationResult | undefined;
+    let outgoingTransitionVerification: SceneVisualVerificationResult | undefined;
     if (request.visualVerification && shotIndex > 0) {
       const previousCompleted = completedShots.find((completed) => completed.shotIndex === shotIndex - 1);
       const previousShot = request.scene.shots[shotIndex - 1];
@@ -700,16 +702,62 @@ export async function generateRunwayProjectShotSequence(
       });
       repairPrompts.push(buildSceneVisualRepairPrompt(transitionVerification, shot));
     }
+    if (request.visualVerification && request.repair?.shotIndex === shotIndex && shotIndex + 1 < request.scene.shots.length) {
+      const nextShot = request.scene.shots[shotIndex + 1];
+      const currentAsset = shotAssets.find((asset) => /^video\//i.test(asset.mimeType));
+      const nextAsset = request.repair.nextShotAsset;
+      let observations: SceneVisualObservation[] = [];
+      let inspectionComplete = false;
+      let currentBaselineRevision = request.visualVerification.baselineRevision;
+      try {
+        if (currentAsset && nextAsset && request.visualVerification.inspectTransition) {
+          const transition = await request.visualVerification.inspectTransition({
+            previousAsset: currentAsset, currentAsset: nextAsset, previousShot: shot, currentShot: nextShot,
+            previousShotIndex: shotIndex, currentShotIndex: shotIndex + 1,
+            scene: request.scene, anchors: buildSceneVisualTransitionAnchors(), signal: request.signal,
+          });
+          observations = Array.isArray(transition.observations) ? transition.observations : [];
+          inspectionComplete = transition.inspectionComplete === true && Array.isArray(transition.observations);
+        }
+      } catch (error) {
+        if (request.signal?.aborted) throw error;
+        inspectionComplete = false;
+      }
+      try {
+        const latestRevision = await request.visualVerification.getCurrentBaselineRevision();
+        if (typeof latestRevision !== 'string' || !latestRevision.trim()) throw new Error('The approved Scene baseline revision is unavailable.');
+        currentBaselineRevision = latestRevision;
+      } catch {
+        inspectionComplete = false;
+      }
+      outgoingTransitionVerification = evaluateSceneVisualVerification({
+        mediaId: currentAsset?.assetId ?? shot.id, mediaKind: 'video',
+        baselineRevision: request.visualVerification.baselineRevision, currentBaselineRevision,
+        anchors: buildSceneVisualTransitionAnchors(), observations, inspectionComplete,
+      });
+      repairPrompts.push(buildSceneVisualRepairPrompt(outgoingTransitionVerification, shot));
+    }
+    if (request.visualVerification && request.repair?.shotIndex === shotIndex
+      && shotIndex + 1 < request.scene.shots.length && !request.repair.nextShotAsset) {
+      outgoingTransitionVerification = evaluateSceneVisualVerification({
+        mediaId: shot.id, mediaKind: 'video',
+        baselineRevision: request.visualVerification.baselineRevision,
+        currentBaselineRevision: request.visualVerification.baselineRevision,
+        anchors: buildSceneVisualTransitionAnchors(), observations: [], inspectionComplete: false,
+      });
+    }
     completedShots.push({
       shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets,
       ...(request.visualVerification ? { visualVerifications, repairPrompts } : {}),
       ...(transitionVerification ? { transitionVerification } : {}),
+      ...(outgoingTransitionVerification ? { outgoingTransitionVerification } : {}),
     });
     if (visualVerifications.some((verification) => verification.status !== 'consistent')
-      || (transitionVerification && transitionVerification.status !== 'consistent')) {
+      || (transitionVerification && transitionVerification.status !== 'consistent')
+      || (outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent')) {
       request.onShotProgress?.({
         shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
-        status: transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
+        status: outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing-shot-transition-needs-review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot-transition-needs-review' : 'visual-verification-needs-review', jobId: result.jobId,
       });
       // Do not generate later shots against an unverified handoff, and never
       // auto-regenerate a paid output. Return targeted repair guidance for review.
@@ -717,7 +765,7 @@ export async function generateRunwayProjectShotSequence(
         status: 'needs_review',
         visualVerificationStatus: 'needs_review',
         completedShots, stoppedAtShotIndex: shotIndex,
-        stoppedStatus: transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
+        stoppedStatus: outgoingTransitionVerification && outgoingTransitionVerification.status !== 'consistent' ? 'outgoing_shot_transition_needs_review' : transitionVerification && transitionVerification.status !== 'consistent' ? 'shot_transition_needs_review' : 'visual_verification_needs_review',
         stoppedJobId: result.jobId,
         approvedCostUsd,
       };
