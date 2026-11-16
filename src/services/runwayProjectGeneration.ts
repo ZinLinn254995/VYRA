@@ -437,6 +437,8 @@ export type RunwayProjectShotSequenceAsset = {
 export type RunwayProjectShotSequenceReady = {
   storyboardId: string;
   sceneId: string;
+  /** When true, replace only matching shot IDs and preserve the rest of the Editor sequence. */
+  replaceShot?: boolean;
   shots: RunwayProjectShotSequenceAsset[];
 };
 
