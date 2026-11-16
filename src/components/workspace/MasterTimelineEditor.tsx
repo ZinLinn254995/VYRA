@@ -1413,29 +1413,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const normalizedFile = file.type.toLowerCase().startsWith(kind + '/')
           ? file
           : new File([file], file.name, { type: mimeByExtension[extension] || (kind + '/octet-stream') });
-        // Read only lightweight local metadata first. The selected device file
-        // is used immediately; cloud ingestion continues after the clip appears.
-        const duration = await readMediaDuration(normalizedFile, kind);
+        // Put the selected device file on the timeline before doing metadata
+        // extraction or writing a persistent local copy. Cloud ingestion later
+        // replaces this short provisional duration with the detected duration.
+        const duration = 5;
         const temporaryAssetId = crypto.randomUUID();
         const temporaryVersionId = crypto.randomUUID();
         const localObjectUrl = URL.createObjectURL(normalizedFile);
         const localKey = temporaryAssetId + ':' + temporaryVersionId;
         localMediaObjectUrlsRef.current.set(localKey, localObjectUrl);
-        // Persist a pending local copy too, so an interrupted upload or page
-        // refresh does not discard the device file from this editing session.
-        const pendingCopySaved = await saveVyralAssetLocalCopy({
-          userId: uploadUser.id,
-          assetId: temporaryAssetId,
-          versionId: temporaryVersionId,
-          mimeType: normalizedFile.type || (kind + '/octet-stream'),
-          sizeBytes: normalizedFile.size,
-          blob: normalizedFile,
-        });
-        if (!pendingCopySaved) {
-          // The live object URL still keeps the file usable in this editor
-          // session; a failed browser cache write must not block cloud upload.
-          console.warn('[vyral-local-cache] Pending media could not be persisted for reload recovery.');
-        }
         const start = kind === 'audio'
           ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
           : 0;
@@ -1473,6 +1459,24 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           textTracks: value?.textTracks || [],
         });
         commitCurrentTimeline();
+
+        // Persist the temporary source after the clip is already visible and
+        // playable. A slow IndexedDB write must never delay the first preview.
+        try {
+          const pendingCopySaved = await saveVyralAssetLocalCopy({
+            userId: uploadUser.id,
+            assetId: temporaryAssetId,
+            versionId: temporaryVersionId,
+            mimeType: normalizedFile.type || (kind + '/octet-stream'),
+            sizeBytes: normalizedFile.size,
+            blob: normalizedFile,
+          });
+          if (!pendingCopySaved) {
+            console.warn('[vyral-local-cache] Pending media could not be persisted for reload recovery.');
+          }
+        } catch {
+          // The live object URL remains available for this editor session.
+        }
 
         try {
           const ingestion = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
