@@ -414,7 +414,7 @@ export type RunwayProjectShotSequenceRequest = Omit<
   ) => Promise<{ confirmed: true; maxCostUsd: number } | { confirmed: false }>;
   /** When supplied, every generated output is inspected before the next shot is submitted. */
   visualVerification?: RunwayShotVisualVerificationAdapter;
-  /** A one-shot repair retains the original Scene and may inspect its incoming cut. */
+  /** A one-shot repair retains the original Scene and inspects both available adjacent cuts. */
   repair?: { shotIndex: number; previousShotAsset?: RunwayProjectOutputAsset; nextShotAsset?: RunwayProjectOutputAsset };
   onShotProgress?: (event: {
     shotId: string;
