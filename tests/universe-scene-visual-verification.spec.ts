@@ -119,4 +119,5 @@ test('builds a narrow repair prompt without granting canon approval or spending 
   assert.match(prompt, /expected "blue coat"/);
   assert.match(prompt, /Do not change the canonical Scene state/);
   assert.match(prompt, /without explicit creator approval/);
+  assert.match(prompt, /\\n/);
 });
