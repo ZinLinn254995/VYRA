@@ -858,6 +858,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         })
         .eq('id', item.id).eq('user_id', authData.user.id)
         .is('details->>__vyraDeletedAt', null)
+        .lte('updated_at', item.updatedAt)
         .select('id').maybeSingle();
       let saveError = updateError;
       if (!saveError && !updatedRow) {
