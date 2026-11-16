@@ -519,7 +519,11 @@ export async function generateRunwayProjectShotSequence(
         approvedCostUsd,
       };
     }
-    completedShots.push({ shotId: shot.id, shotIndex, jobId: result.jobId, assets: result.assets });
+    const shotAssets = result.assets;
+    if (!Array.isArray(shotAssets) || shotAssets.length === 0) {
+      throw new Error('A completed shot did not return verified Project Assets.');
+    }
+    completedShots.push({ shotId: shot.id, shotIndex, jobId: result.jobId, assets: shotAssets });
     request.onShotProgress?.({
       shotId: shot.id, shotIndex, shotCount: request.scene.shots.length,
       status: 'ready', jobId: result.jobId,
