@@ -1422,6 +1422,90 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     setSelectedAudioClip({ trackId: track.id, clipId: right.id });
   };
 
+  const getSelectedVisualClip = () => visibleVideoTracks.flatMap((track) => track.clips).find((clip) => clip.id === selectedVisualClipId) || null;
+
+  const runCutSelectedVisual = () => {
+    const selected = getSelectedVisualClip();
+    if (!selected) return;
+    const splitTime = (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecond;
+    if (splitTime <= selected.start + 0.2 || splitTime >= selected.start + selected.duration - 0.2) return;
+    const leftDuration = splitTime - selected.start;
+    const rightId = crypto.randomUUID();
+    const rightClip: TimelineClip = {
+      ...selected,
+      id: rightId,
+      start: selected.start + leftDuration,
+      duration: selected.duration - leftDuration,
+      sourceIn: (selected.sourceIn ?? 0) + leftDuration,
+    };
+    const directTracks = value?.videoTracks || [];
+    const directTrack = directTracks.find((track) => track.clips.some((clip) => clip.id === selected.id));
+    let nextTracks = directTracks;
+    let nextInstances = value?.sceneInstances;
+    if (directTrack) {
+      nextTracks = directTracks.map((track) => track.id !== directTrack.id ? track : {
+        ...track,
+        clips: track.clips.flatMap((clip) => clip.id !== selected.id ? [clip] : [
+          { ...clip, duration: leftDuration, sourceOut: (clip.sourceIn ?? 0) + leftDuration },
+          rightClip,
+        ]),
+      });
+    } else {
+      nextInstances = (value?.sceneInstances || []).map((instance) => {
+        const sourceClip = instance.videoClips?.find((clip) => clip.id === selected.id);
+        if (!sourceClip) return instance;
+        const localSplit = sourceClip.start + leftDuration;
+        return {
+          ...instance,
+          videoClips: (instance.videoClips || []).flatMap((clip) => clip.id !== selected.id ? [clip] : [
+            { ...clip, duration: leftDuration, sourceOut: (clip.sourceIn ?? 0) + leftDuration },
+            { ...clip, id: rightId, start: localSplit, duration: selected.duration - leftDuration, sourceIn: (clip.sourceIn ?? 0) + leftDuration },
+          ]),
+        };
+      });
+    }
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: nextInstances, transitions: value?.transitions || {}, videoTracks: nextTracks, audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
+    setSelectedVisualClipId(rightId);
+  };
+
+  const runCloneSelectedVisual = () => {
+    const selected = getSelectedVisualClip();
+    if (!selected) return;
+    const tracks = value?.videoTracks || [];
+    const end = visibleVideoTracks.flatMap((track) => track.clips).reduce((latest, clip) => Math.max(latest, clip.start + clip.duration), 0);
+    const cloneId = crypto.randomUUID();
+    const clone: TimelineClip = { ...selected, id: cloneId, start: end };
+    const nextTracks: TimelineTrack[] = tracks.length
+      ? tracks.map((track, index) => index === 0 ? { ...track, name: 'Scenes', clips: [...track.clips, clone] } : track)
+      : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [clone] }];
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances, transitions: value?.transitions || {}, videoTracks: nextTracks, audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
+    setSelectedVisualClipId(cloneId);
+  };
+
+  const runDeleteSelectedVisual = () => {
+    const selected = getSelectedVisualClip();
+    if (!selected) return;
+    const nextTracks = (value?.videoTracks || []).map((track) => ({
+      ...track,
+      clips: track.clips.filter((clip) => clip.id !== selected.id),
+    })).filter((track) => track.clips.length > 0);
+    const nextInstances = (value?.sceneInstances || []).map((instance) => {
+      if (instance.videoClips?.some((clip) => clip.id === selected.id)) {
+        return { ...instance, videoClips: instance.videoClips.filter((clip) => clip.id !== selected.id) };
+      }
+      if (instance.id === selected.id) {
+        return { ...instance, assetId: undefined, assetVersionId: undefined, assetMimeType: undefined, videoSourceIn: undefined, videoSourceOut: undefined };
+      }
+      return instance;
+    });
+    const transitions = { ...(value?.transitions || {}) };
+    Object.keys(transitions).forEach((key) => {
+      if (key.startsWith(selected.id + ':') || key.endsWith(':' + selected.id)) delete transitions[key];
+    });
+    commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: nextInstances, transitions, videoTracks: nextTracks, audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
+    setSelectedVisualClipId(null);
+  };
+
   const addSampleVisualClip = (mediaKind: 'image' | 'video') => {
     const currentTracks = value?.videoTracks || [];
     const existingClips = visibleVideoTracks.flatMap((track) => track.clips);
@@ -1845,6 +1929,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
               {label}
             </button>
             ))}
+          </>
+        ) : selectedVisualClipId ? (
+          <>
+            <button type="button" title="Cut selected Scene at playhead" aria-label="Cut selected Scene at playhead" onClick={runCutSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]"><Scissors size={22} strokeWidth={1.8} /><span className="sr-only">Cut</span></button>
+            <button type="button" title="Clone selected Scene" aria-label="Clone selected Scene" onClick={runCloneSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] transition-colors hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)]"><Copy size={22} strokeWidth={1.8} /><span className="sr-only">Clone</span></button>
+            <button type="button" title="Delete selected Scene" aria-label="Delete selected Scene" onClick={runDeleteSelectedVisual} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)] transition-colors hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-bg-hover)]"><Trash2 size={22} strokeWidth={1.8} /><span className="sr-only">Delete</span></button>
           </>
         ) : selectedTextClip ? (
           <>
