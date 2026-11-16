@@ -103,6 +103,10 @@ test('queued storyboard saves cannot recreate a deleted Project', async () => {
   assert.ok(workspace.includes(".is('details->>__vyraDeletedAt', null)"));
   assert.ok(workspace.includes(".lte('updated_at', item.updatedAt)"));
   assert.ok(workspace.includes(".insert(payload)"));
+  assert.ok(workspace.includes(".select('details,updated_at').eq('id', item.id).eq('user_id', authData.user.id).maybeSingle()"));
+  assert.ok(workspace.includes('const newerCloudSnapshot = Number.isFinite(existingUpdatedAt)'));
+  assert.ok(workspace.includes('The Cloud copy is intentionally authoritative over this stale save.'));
+  assert.ok(workspace.includes('const concurrentSaveWon = Number.isFinite(latestUpdatedAt)'));
   assert.ok(workspace.includes('Never use upsert here'));
   assert.ok(!workspace.includes(".upsert({\n        id: item.id, user_id: authData.user.id"));
   assert.ok(workspace.includes('const ownerStorageKey = expectedOwnerStorageKey;'));
