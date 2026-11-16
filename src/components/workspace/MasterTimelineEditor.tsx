@@ -973,8 +973,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         ? { url: imagePreviewUrl, alt: activeImageClip?.name || 'Timeline Image' }
         : null,
     );
-    return () => onImagePreviewChange?.(null);
   }, [imagePreviewUrl, activeImageClip?.name, onImagePreviewChange]);
+  useEffect(() => () => onImagePreviewChange?.(null), [onImagePreviewChange]);
 
   const visualContentEnd = visibleVideoTracks.flatMap((track) => track.clips)
     .reduce((end, clip) => Math.max(end, clip.start + clip.duration), 0);
@@ -1385,8 +1385,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
   };
   useEffect(() => {
     onTextPreviewOverlaysChange?.(masterPreviewTextOverlays);
-    return () => onTextPreviewOverlaysChange?.([]);
   }, [masterPreviewTextOverlays, onTextPreviewOverlaysChange]);
+  useEffect(() => () => onTextPreviewOverlaysChange?.([]), [onTextPreviewOverlaysChange]);
   useEffect(() => {
     if (audioPreviewClipKey && audioPreviewClipKey !== selectedAudioClipKey) stopAudioPreview();
   }, [audioPreviewClipKey, selectedAudioClipKey]);
