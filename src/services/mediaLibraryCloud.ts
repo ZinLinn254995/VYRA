@@ -672,10 +672,37 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
  * Originals are only downloaded; they are never moved, overwritten or deleted.
  * The thumbnail is stored first, then its path is added to the row metadata.
  */
+const activeThumbnailBackfills = new Map<string, Promise<number>>();
+
+/**
+ * Deduplicate overlapping backfills within this app session. Storage object keys
+ * remain unique and the metadata update remains compare-and-set, so separate
+ * tabs/devices are also safe: only one worker can attach a thumbnail to a row.
+ */
 export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const key = userId + ':' + (universeId ?? 'personal');
+  const existing = activeThumbnailBackfills.get(key);
+  if (existing) return existing;
+
+  const task = runMediaLibraryThumbnailBackfill(limit, universeId, userId);
+  activeThumbnailBackfills.set(key, task);
+  try {
+    return await task;
+  } finally {
+    if (activeThumbnailBackfills.get(key) === task) activeThumbnailBackfills.delete(key);
+  }
+}
+
+async function runMediaLibraryThumbnailBackfill(
+  limit: number,
+  universeId: string | null | undefined,
+  userId: string,
+): Promise<number> {
+  const db = getDb();
+  const db = getDb();
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
   // Keep the PostgREST filter value free of fractional-second dots.
   const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
