@@ -2742,7 +2742,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', mediaAssets: previews,
           content: repairRequest
-            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ${repairVerificationScope} checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
+            ? 'Shot ' + (repairRequest.shotIndex + 1) + ' was regenerated and passed its ' + repairVerificationScope + ' checks. Its Editor clip has been replaced; downstream shot boundaries have not yet been re-inspected.'
             : (isShotSequence
             ? 'The Director shot sequence completed. '
             : 'Media generation completed. ') +
