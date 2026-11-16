@@ -776,7 +776,7 @@ async function runMediaLibraryThumbnailBackfill(
         universeId,
       ).select('id').maybeSingle();
       const { data: updatedRow, error: updateError } = await attachmentQuery;
-      // A returned row confirms this worker actually claimed the thumbnail metadata slot.
+      // A returned row confirms this worker actually claimed the row's thumbnail metadata slot.
       if (updateError || !updatedRow) {
         // A network error can happen after Postgres committed the update. Read
         // the row before deleting the object: removing a possibly-referenced
