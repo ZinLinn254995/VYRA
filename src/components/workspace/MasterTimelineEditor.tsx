@@ -572,8 +572,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     });
     return clips.length ? { id: 'director-video-track', name: 'Video', clips } : null;
   })();
-  // Director output and uploaded Video/Image Assets share one visual layer.
-  // Additional rows appear only when clips overlap on the current bottom row.
+  // Director output and uploaded Video/Image Assets share one Scenes row.
   const visibleVideoTracks = mergeTimelineVideoRows(
     directorVideoTrack?.clips || [],
     value?.videoTracks || [],
@@ -999,8 +998,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           folderId: null,
           file: normalizedFile,
         });
-        const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
         const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
+        // Visual uploads always append after the final Scene-row clip; audio keeps playhead placement.
+        const existingVisualClips = mergeTimelineVideoRows(directorVideoTrack?.clips || [], nextVideoTracks).flatMap((track) => track.clips);
+        const start = kind === 'audio'
+          ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
+          : existingVisualClips.reduce((end, existing) => Math.max(end, existing.start + existing.duration), 0);
+        const previousVisualClip = kind === 'audio' ? undefined : [...existingVisualClips].sort((a, b) => a.start - b.start || a.duration - b.duration).at(-1);
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
           name: file.name,
@@ -1019,11 +1023,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         const placement = placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
         if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
         else nextVideoTracks = placement.tracks as TimelineTrack[];
+        const nextTransitions = { ...(value?.transitions || {}) };
+        if (kind !== 'audio' && previousVisualClip) {
+          nextTransitions[previousVisualClip.id + ':' + clip.id] = { effect: 'dissolve', duration: 0.5 };
+        }
         commitChange({
           sceneRanges: value?.sceneRanges || {},
           sceneInstances: value?.sceneInstances,
           videoTracks: nextVideoTracks,
-          transitions: value?.transitions || {},
+          transitions: nextTransitions,
           audioTracks: nextAudioTracks,
           textTracks: value?.textTracks || [],
         });
