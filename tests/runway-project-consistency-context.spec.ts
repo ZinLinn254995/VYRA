@@ -38,8 +38,8 @@ test('Project context contains matching nested DNA evidence and excludes other P
   const calls: Array<{ table: string; filters: Array<[string, unknown]> }> = [];
   const datasets: Record<string, unknown[]> = {
     vyral_assets: [
-      { id: 'asset-red-fox', user_id: 'user-1', vyral_id: 'project-assets-1', processing_status: 'ready', name: 'Red Fox', asset_type: 'image', mime_type: 'image/png', metadata: { description: 'Main character' } },
-      { id: 'asset-blue-boat', user_id: 'user-1', vyral_id: 'project-assets-1', processing_status: 'ready', name: 'Blue Boat', asset_type: 'image', mime_type: 'image/png', metadata: {} },
+      { id: 'asset-red-fox', user_id: 'user-1', vyral_id: 'project-assets-1', processing_status: 'ready', name: 'Red Fox', asset_type: 'image', mime_type: 'image/png', storage_path: 'user-1/project-1/red-fox.png', metadata: { description: 'Main character' } },
+      { id: 'asset-blue-boat', user_id: 'user-1', vyral_id: 'project-assets-1', processing_status: 'ready', name: 'Blue Boat', asset_type: 'image', mime_type: 'image/png', storage_path: 'user-1/project-1/blue-boat.png', metadata: {} },
     ],
     vyral_dna_records: [
       { user_id: 'user-1', vyral_id: 'project-assets-1', asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'observed', payload: { dna_record: { visual_description: 'Rust red fur, white chest, amber eyes' } } },
@@ -50,7 +50,18 @@ test('Project context contains matching nested DNA evidence and excludes other P
       { id: 'edge-2', user_id: 'user-1', vyral_id: 'project-assets-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.', review_status: 'proposed' },
     ],
   };
+  const signedRequests: Array<{ bucket: string; path: string; expiresIn: number }> = [];
   const db = {
+    storage: {
+      from(bucket: string) {
+        return {
+          async createSignedUrl(path: string, expiresIn: number) {
+            signedRequests.push({ bucket, path, expiresIn });
+            return { data: { signedUrl: 'https://storage.example/signed/' + encodeURIComponent(path) }, error: null };
+          },
+        };
+      },
+    },
     from(table: string) {
       const call = { table, filters: [] as Array<[string, unknown]> };
       calls.push(call);
@@ -73,6 +84,9 @@ test('Project context contains matching nested DNA evidence and excludes other P
   });
   assert.equal(result.assetCount, 2);
   assert.equal(result.selectedAssetCount, 2);
+  assert.equal(result.referenceImages.length, 2);
+  assert.deepEqual(signedRequests.map((request) => request.bucket), ['vyral-assets', 'vyral-assets']);
+  assert.ok(signedRequests.every((request) => request.expiresIn === 3600));
   assert.match(result.promptText, /Rust red fur, white chest, amber eyes/);
   assert.match(result.promptText, /Creator-confirmed knowledge: appearance: Amber eyes are a defining trait/);
   assert.match(result.promptText, /Creator-approved relationship: Red Fox --travels_on--> Blue Boat/);
