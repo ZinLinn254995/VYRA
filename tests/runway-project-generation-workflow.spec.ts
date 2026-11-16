@@ -186,3 +186,23 @@ test('repair reports the exact first failing downstream boundary and its correct
   assert.ok(workflow.includes('currentShotIndex: failedDownstreamBoundary.currentShotIndex'));
   assert.ok(workflow.includes('buildSceneVisualRepairPrompt(verification, nextShot)'));
 });
+
+
+test('targeted repair re-inspects downstream shot visuals as well as every downstream boundary', () => {
+  assert.ok(workflow.includes('downstreamShotVerifications'));
+  assert.ok(workflow.includes('request.visualVerification.inspect({'));
+  assert.ok(workflow.includes('nextShotAnchors'));
+  assert.ok(workflow.includes('downstream_shot_visual_needs_review'));
+});
+
+test('final repair validation requires complete ordered shot and boundary coverage on one current baseline', () => {
+  assert.ok(workflow.includes('finalSceneValidation'));
+  assert.ok(workflow.includes('expectedShotIndices'));
+  assert.ok(workflow.includes('checkedShotIndices'));
+  assert.ok(workflow.includes('expectedBoundaryIndices'));
+  assert.ok(workflow.includes('checkedBoundaryIndices'));
+  assert.ok(workflow.includes('verification results do not share the same approved Scene baseline revision'));
+  assert.ok(workflow.includes('approved Scene baseline changed before final validation completed'));
+  assert.ok(workflow.includes("finalSceneValidation?.status !== 'verified'"));
+  assert.ok(workflow.includes("status: reasons.length === 0 ? 'verified' : 'needs_review'"));
+});
