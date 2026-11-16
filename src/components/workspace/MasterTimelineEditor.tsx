@@ -943,6 +943,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw new Error('Sign in again before uploading media.');
+      let nextVideoTracks = value?.videoTracks || [];
+      let nextAudioTracks = value?.audioTracks || [];
       for (const file of files) {
         const mime = file.type.toLowerCase();
         const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -968,29 +970,31 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           file: normalizedFile,
         });
         const start = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
+        const clipDuration = kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration;
         const clip: TimelineClip = {
           id: crypto.randomUUID(),
           name: file.name,
           content: file.name,
           start,
-          duration: kind === 'audio' ? (ingestion.audioTechnicalMetadata?.durationSeconds ?? duration) : kind === 'video' ? (ingestion.videoTechnicalMetadata?.durationSeconds ?? duration) : duration,
+          duration: clipDuration,
           sourceIn: 0,
-          sourceOut: duration,
+          sourceOut: clipDuration,
           assetId: ingestion.assetId,
           assetVersionId: ingestion.versionId,
           assetMimeType: ingestion.mimeType,
           waveform: ingestion.audioTechnicalMetadata?.waveformPeaks || [],
           mediaKind: kind,
         };
-        const currentTracks = kind === 'audio' ? (value?.audioTracks || []) : (value?.videoTracks || []);
+        const currentTracks = kind === 'audio' ? nextAudioTracks : nextVideoTracks;
         const placement = placeTimelineMediaClip(currentTracks, clip, kind, () => crypto.randomUUID());
-        const nextTracks = placement.tracks as TimelineTrack[];
+        if (kind === 'audio') nextAudioTracks = placement.tracks as TimelineTrack[];
+        else nextVideoTracks = placement.tracks as TimelineTrack[];
         commitChange({
           sceneRanges: value?.sceneRanges || {},
           sceneInstances: value?.sceneInstances,
-          videoTracks: kind === 'audio' ? (value?.videoTracks || []) : nextTracks,
+          videoTracks: nextVideoTracks,
           transitions: value?.transitions || {},
-          audioTracks: kind === 'audio' ? nextTracks : (value?.audioTracks || []),
+          audioTracks: nextAudioTracks,
           textTracks: value?.textTracks || [],
         });
       }
