@@ -808,6 +808,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
       setImagePreviewUrl(null);
       return;
     }
+    const localImageUrl = localMediaObjectUrlsRef.current.get(activeImageClip.assetId + ':' + activeImageClip.assetVersionId);
+    if (localImageUrl) {
+      setImagePreviewUrl(localImageUrl);
+      return () => { cancelled = true; };
+    }
     void createVyralImagePlaybackUrl(supabase, { assetId: activeImageClip.assetId, versionId: activeImageClip.assetVersionId })
       .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
       .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
