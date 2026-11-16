@@ -162,7 +162,7 @@ test('shot orchestrator executes real sequence control flow with an offline medi
   assert.deepEqual(approvals, [0]);
   assert.equal(result.completedShots.length, 1);
   assert.equal(result.stoppedAtShotIndex, 1);
-  assert.equal(result.approvedCostUsd, 0.6);
+  assert.equal(result.approvedCostUsd, 1, 'the full creator-approved per-shot ceiling is reserved against the sequence budget');
 });
 
 test('shot orchestrator stops at the first pending result and never starts a later Shot', async () => {
