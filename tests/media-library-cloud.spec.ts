@@ -562,4 +562,11 @@ test('Storyboard Universe uses the complete scoped Media Library and canonical A
   assert.ok(chat.includes("item.id === storyboardUniverseId"), 'Storyboard AI Chat must not switch to another personal or Storyboard Universe.');
   assert.ok(chat.includes("universeId: storyboardId ? destination.id : undefined"), 'Assets uploaded from Storyboard AI Chat must be indexed in the same Universe.');
   assert.ok(chat.includes("origin: storyboardId ? 'storyboard_ai_chat' : 'global_ai_chat'"), 'Storyboard AI uploads must retain their Storyboard provenance.');
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes("ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase)"), 'Editor uploads must use the same canonical Asset and DNA pipeline as Project Assets.');
+  assert.ok(editor.includes("origin: 'project_editor'"), 'Editor uploads must retain their source provenance.');
+  assert.ok(editor.includes('registerVyralAssetInMediaLibrary({'), 'Editor uploads must be indexed into the unified Project Assets Library.');
+  assert.ok(editor.includes('recovered_after_reload: true'), 'An interrupted Editor upload must re-enter the same canonical ingestion path after recovery.');
+  assert.ok(editor.includes('thumbnailSource: file') || editor.includes('thumbnailSource: recoveredFile'), 'Editor uploads should index the Asset without re-uploading its original binary.');
+  assert.ok(chat.includes('registerVyralAssetInMediaLibrary({'), 'AI Chat uploads must enter the same unified Asset Library after ingestion.');
 });
