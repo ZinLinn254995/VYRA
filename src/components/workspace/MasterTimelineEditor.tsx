@@ -1819,52 +1819,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
     const currentTracks = value?.videoTracks || [];
     const existingClips = visibleVideoTracks.flatMap((track) => track.clips);
     const playheadTime = Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current);
-    const start = getScenesInsertionTime(existingClips, playheadTime);
-    const shiftedTracks = currentTracks.map((track) => ({
-      ...track,
-      clips: track.clips.map((clip) =>
-        clip.start >= start - 0.001 ? { ...clip, start: clip.start + 3 } : clip,
-      ),
-    }));
-    const nextSceneInstances = (value?.sceneInstances || []).map((instance) => {
-      const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
-      const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
-        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
-      if (!instance.videoClips?.length) {
-        const scene = sceneIndex < 0 ? undefined : orderedScenes[sceneIndex];
-        if (!scene || !instance.assetId || !instance.assetVersionId ||
-            !(instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/')) ||
-            sceneStart < start - 0.001) return instance;
-        const sourceIn = instance.videoSourceIn ?? 0;
-        const sourceOut = instance.videoSourceOut ?? scene.duration;
-        return {
-          ...instance,
-          videoClips: [{
-            id: instance.id,
-            name: scene.title,
-            start: 3,
-            duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
-            sourceIn,
-            sourceOut,
-            assetId: instance.assetId,
-            assetVersionId: instance.assetVersionId,
-            assetMimeType: instance.assetMimeType,
-            mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
-          }],
-        };
-      }
-      return {
-        ...instance,
-        videoClips: instance.videoClips.map((clip) =>
-          sceneStart + clip.start >= start - 0.001 ? { ...clip, start: clip.start + 3 } : clip,
-        ),
-      };
-    });
+    const insertionIndex = getScenesInsertionIndex(existingClips, playheadTime);
     const clipId = crypto.randomUUID();
     const sampleClip: TimelineClip = {
       id: clipId,
       name: mediaKind === 'image' ? 'Image Sample' : 'Video Sample',
-      start,
+      start: 0,
       duration: 3,
       mediaKind,
       isPlaceholder: true,
@@ -1872,16 +1832,50 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
         ? 'Sample Image — visual layout preview only'
         : 'Sample Video — visual layout preview only',
     };
-    const nextTracks: TimelineTrack[] = shiftedTracks.length
-      ? shiftedTracks.map((track, index) => index === 0
-        ? { ...track, name: 'Scenes', clips: [...track.clips, sampleClip].sort((a, b) => a.start - b.start) }
-        : track)
+    const orderedClips = [...existingClips].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+    orderedClips.splice(Math.min(insertionIndex, orderedClips.length), 0, sampleClip);
+    const layout = buildScenesClipTrainLayout(orderedClips);
+    const startById = new Map(layout.map((clip) => [clip.id, clip.start]));
+    const clipById = new Map(layout.map((clip) => [clip.id, clip]));
+    const nextTracks: TimelineTrack[] = currentTracks.length
+      ? currentTracks.map((track, index) => ({
+          ...track,
+          name: index === 0 ? 'Scenes' : track.name,
+          clips: track.clips.map((clip) => startById.has(clip.id) ? { ...clip, start: startById.get(clip.id)! } : clip),
+        }))
       : [{ id: crypto.randomUUID(), name: 'Scenes', clips: [sampleClip] }];
-    const nextTransitions = { ...(value?.transitions || {}) };
+    const nextSceneInstances = (value?.sceneInstances || []).map((instance) => {
+      const sceneIndex = orderedScenes.findIndex((scene) => scene.id === instance.sceneId);
+      const sceneStart = sceneIndex < 0 ? 0 : orderedScenes.slice(0, sceneIndex)
+        .reduce((sum, scene, index) => sum + (sceneSegments[index]?.duration ?? scene.duration), 0);
+      if (instance.videoClips?.length) {
+        return {
+          ...instance,
+          videoClips: instance.videoClips.map((clip) => startById.has(clip.id)
+            ? { ...clip, start: startById.get(clip.id)! - sceneStart }
+            : clip),
+        };
+      }
+      const legacyClip = clipById.get(instance.id);
+      if (!legacyClip || !instance.assetId || !instance.assetVersionId || !instance.assetMimeType) return instance;
+      return {
+        ...instance,
+        videoClips: [{
+          ...legacyClip,
+          start: legacyClip.start - sceneStart,
+          sourceIn: instance.videoSourceIn ?? 0,
+          sourceOut: instance.videoSourceOut ?? legacyClip.duration,
+          assetId: instance.assetId,
+          assetVersionId: instance.assetVersionId,
+          assetMimeType: instance.assetMimeType,
+          mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
+        }],
+      };
+    });
     commitChange({
       sceneRanges: value?.sceneRanges || {},
       sceneInstances: nextSceneInstances,
-      transitions: nextTransitions,
+      transitions: { ...(value?.transitions || {}) },
       audioTracks: value?.audioTracks || [],
       videoTracks: nextTracks,
       textTracks: value?.textTracks || [],
