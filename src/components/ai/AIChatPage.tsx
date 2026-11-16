@@ -3006,7 +3006,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
                       <button type="button" onClick={() => setPendingShotRepair(null)} disabled={isGeneratingMedia} className="h-8 rounded-full px-3 text-[11px] text-[var(--vyra-text-muted)] hover:bg-[var(--vyra-bg-hover)] disabled:opacity-40">Dismiss</button>
                     </div>
                   </div>
-                </>
                 )}
                 <div className="mt-2 rounded-xl border border-[var(--vyra-border-subtle)] bg-[var(--vyra-bg-base)] p-3">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3031,6 +3030,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
                     {isGeneratingMedia ? 'Creating…' : 'Generate in this Project'}
                   </button>
                 </div>
+                </>
               )}
             </div>
           )}
