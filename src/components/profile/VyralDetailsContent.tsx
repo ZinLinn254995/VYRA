@@ -341,13 +341,14 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
     const versionRowsForVerification = (results[2].data ?? []) as AssetVersionRow[];
     const dnaRowsForVerification = (results[3].data ?? []) as DnaRow[];
     const testRowsForVerification = (results[5].data ?? []) as ReconstructionRow[];
-    const fileDnaVerificationTasks: Promise<unknown>[] = [];
-    const rasterDnaVerificationTasks: Promise<unknown>[] = [];
+    const fileDnaVerificationTasks: Promise<boolean>[] = [];
+    const rasterDnaVerificationTasks: Promise<boolean>[] = [];
+    let hasUnverifiedAsset = false;
     for (const asset of assetRows) {
       const sourceVersion = versionRowsForVerification.find((item) =>
         item.asset_id === asset.id && item.storage_path === asset.storage_path
       );
-      if (!sourceVersion) continue;
+      if (!sourceVersion) { hasUnverifiedAsset = true; continue; }
       const rasterDna = dnaRowsForVerification.find((item) => {
         if (item.asset_id !== asset.id || item.scope !== 'asset' || Number(item.schema_version) !== 3) return false;
         const payload = item.payload as Record<string, unknown>;
@@ -387,7 +388,7 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
                 if (extractionError || extraction?.status !== 'extracted' || typeof extraction?.dnaRecordId !== 'string') {
                   console.warn('[vyral-dna-v3] Legacy raster DNA could not be upgraded to the pinned decoder contract.');
                   fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
-                  return undefined;
+                  return false;
                 }
                 dnaRecordId = extraction.dnaRecordId;
               }
@@ -395,16 +396,23 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
               const { data, error: verifyError } = await supabase.functions.invoke('verify-vyral-dna-v3', {
                 body: { assetId: asset.id, versionId: sourceVersion.id, dnaRecordId },
               });
-              if (verifyError || data?.status !== 'passed' || data?.originalBytesUnchanged !== true) {
-                console.warn('[vyral-dna-v3] Exact decoded-sample readback is pending for an Asset.');
+              const passed = !verifyError && data?.status === 'passed' && data?.originalBytesUnchanged === true;
+              if (!passed) {
+                console.warn('[vyral-dna-v3] Exact decoded-sample readback is pending for an Asset.', {
+                  status: data?.status ?? null,
+                  detail: data?.error ?? verifyError?.message ?? null,
+                });
                 fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
               }
-              return data;
+              return passed;
             })().catch(() => {
               fileDnaAutoVerifyRef.current.delete(rasterAttemptKey);
-              return undefined;
+              return false;
             }),
           );
+        } else if (!alreadyPassedRaster) {
+          // Another workspace refresh is already verifying this exact source.
+          hasUnverifiedAsset = true;
         }
       }
       const fileDna = dnaRowsForVerification.find((item) => {
@@ -415,20 +423,22 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
         return (payload.dna_schema_id === 'vyra.asset-file-dna' || record.schema_id === 'vyra.asset-file-dna') &&
           (source.asset_version_id === sourceVersion.id || payload.source_version_id === sourceVersion.id);
       });
-      if (!fileDna) continue;
+      if (!fileDna) { if (!rasterDna) hasUnverifiedAsset = true; continue; }
       const alreadyPassed = testRowsForVerification.some((item) =>
         item.asset_id === asset.id && item.asset_version_id === sourceVersion.id && item.dna_record_id === fileDna.id &&
         item.comparison_mode === 'byte_exact' && item.test_status === 'passed' &&
         item.exact_match === true && item.model_id === 'universal-file-dna-v1-readback-verifier'
       );
       const attemptKey = asset.id + ':' + sourceVersion.id + ':' + fileDna.id;
-      if (alreadyPassed || fileDnaAutoVerifyRef.current.has(attemptKey)) continue;
+      if (alreadyPassed) continue;
+      if (fileDnaAutoVerifyRef.current.has(attemptKey)) { hasUnverifiedAsset = true; continue; }
       fileDnaAutoVerifyRef.current.add(attemptKey);
       fileDnaVerificationTasks.push(
         supabase.functions.invoke('verify-vyral-asset', {
           body: { assetId: asset.id, versionId: sourceVersion.id },
         }).then(({ data, error: verifyError }) => {
-          if (verifyError || data?.status !== 'verified' || data?.sourceFileReconstruction !== 'byte_exact') {
+          const passed = !verifyError && data?.status === 'verified' && data?.sourceFileReconstruction === 'byte_exact';
+          if (!passed) {
             console.warn('[vyral-file-dna] Exact source readback is pending for an Asset.', {
               status: data?.status ?? null,
               stage: data?.stage ?? null,
@@ -436,15 +446,19 @@ export const VyralDetailsContent: React.FC<Props> = ({ vyral, searchQuery, onVyr
             });
             fileDnaAutoVerifyRef.current.delete(attemptKey);
           }
-          return data;
+          return passed;
         }).catch(() => {
           fileDnaAutoVerifyRef.current.delete(attemptKey);
-          return undefined;
+          return false;
         }),
       );
     }
-    if (fileDnaVerificationTasks.length) await Promise.all(fileDnaVerificationTasks);
-    if (rasterDnaVerificationTasks.length) await Promise.all(rasterDnaVerificationTasks);
+    const verificationResults = await Promise.all([...fileDnaVerificationTasks, ...rasterDnaVerificationTasks]);
+    const exactVerificationComplete = !hasUnverifiedAsset && verificationResults.every(Boolean);
+    if (!exactVerificationComplete) {
+      setMasterDnaMessage('Your collection is still being prepared. VYRA will retry exact Asset verification automatically.');
+      return;
+    }
 
     // Keep the collection snapshot synchronized in the background. The builder
     // only requires each Asset's own current version and matching DNA; optional
