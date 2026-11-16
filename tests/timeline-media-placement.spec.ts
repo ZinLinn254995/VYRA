@@ -71,12 +71,18 @@ test('keeps overlapping Director and uploaded Video/Image clips in exactly one r
 });
 
 
-test('bottom timeline toolbar exposes Image and Video sample actions that append placeholders to Scenes', () => {
+test('bottom timeline toolbar exposes Image and Video sample actions that insert placeholders at the Scenes playhead', () => {
   const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
   assert.match(editor, /\{ label: 'Image', Icon: ImageIcon \}/);
   assert.match(editor, /\{ label: 'Video', Icon: Video \}/);
   assert.match(editor, /const addSampleVisualClip = \(mediaKind: 'image' \| 'video'\)/);
   assert.match(editor, /isPlaceholder: true/);
+  assert.match(editor, /const playheadTime = Math\.max\(0, \(scrollRef\.current\?\.scrollLeft \?\? 0\) \/ pixelsPerSecondRef\.current\)/);
+  assert.match(editor, /const containingClips = existingClips\.filter/);
+  assert.match(editor, /const shiftedTracks = currentTracks\.map/);
+  assert.match(editor, /clips: \[\.\.\.track\.clips, sampleClip\]\.sort\(\(a, b\) => a\.start - b\.start\)/);
+  assert.match(editor, /let sceneInsertionTime = containingSceneClips\.length/);
+  assert.match(editor, /nextSceneInstances = shiftDirectorSceneClips\(nextSceneInstances, sceneInsertionTime, clipDuration\)/);
   assert.match(editor, /name: 'Scenes'/);
   assert.match(editor, /relative h-16 py-2/);
   assert.doesNotMatch(editor, /data-video-track-id=\{track\.id\} className="relative flex h-16 items-center gap-0 border-b/);
@@ -87,7 +93,7 @@ test('bottom timeline toolbar exposes Image and Video sample actions that append
   assert.match(editor, /const snapTrimPointToPlayhead = \(time: number\)/);
   assert.match(editor, /const playheadTime = \(scrollRef\.current\?\.scrollLeft \?\? 0\) \/ scale/);
   assert.match(editor, /const leadingSpace = viewportWidth \/ 2/);
-  assert.equal([...editor.matchAll(/snapTrimPointToPlayhead\(/g)].length, 7);
+  assert.equal([...editor.matchAll(/snapTrimPointToPlayhead\(/g)].length, 6);
   assert.match(editor, /return Math\.abs\(time - playheadTime\) \* scale <= 10 \? playheadTime : time/);
   assert.match(editor, /updateVisualClipTiming\(clip, nextClipStart, nextClipDuration, nextSourceIn, nextSourceOut, rippleClipStarts, rippleDelta\)/);
   assert.match(editor, /data-trim-handle="true"/);
