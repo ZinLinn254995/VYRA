@@ -231,3 +231,12 @@ test('successful repair status reports the actual incoming and outgoing verifica
   assert.ok(chat.includes("'outgoing + downstream boundaries'"));
   assert.ok(chat.includes("'incoming-boundary'"));
 });
+
+
+test('continuity findings identify both sides of a failed handoff and never repair the original wrong Shot', () => {
+  assert.ok(chat.includes("label: 'Shot ' + (item.previousShotIndex + 1) + ' → Shot ' + (item.currentShotIndex + 1)"));
+  assert.ok(chat.includes('downstreamFailureTargetsDifferentShot'));
+  assert.ok(chat.includes('The original repair target cannot fix this later handoff'));
+  assert.ok(chat.includes('the correct next repair target is Shot '));
+  assert.ok(chat.includes('!downstreamFailureTargetsDifferentShot && failedShot'));
+});
