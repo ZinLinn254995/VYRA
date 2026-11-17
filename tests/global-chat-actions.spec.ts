@@ -53,19 +53,15 @@ test('storyboard detail lookup prefers exact title and formats scene data', asyn
 
 
 test('global AI Chat recognizes only explicit allowlisted navigation requests', async () => {
-  const { extractGlobalChatNavigationTarget, extractVyralAssetUploadTarget } = await import('../src/services/globalChatActions.ts');
+  const { extractGlobalChatNavigationTarget } = await import('../src/services/globalChatActions.ts');
   assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), null);
-  assert.equal(extractGlobalChatNavigationTarget('Take me to My Universes'), 'my-vyrals');
-  assert.equal(extractVyralAssetUploadTarget('Add this file to Universe Dream Worlds'), 'Dream Worlds');
-
-  assert.equal(extractGlobalChatNavigationTarget('Take me to My Vyrals'), 'my-vyrals');
+  assert.equal(extractGlobalChatNavigationTarget('Take me to My Projects'), 'my-projects');
   assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), 'my-media-library');
   assert.equal(extractGlobalChatNavigationTarget('Workspace ဖွင့်ပေး'), 'workspace');
-  assert.equal(extractGlobalChatNavigationTarget('Delete my Vyrals'), null);
+  assert.equal(extractGlobalChatNavigationTarget('Delete my Projects'), null);
   assert.equal(extractGlobalChatNavigationTarget('Create a storyboard'), null);
 });
-
 
 test('storyboard create intent requires a topic and parses optional titles', async () => {
   const { extractStoryboardCreateRequest, isStoryboardCreateIntent } = await import('../src/services/globalChatActions.ts');
@@ -167,121 +163,11 @@ test('storyboard delete requires a specific confirmation phrase', async () => {
 });
 
 
-test('Vyral creation is initiated through AI Chat with a named draft and explicit confirmation', async () => {
-  const {
-    extractVyralCreateRequest,
-    formatVyralCreateDraft,
-    isVyralCreateConfirmation,
-    isVyralCreateIntent,
-  } = await import('../src/services/globalChatActions.ts');
-  assert.equal(isVyralCreateIntent('Create a Universe'), true);
-  assert.deepEqual(extractVyralCreateRequest('Create a Universe named "Dream Worlds" about surreal environments'), {
-    name: 'Dream Worlds',
-    description: 'surreal environments',
-  });
-  assert.deepEqual(extractVyralCreateRequest("Let's start a Universe called Space Worlds for science-fiction locations"), {
-    name: 'Space Worlds',
-    description: 'science-fiction locations',
-  });
-  assert.equal(isVyralCreateIntent('Create a Vyral'), true);
-  assert.equal(isVyralCreateIntent("Let's start a Vyral called Space Worlds"), true);
-  assert.deepEqual(extractVyralCreateRequest("Let's start a Vyral called Space Worlds for science-fiction locations"), {
-    name: 'Space Worlds',
-    description: 'science-fiction locations',
-  });
-  assert.deepEqual(extractVyralCreateRequest('I want to create a Vyral named ORIGIN Story for a foundational collection'), {
-    name: 'ORIGIN Story',
-    description: 'a foundational collection',
-  });
-  assert.equal(isVyralCreateIntent('I want a new Vyral'), true);
-  assert.equal(isVyralCreateIntent("I've been thinking. Let's create a Vyral"), true);
-  assert.deepEqual(extractVyralCreateRequest('I have an idea. Let us create a Vyral called Dream Worlds for surreal environments'), {
-    name: 'Dream Worlds',
-    description: 'surreal environments',
-  });
-  assert.equal(isVyralCreateIntent("I don't want to create a Vyral"), false);
-  assert.equal(isVyralCreateIntent('I am not asking you to create a Vyral'), false);
-  assert.equal(isVyralCreateIntent('Vyral အသစ်တစ်ခု ဖန်တီးချင်တယ်'), true);
-  assert.equal(isVyralCreateIntent("I don't want to create a Vyral"), false);
-  assert.equal(isVyralCreateIntent('Create a Vyral named "ORIGIN Story" about a foundational sample'), true);
-  assert.deepEqual(extractVyralCreateRequest('Create a Vyral named "ORIGIN Story" about a foundational sample'), {
-    name: 'ORIGIN Story',
-    description: 'a foundational sample',
-  });
-  assert.deepEqual(extractVyralCreateRequest('Create Vyral: Space Worlds — reusable science-fiction locations'), {
-    name: 'Space Worlds',
-    description: 'reusable science-fiction locations',
-  });
-  assert.deepEqual(extractVyralCreateRequest('Vyral အသစ် ဖန်တီးပေး: အာကာသကမ္ဘာ အကြောင်း သိပ္ပံစိတ်ကူးယဉ် asset စုစည်းမှု'), {
-    name: 'အာကာသကမ္ဘာ',
-    description: 'သိပ္ပံစိတ်ကူးယဉ် asset စုစည်းမှု',
-  });
-  assert.equal(extractVyralCreateRequest('Create a Vyral'), null);
-  assert.equal(isVyralCreateIntent('Show my Vyrals'), false);
-  assert.equal(isVyralCreateIntent('Delete my Vyrals'), false);
-  assert.equal(isVyralCreateConfirmation('Confirm Vyral create'), true);
-  assert.equal(isVyralCreateConfirmation('Vyral ဖန်တီးရန် အတည်ပြု'), true);
-  assert.equal(isVyralCreateConfirmation('yes'), false);
-  const preview = formatVyralCreateDraft({ id: 'draft-1', name: 'ORIGIN Story', description: 'A sample collection' });
-  assert.match(preview, /Nothing has been created yet/);
-  assert.match(preview, /initial identity DNA/);
-});
-
-
-test('AI Chat routes attached files into a specifically named Vyral only after confirmation', async () => {
-  const {
-    extractVyralAssetUploadTarget,
-    formatVyralAssetUploadDraft,
-    isVyralAssetUploadConfirmation,
-  } = await import('../src/services/globalChatActions.ts');
-  assert.equal(extractVyralAssetUploadTarget('Add this to Vyral "ORIGIN Story"'), 'ORIGIN Story');
-  assert.equal(extractVyralAssetUploadTarget('Save the attached file into my Vyral Space Worlds'), 'Space Worlds');
-  assert.equal(extractVyralAssetUploadTarget('ဒီဖိုင်ကို Vyral ORIGIN Story ထဲထည့်ပေး'), 'ORIGIN Story');
-  assert.equal(extractVyralAssetUploadTarget('Show my Vyrals'), null);
-  assert.equal(extractVyralAssetUploadTarget('Delete Vyral ORIGIN Story'), null);
-  assert.equal(isVyralAssetUploadConfirmation('Confirm Asset upload'), true);
-  assert.equal(isVyralAssetUploadConfirmation('Asset ထည့်ရန် အတည်ပြု'), true);
-  assert.equal(isVyralAssetUploadConfirmation('yes'), false);
-  const preview = formatVyralAssetUploadDraft({
-    id: 'draft-1', vyralId: '00000000-0000-4000-8000-000000000001',
-    vyralName: 'ORIGIN Story', fileName: 'circle.png', fileSize: 1024, mimeType: 'image/png',
-  });
-  assert.match(preview, /Nothing has been uploaded yet/);
-  assert.match(preview, /SHA-256 Fingerprint/);
-});
-
-
-test('Vyral context follows natural conversational references without a fixed command', async () => {
-  const { findMentionedVyrals, isVyralAssetAddIntent, isVyralAssetContextReference } =
-    await import('../src/services/globalChatActions.ts');
-  const vyrals = [
-    { id: 'v1', name: 'ORIGIN Story', description: 'Foundational sample' },
-    { id: 'v2', name: 'Space Worlds', description: 'Science-fiction locations' },
-  ];
-  assert.deepEqual(findMentionedVyrals("Let's continue working on ORIGIN Story; I have another idea.", vyrals).map((item) => item.id), ['v1']);
-  assert.deepEqual(findMentionedVyrals('ဒီပုံကို Space Worlds ထဲ ထည့်ပေး', vyrals).map((item) => item.id), ['v2']);
-  assert.deepEqual(findMentionedVyrals('Compare ORIGIN Story with Space Worlds', vyrals).map((item) => item.id).sort(), ['v1', 'v2']);
-  assert.deepEqual(findMentionedVyrals("Don't switch to ORIGIN Story", vyrals), []);
-  assert.equal(isVyralAssetAddIntent('Could you put this image into the one we were working on?'), true);
-  assert.equal(isVyralAssetAddIntent('Please use this image as part of our current Vyral'), true);
-  assert.equal(isVyralAssetAddIntent('I want this image to be part of ORIGIN Story'), true);
-  assert.equal(isVyralAssetAddIntent('This belongs in Space Worlds'), true);
-  assert.equal(isVyralAssetAddIntent('I want this picture in ORIGIN Story'), true);
-  assert.equal(isVyralAssetAddIntent('This image should be part of Space Worlds'), true);
-  assert.equal(isVyralAssetAddIntent('Please use this image as a reference for my answer'), false);
-  assert.equal(isVyralAssetAddIntent('ဒီပုံကို အဲဒီထဲ ထည့်ပေးပါ'), true);
-  assert.equal(isVyralAssetAddIntent("Please don't add this file yet"), false);
-  assert.equal(isVyralAssetContextReference('Put this there'), true);
-  assert.equal(findMentionedVyrals('Continue with ORIGIN Story', [...vyrals, { id: 'v3', name: 'ORIGIN Story' }]).length, 2);
-});
-
-
 test('natural short approvals are accepted only as a contextual response to a pending draft', async () => {
-  const { isNaturalChatApproval, isVyralAssetUploadConfirmation } =
+  const { isNaturalChatApproval } =
     await import('../src/services/globalChatActions.ts');
   for (const phrase of ['yes', 'go ahead', 'go for it', 'please do', 'perfect', 'looks good', 'sure', 'အေး လုပ်လိုက်', 'အေး ဆက်လုပ်', 'လုပ်ပါ', 'ဆက်လုပ်ပါ', 'ဟုတ်ပြီ', 'ထည့်လိုက်ပါ']) {
     assert.equal(isNaturalChatApproval(phrase), true, phrase);
   }
   assert.equal(isNaturalChatApproval('yes, but change the name first'), false);
-  assert.equal(isVyralAssetUploadConfirmation('Confirm Asset upload'), true);
 });
