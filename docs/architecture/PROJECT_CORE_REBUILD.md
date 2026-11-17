@@ -1,8 +1,8 @@
 # VYRA Project Core Rebuild — Local-First Hybrid Architecture
 
 Status: Approved architecture / implementation in progress
-Working branch: `feature/local-first-project-storage`
-Starting point: `feature/project-core-hybrid-rebuild`
+Working branch: `feature/project-core-hybrid-rebuild`
+Base branch: `feature/my-storyboard`
 Scope: Preserve the approved UI and existing user data while replacing the legacy Project internals.
 
 ## 1. Product boundary
@@ -64,6 +64,7 @@ On login from a new device:
 5. Download remaining files in the background according to available quota, network conditions, and local availability policy.
 6. Files become offline-available as soon as each local download is complete and verified.
 7. Files not downloaded due to quota or network constraints remain visible as cloud-backed items and can be explicitly fetched when needed.
+8. Cloud downloads are installed under the existing `projectFileId` with `installProjectCloudFileToOfflineStorage`; they must never create a second Project file record. The local replica is marked available only after its write and integrity checks complete.
 
 Do not claim that every file is offline-ready before it has actually been downloaded and verified. A new device cannot use an unavailable cloud file offline until its local replica exists.
 
