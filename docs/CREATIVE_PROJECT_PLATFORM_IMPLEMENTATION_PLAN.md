@@ -85,3 +85,21 @@ Storage is a general-purpose file manager, not a knowledge system.
 - Added a regression assertion for this Chat behavior.
 
 **Not yet complete:** `mediaLibraryCloud.ts` and `MyMediaLibraryPage` still need to pass and enforce `project_id` in every list/create/upload/move/rename/delete/thumbnail path. `StoryboardUniverseTab` still creates the legacy Vyral container until that runtime migration is ready. Do not deploy the migration or remove that legacy path before the project-scoped runtime and deletion cleanup are implemented and verified.
+
+## Storage runtime audit — 2026-11-17
+
+The first runtime inspection confirms that switching the project page directly to `universeId={null}` would be incorrect: that selects the personal library scope. The project scope must be an explicit, separate parameter all the way from the page to every database operation.
+
+Before removing the legacy Storyboard Universe path, the runtime migration must cover all of these operations:
+
+- Read scope: folder listing, paginated item listing, item lookup by ID, signed original URLs, and folder-cache keys.
+- Folder mutations: create, rename, move, and delete, including same-project parent validation and empty-folder checks.
+- File mutations: upload, index registration, rename, move, and delete, with every query constrained by owner and `project_id`.
+- Derived data: thumbnail creation, thumbnail backfill, signed-thumbnail cache keys, and compare-and-set metadata updates.
+- Recovery: storage cleanup queue ownership, safe path validation, retry processing, and project-scoped deletion transactions.
+
+Important deletion finding: the current personal-library delete path calls `delete_media_library_items_and_queue_storage_cleanup` after verifying `universe_id IS NULL`. That is not sufficient for project rows. Project deletion needs a dedicated atomic database operation (or a carefully verified equivalent) that checks `user_id + project_id`, queues only project-owned standalone binaries and thumbnails, deletes only the matching index rows, and never deletes canonical Vyral-backed objects. The existing Universe delete path directly removes canonical Asset/version objects and invokes Master DNA; that behavior must never run for generic project files.
+
+Important upload finding: generic personal uploads currently use owner-prefixed `media-library/` and `media-library-thumbnails/` object paths. Project uploads may use the same private owner namespace, but the database index must carry `project_id`; cleanup and authorization must continue to validate the owner prefix and must not infer project ownership from an untrusted Storage path.
+
+The runtime switch remains intentionally blocked until all of the above paths are implemented and tested together. Keep the current legacy Storyboard Universe behavior in place until then; do not expose a half-migrated Storage page with broken upload or destructive actions.
