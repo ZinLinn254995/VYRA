@@ -107,3 +107,14 @@ test('Project Chat persists attachments and sends supported media to AI inspecti
   assert.ok(chat.includes('Attached text content:'));
   assert.ok(chat.includes('1 * 1024 * 1024'));
 });
+
+
+test('Editor resolves Project File IDs from Offline Storage before Cloud', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes('getProjectOfflineFile(projectFileId)'));
+  assert.ok(editor.includes('getProjectOfflineFileBlob(projectFileId)'));
+  assert.ok(editor.includes('URL.createObjectURL(localBlob)'));
+  assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, expectedKind)'));
+  assert.ok(editor.includes('Project Files stored offline remain available'));
+  assert.ok(editor.includes('projectFileObjectUrlsRef.current.values()'));
+});
