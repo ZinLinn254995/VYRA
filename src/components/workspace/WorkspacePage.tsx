@@ -1814,7 +1814,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext}   storyboardId={activeStoryboard.id} activeVyralId={null} embedded />
+                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext}   storyboardId={activeStoryboard.id} embedded />
                       </div>
                     ) : null}
                     <div className={storyboardEditorView === 'storage' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
