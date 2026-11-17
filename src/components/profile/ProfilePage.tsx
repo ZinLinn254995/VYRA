@@ -4,7 +4,7 @@ import {
   Settings2, Sun, UserRound, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { VyralIdentityIcon } from '../icons/VyralIdentityIcon';
+import { ProjectIdentityIcon } from '../icons/ProjectIdentityIcon';
 import { MyVyralsPage } from './MyVyralsPage';
 import { MyMediaLibraryPage } from './MyMediaLibraryPage';
 import { ApiKeySettings } from './ApiKeySettings';
@@ -35,7 +35,7 @@ type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponen
 
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
-    { key: 'my-vyrals', label: 'My Universes', detail: 'Manage your Creative Universes', icon: VyralIdentityIcon },
+    { key: 'my-vyrals', label: 'My Universes', detail: 'Manage your Creative Universes', icon: ProjectIdentityIcon },
     { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded and generated media', icon: Images },
   ] },
   { title: 'Platform', items: [
@@ -47,7 +47,7 @@ const groups: { title: string; items: NavItem[] }[] = [
 ];
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
-  'my-vyrals': { title: 'My Universes', description: 'Manage your reusable Creative Universes.', icon: VyralIdentityIcon, note: 'Your Creative Universes appear here.' },
+  'my-vyrals': { title: 'My Universes', description: 'Manage your reusable Creative Universes.', icon: ProjectIdentityIcon, note: 'Your Creative Universes appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded and generated media.', icon: Images, note: 'Your media appears here.' },
   settings: { title: 'Settings', description: 'Control your VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Choose how VYRA looks on this device.' },
