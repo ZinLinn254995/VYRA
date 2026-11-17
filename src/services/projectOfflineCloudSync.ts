@@ -58,11 +58,11 @@ export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number>
           synced += 1;
         } else if (operation.kind === 'rename' && operation.fileName) {
           await renameMediaLibraryItem(operation.projectFileId, operation.fileName, null, operation.projectId);
-          await completeProjectOfflineFileMutation(operation.projectFileId, 'rename');
+          await completeProjectOfflineFileMutation(operation.projectFileId, 'rename', operation.revision);
           synced += 1;
         } else if (operation.kind === 'move') {
           await moveMediaLibraryItems([operation.projectFileId], operation.folderId ?? null, null, operation.projectId);
-          await completeProjectOfflineFileMutation(operation.projectFileId, 'move');
+          await completeProjectOfflineFileMutation(operation.projectFileId, 'move', operation.revision);
           synced += 1;
         }
       } catch { /* Keep the durable operation queued for a later retry. */ }
