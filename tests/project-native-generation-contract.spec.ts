@@ -29,7 +29,7 @@ test('Project generation outputs are indexed as canonical Project Files, not Vyr
 test('Project output completion verifies Project ownership and hash without Asset IDs', () => {
   const complete = read('supabase/functions/complete-runway-media-output/index.ts');
   assert.ok(complete.includes('if (job.target_project_id)'));
-  assert.ok(complete.includes('.eq(\'project_id\', job.target_project_id)'));
+  assert.ok(complete.includes(".eq('project_id', job.target_project_id)"));
   assert.ok(complete.includes("item.source_kind !== 'generated'"));
   assert.ok(complete.includes('item.metadata?.generation_job_id'));
   assert.ok(complete.includes('item.metadata?.sha256 !== output.sha256'));
@@ -111,6 +111,21 @@ test('Project output transfer accepts Project destinations and fences stale retr
   assert.ok(!legacyTransfer.includes('p_lease_token: leaseToken'));
 });
 
+test('Project output claims rotate a lease and recover the correct transfer state', () => {
+  const migration = read('supabase/migrations/20261117060000_project_output_transfer_lease_fencing.sql');
+  assert.ok(migration.includes('v_lease_token := gen_random_uuid()'));
+  assert.ok(migration.includes("case when storage_path is null then 'downloading' else 'ingesting' end"));
+  assert.ok(migration.includes("transfer_lease_expires_at = pg_catalog.now() + interval '10 minutes'"));
+  assert.ok(migration.includes('transfer_lease_token = v_lease_token'));
+  assert.ok(migration.includes("'lease_token', v_lease_token"));
+  assert.ok(migration.includes("if p_status in ('stored','failed') then"));
+  assert.ok(migration.includes('v_output.transfer_lease_token is distinct from p_lease_token'));
+  assert.ok(migration.includes('v_output.transfer_lease_expires_at <= pg_catalog.now()'));
+  assert.ok(migration.includes('transfer_lease_expires_at = null'));
+  assert.ok(migration.includes('transfer_lease_token = null'));
+  assert.ok(migration.includes("if p_status = 'ingested' and v_output.transfer_status <> 'stored' then"));
+});
+
 
 test('Runway submission is claimed once before provider I/O and never auto-resubmitted', () => {
   const migration = read('supabase/migrations/20261116100000_runway_media_submission_claim.sql');
@@ -139,7 +154,7 @@ test('Runway polling serializes requests and protects terminal snapshots from st
 test('Project output transfer refuses to overwrite a colliding canonical Project File ID', () => {
   const transfer = read('supabase/functions/transfer-runway-media-output/index.ts');
   assert.ok(transfer.includes("select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')"));
-  assert.ok(transfer.includes('.eq(\'id\', projectFileId).maybeSingle()'));
+  assert.ok(transfer.includes(".eq('id', projectFileId).maybeSingle()"));
   assert.ok(transfer.includes("existingItem.source_kind !== 'generated'"));
   assert.ok(transfer.includes('existingItem.user_id !== userId'));
   assert.ok(transfer.includes('existingItem.project_id !== targetProjectId'));
@@ -148,7 +163,6 @@ test('Project output transfer refuses to overwrite a colliding canonical Project
   assert.ok(transfer.includes('project_file_identity_conflict'));
   assert.ok(transfer.indexOf('existingItemError') < transfer.indexOf('storage.from(BUCKET).upload('));
 });
-
 
 
 test('interrupted Project transfer recovery matches indexed file metadata to the output record', () => {
