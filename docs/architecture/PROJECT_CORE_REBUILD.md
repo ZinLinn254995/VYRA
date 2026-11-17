@@ -545,3 +545,47 @@ The exact SQL must still be tested as a complete ordered chain on a disposable l
 - Compare the current SQL against the historical versions in Git history wherever the source file was renamed or replaced. Confirm actual database objects, policies, constraints, functions, and indexes before classifying a migration as already represented.
 - Then run a clean local Supabase reset/migration test against the exact active branch and verify all SQL tests. This workspace has GitHub/Supabase read access but no local Docker/CLI execution environment, so that test has not been run here.
 - No Development or Production schema was changed during this audit.
+
+## 19. Duplicate migration ledger reconciliation — November 18, 2026
+
+This follow-up is read-only. It inspects the Development migration ledger, current source-controlled migration files and Git history, plus the live Development catalog. It does not modify hosted schemas or migration history.
+
+### `platform_admin_registry`
+
+- Development has two ledger rows: `20261112150837` and `20261112151910`, both named `platform_admin_registry`.
+- The active branch has one current migration file: `20261112150837_platform_admin_registry.sql`.
+- Git history shows that this file evolved in place: the initial version inserted a hard-coded owner UUID; a later revision changed table creation to `CREATE TABLE IF NOT EXISTS`; a subsequent revision removed the hard-coded owner seed so the migration is environment-neutral.
+- The live Development `public.platform_admins` table exists, has RLS enabled, has no row policies, and exposes no table privileges to `anon` or `authenticated`. The current migration's service-role-only access model is consistent with the observed catalog.
+- No historical SQL file for ledger version `20261112151910` was found in the active Git history/path history. The current table state is consistent with the final source migration, but it cannot prove whether the second ledger row represents a duplicate application or a now-untracked intermediate file.
+
+### `vault_gemini_secret_accessors`
+
+- Development has two ledger rows: `20261112150846` and `20261112151917`, both named `vault_gemini_secret_accessors`.
+- The active branch has one source migration: `20261112150846_vault_gemini_secret_accessors.sql`. Its original Git commit defines service-role-only getter/setter functions for the Gemini Vault key.
+- The active branch also contains the later forward migration `20261115011448_remove_legacy_gemini_provider_secret.sql`, which explicitly drops both Gemini accessor functions and deletes the legacy `vyra_gemini_api_key` Vault row.
+- The live Development catalog has neither Gemini accessor function. A metadata-only lookup of the named Gemini/OpenAI/Runway Vault rows returned no rows; no decrypted secret value was selected or read.
+- The current absence of the Gemini functions is therefore explained by the later forward migration. It does not identify the SQL originally associated with the second duplicate ledger version `20261112151917`; no matching historical source file was found.
+
+### `media_generation_quotes`
+
+- Development has two ledger rows: `20261112205718` and `20261112205756`, both named `media_generation_quotes`.
+- The active branch has a later canonical creation migration, `20261113030000_media_generation_quotes.sql`, followed by approval, atomic reservation, and explicit credit-consent migrations at `20261113040000`, `20261113043000`, and `20261113050000`.
+- The live table contains the expected later approval/credit-consent columns, pricing-policy foreign key, and associated functions/indexes. The database catalog therefore reflects more than the initial table creation.
+- However, the current Development catalog is not byte-for-byte/schema-definition-equivalent to the active migration chain:
+  - `provider` has a live maximum-length check of 100, while the canonical migration declares 80.
+  - `provider_config_id` has a live maximum-length check of 100, while the canonical migration declares 64.
+  - `request_fingerprint` is checked only for length 64 in the live catalog; the canonical migration requires 64 lowercase hexadecimal characters.
+  - The live `status` check includes `cancelled`, while the canonical creation migration lists `quoted`, `approved`, `used`, `expired`, and `rejected`.
+  - The live expiry index is partial on `status = 'quoted'`; the canonical migration defines it for `status IN ('quoted','approved')`.
+- The two original ledger versions do not have corresponding current migration file paths in Git history. The live schema differences are evidence of historical revisions not fully represented by the current canonical source, not permission to overwrite the Development table or rewrite migration history.
+
+### Reconciliation decision
+
+- The duplicate ledger rows are now classified as **historical source gaps requiring provenance**, not as migrations to replay.
+- `platform_admin_registry` currently matches the final safe table/access model, but the second ledger row's exact SQL remains unknown.
+- `vault_gemini_secret_accessors` is superseded by the recorded forward removal migration; do not recreate those functions or restore the retired key.
+- `media_generation_quotes` has confirmed schema drift against the current canonical migration chain. Recover the original migration revisions or explicitly document a reviewed forward reconciliation before attempting a local baseline comparison.
+- Do not delete ledger rows, run `migration repair`, replay either duplicate, or alter Development/Production to make the history appear clean.
+- The complete local Supabase reset/migration test remains blocked by the absence of a local Docker/CLI execution environment in this workspace. The next safe engineering step is static dependency/schema reconciliation of the remaining migration set, then run the exact chain in a disposable local Supabase environment when available.
+
+No hosted database schema, data, Vault secret, migration ledger, Production environment, or deployment was changed during this audit.
