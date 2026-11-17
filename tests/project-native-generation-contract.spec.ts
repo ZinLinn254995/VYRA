@@ -97,3 +97,28 @@ test('Project output transfer accepts Project destinations and fences stale retr
   const legacyTransfer = transfer.slice(transfer.indexOf('const targetVyralId ='));
   assert.ok(!legacyTransfer.includes('p_lease_token: leaseToken'));
 });
+
+
+test('Runway submission is claimed once before provider I/O and never auto-resubmitted', () => {
+  const migration = read('supabase/migrations/20261116100000_runway_media_submission_claim.sql');
+  const submit = read('supabase/functions/submit-runway-media-job/index.ts');
+  assert.ok(migration.includes("set status = 'submitted'"));
+  assert.ok(migration.includes("provider_submission_outcome = 'unknown'"));
+  assert.ok(migration.includes("if v_job.status <> 'pending'"));
+  assert.ok(migration.includes("provider_submission_outcome in ('accepted','rejected')"));
+  assert.ok(submit.indexOf("rpc('claim_runway_media_job'") < submit.indexOf('submitRunwayTask({'));
+  assert.ok(submit.includes('for (let attempt = 0; attempt < 3; attempt++)'));
+  assert.ok(submit.includes('The provider submission is never repeated here') ||
+    submit.includes('Provider submission is never repeated here'));
+});
+
+test('Runway polling serializes requests and protects terminal snapshots from stale responses', () => {
+  const migration = read('supabase/migrations/20261116110000_runway_media_task_polling.sql');
+  const poll = read('supabase/functions/poll-runway-media-job/index.ts');
+  assert.ok(migration.includes("interval '5 seconds'"));
+  assert.ok(migration.includes("v_job.provider_task_status = 'processing' and p_status = 'pending'"));
+  assert.ok(migration.includes("v_job.status in ('succeeded','failed','cancelled')"));
+  assert.ok(migration.includes('v_job.provider_task_id is distinct from p_provider_task_id'));
+  assert.ok(poll.indexOf("rpc('claim_runway_media_task_poll'") < poll.indexOf('getRunwayTask(apiKey, taskId)'));
+  assert.ok(poll.includes("snapshot.status === 'succeeded' && snapshot.outputUrls.length === 0"));
+});
