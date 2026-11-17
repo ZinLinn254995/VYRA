@@ -231,7 +231,10 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   const orderedVideoClips = [
     ...directorTransitionClips,
     ...manifest.videoTracks.flatMap((track) => track.clips.map((clip) => clip)),
-  ].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+  ]
+    // Match mergeTimelineVideoRows, then the Editor's stable start/duration sort.
+    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
+    .sort((a, b) => a.start - b.start || a.duration - b.duration);
   for (let index = 0; index < orderedVideoClips.length - 1; index += 1) {
     const current = orderedVideoClips[index];
     const next = orderedVideoClips[index + 1];
