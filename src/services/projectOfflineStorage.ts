@@ -132,6 +132,17 @@ async function storeValue<T>(storeName: string, value: T): Promise<void> {
   });
 }
 
+async function addValue<T>(storeName: string, value: T): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction(storeName, 'readwrite');
+  transaction.objectStore(storeName).add(value);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not create a unique Offline Storage record.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Offline Storage record creation was interrupted.'));
+  });
+}
+
 async function storeValuesAtomically(entries: Array<{ storeName: string; value: unknown }>): Promise<void> {
   const db = await openDatabase();
   const storeNames = Array.from(new Set(entries.map((entry) => entry.storeName)));
@@ -300,7 +311,7 @@ export async function importProjectFileToOfflineStorage(input: {
     createdAt: now,
     updatedAt: now,
   };
-  await storeValue(FILE_STORE, initialRecord);
+  await addValue(FILE_STORE, initialRecord);
 
   try {
     if (directory) {
