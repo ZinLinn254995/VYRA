@@ -947,16 +947,24 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
   const activeImageClip = [...visibleVideoTracks].reverse().flatMap((track) => track.clips)
     .find((clip) => (clip.mediaKind === 'image' || clip.assetMimeType?.toLowerCase().startsWith('image/')) &&
       !clip.isPlaceholder && clip.start <= timelinePlayheadTime &&
-      clip.start + clip.duration > timelinePlayheadTime && Boolean(clip.assetId && clip.assetVersionId));
+      clip.start + clip.duration > timelinePlayheadTime &&
+      Boolean(clip.projectFileId || (clip.assetId && clip.assetVersionId)));
   useEffect(() => {
     let cancelled = false;
-    if (!supabase || !activeImageClip?.assetId || !activeImageClip.assetVersionId) {
+    if (!supabase || !activeImageClip || (!activeImageClip.projectFileId && (!activeImageClip.assetId || !activeImageClip.assetVersionId))) {
       setImagePreviewUrl(null);
       return;
     }
-    const imageAssetId = activeImageClip.assetId;
-    const imageVersionId = activeImageClip.assetVersionId;
     setImagePreviewUrl(null);
+    if (activeImageClip.projectFileId) {
+      if (!projectId) { setImagePreviewUrl(null); return; }
+      void getProjectMediaLibraryItemPlaybackSource(activeImageClip.projectFileId, projectId, 'image')
+        .then((source) => { if (!cancelled) setImagePreviewUrl(source.signedUrl); })
+        .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
+      return () => { cancelled = true; };
+    }
+    const imageAssetId = activeImageClip.assetId!;
+    const imageVersionId = activeImageClip.assetVersionId!;
     void resolveLocalMediaUrl(imageAssetId, imageVersionId).then((localImageUrl) => {
       if (cancelled) return;
       if (localImageUrl) { setImagePreviewUrl(localImageUrl); return; }
@@ -965,7 +973,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
     });
     return () => { cancelled = true; };
-  }, [activeImageClip?.assetId, activeImageClip?.assetVersionId]);
+  }, [activeImageClip?.projectFileId, activeImageClip?.assetId, activeImageClip?.assetVersionId, projectId]);
 
   // The shared Storyboard preview frame owns all user-visible visual previews.
   // Keep this editor responsible only for resolving the active Image source.
