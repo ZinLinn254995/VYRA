@@ -37,9 +37,7 @@ test('creates a versioned render snapshot with stable Project File and legacy As
 
 test('does not retain signed URLs, object URLs, editor-only waveform data, or mutate source timeline', () => {
   const input = baseInput();
-  const clip = input.timeline.videoTracks![0].clips[0] as typeof input.timeline.videoTracks[0]['clips'][0] & { waveform: number[]; url: string };
-  clip.waveform = [0.2, 0.8];
-  clip.url = 'blob:temporary-editor-url';
+  Object.assign(input.timeline.videoTracks![0].clips[0], { waveform: [0.2, 0.8], url: 'blob:temporary-editor-url' });
   const before = JSON.stringify(input);
   const manifest = createProjectRenderManifest(input);
   assert.equal(JSON.stringify(input), before);
