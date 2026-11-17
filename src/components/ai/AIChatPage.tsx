@@ -266,7 +266,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         .select('id,status,asset_ingestion_status,target_project_id')
         .eq('user_id', authData.user.id)
         .eq('target_project_id', storyboardId)
-        .in('status', ['submitted', 'processing', 'unknown', 'succeeded'])
+        .in('status', ['queued', 'submitted', 'processing', 'unknown', 'succeeded'])
         .neq('asset_ingestion_status', 'ready')
         .order('created_at', { ascending: false }).limit(8);
       if (nativeError) throw nativeError;
