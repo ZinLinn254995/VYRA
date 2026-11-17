@@ -75,3 +75,23 @@ test('account login starts background sync and automatic Cloud-to-device recover
   assert.ok(sync.includes('restoreAccountProjectsToOfflineStorage'));
   assert.ok(sync.includes("window.addEventListener('online'"));
 });
+
+
+test('Project Storage exposes local-first uploads and previews without waiting for Cloud', () => {
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
+  assert.ok(page.includes('importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file })'));
+  assert.ok(page.includes('listProjectOfflineFiles(projectId)'));
+  assert.ok(page.includes('getProjectOfflineFileBlob(entry.item.id)'));
+  assert.ok(page.includes("window.addEventListener('vyra:project-offline-file-ready'"));
+  assert.ok(!page.includes('uploadMediaLibraryFiles('));
+});
+
+test('Project local imports and device recovery respect available storage capacity', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(storage.includes('getProjectOfflineStorageEstimate()'));
+  assert.ok(storage.includes('There is not enough available device storage'));
+  assert.ok(sync.includes('MAX_RESTORE_BYTES_PER_PROJECT'));
+  assert.ok(sync.includes('UNKNOWN_QUOTA_RESTORE_BUDGET'));
+  assert.ok(sync.includes('getProjectOfflineStorageEstimate()'));
+});
