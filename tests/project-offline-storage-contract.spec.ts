@@ -305,3 +305,16 @@ test('Project file metadata mutations commit atomically and stale Cloud completi
   assert.ok(sync.includes("completeProjectOfflineFileMutation(operation.projectFileId, 'rename', operation.revision)"));
   assert.ok(sync.includes("completeProjectOfflineFileMutation(operation.projectFileId, 'move', operation.revision)"));
 });
+
+
+test('Project Offline sync serializes workers and reconciles Cloud metadata without overwriting queued local changes', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(sync.includes('let projectCloudSyncPromise: Promise<number> | null = null'));
+  assert.ok(sync.includes("lockManager.request('vyra-project-offline-cloud-sync'"));
+  assert.ok(sync.includes('performPendingProjectFileSync(limit)'));
+  assert.ok(storage.includes("db.transaction([FILE_STORE, SYNC_STORE], 'readwrite')"));
+  assert.ok(storage.includes("syncStore.get('rename:' + input.projectFileId)"));
+  assert.ok(storage.includes("syncStore.get('move:' + input.projectFileId)"));
+  assert.ok(storage.includes('renamePending || movePending) return'));
+});
