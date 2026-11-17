@@ -30,6 +30,7 @@ test('Project output completion verifies Project ownership and hash without Asse
   const complete = read('supabase/functions/complete-runway-media-output/index.ts');
   assert.ok(complete.includes('if (job.target_project_id)'));
   assert.ok(complete.includes('.eq(\'project_id\', job.target_project_id)'));
+  assert.ok(complete.includes("item.source_kind !== 'generated'"));
   assert.ok(complete.includes('item.metadata?.generation_job_id'));
   assert.ok(complete.includes('item.metadata?.sha256 !== output.sha256'));
   assert.ok(complete.includes('p_project_file_id: projectFileId'));
