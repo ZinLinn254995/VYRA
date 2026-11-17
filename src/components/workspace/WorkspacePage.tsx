@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
-import { StoryboardUniverseTab } from './StoryboardUniverseTab';
+import { ProjectStorageTab } from './ProjectStorageTab';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
@@ -84,8 +84,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
   const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
-  const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'universe'>('chat');
-  const [storyboardUniverse, setStoryboardUniverse] = useState<{ id: string; name: string; description: string } | null>(null);
+  const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'storage'>('chat');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [sceneVideoPreviewUrl, setSceneVideoPreviewUrl] = useState('');
@@ -681,7 +680,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         sceneTitles: scenes.slice(0, 30).map((scene) => scene.title),
       } : null,
       ...(activeStoryboard ? { editorView: storyboardEditorView } : {}),
-      storyboardUniverse: storyboardUniverse ? { ...storyboardUniverse } : null,
+      storyboardUniverse: null,
       selectedSceneIds: selectedSceneIds.slice(0, 30),
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
@@ -758,7 +757,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
     setLocalWorkspaceAiContext(context);
     onAiContextChange?.(context);
-  }, [onAiContextChange, activeStoryboard, storyboardEditorView, storyboardUniverse, selectedSceneIds, activeSceneId, selectedTimelineItem]);
+  }, [onAiContextChange, activeStoryboard, storyboardEditorView, selectedSceneIds, activeSceneId, selectedTimelineItem]);
 
   useLayoutEffect(() => {
     const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey;
@@ -770,7 +769,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       suggestionRequestIdRef.current += 1;
       lastStoryboardSyncAtRef.current = 0;
       setActiveStoryboard(null);
-      setStoryboardUniverse(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardToDelete(null);
       setIsDeletingStoryboard(false);
@@ -1031,7 +1029,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
   }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardUniverse(null); setStoryboardEditorView('chat'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null);  setStoryboardEditorView('chat'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
 
   // Resolve the requested Project before the browser paints the editor host.
   // This prevents the retired Workspace landing page from flashing for one frame.
@@ -1656,7 +1654,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
+          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={null} embedded />
         </aside>
       </main>
     );
@@ -1704,7 +1702,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               <div className="profile-storyboard-view-tabs order-first flex shrink-0 items-center gap-1 bg-[var(--vyra-bg-surface)]" aria-label="Project navigation">
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Editor</button>
-                <button type="button" onClick={() => setStoryboardEditorView('universe')} aria-pressed={storyboardEditorView === 'universe'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Storage</button>
+                <button type="button" onClick={() => setStoryboardEditorView('storage')} aria-pressed={storyboardEditorView === 'storage'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Storage</button>
               </div>
               {storyboardEditorView === 'master' && (
                 <>
@@ -1799,8 +1797,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                     {storyboardEditorView === 'master' ? (
                       <div className="storyboard-editor-pane flex min-h-0 w-full min-w-0 max-w-none flex-col">
 <MasterTimelineEditor
-                    vyralId={storyboardUniverse?.id}
-                    scenes={scenes.map((scene) => ({
+                                        scenes={scenes.map((scene) => ({
                       ...scene,
                       projectId: scene.project?.id,
                       latestRenderRevisionId: scene.project?.latestRenderRevisionId ?? null,
