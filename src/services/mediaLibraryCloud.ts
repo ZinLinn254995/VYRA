@@ -943,7 +943,7 @@ export async function uploadMediaLibraryFiles(
       // storage backend. UUID + a conservative extension gives every upload a safe,
       // collision-resistant object path on every platform.
       const fileName = file.name.replace(/[\u0000-\u001F\u007F]/g, '').trim() || 'upload-' + id;
-      const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
+      const storagePath = userId + '/media-library/' + (projectId ? projectId + '/' : '') + id + SAFE_STORAGE_EXTENSION(fileName);
       const mimeType = file.type || 'application/octet-stream';
       const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
         contentType: mimeType, upsert: false, cacheControl: '3600',
