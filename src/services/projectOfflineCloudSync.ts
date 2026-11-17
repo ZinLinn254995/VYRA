@@ -10,6 +10,7 @@ import {
   completeProjectOfflineFileMutation,
   listProjectOfflineFiles,
   removeProjectOfflineFile,
+  reconcileProjectOfflineFileMetadata,
 } from './projectOfflineStorage';
 import { deleteMediaLibraryItems, moveMediaLibraryItems, renameMediaLibraryItem } from './mediaLibraryCloud';
 
@@ -149,7 +150,15 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
           !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
       const local = await getProjectOfflineFile(row.id);
       if (local?.deletedAt && local.projectId === projectId) continue;
-      if (local?.localState === 'available' && local.projectId === projectId) continue;
+      if (local?.localState === 'available' && local.projectId === projectId) {
+        await reconcileProjectOfflineFileMetadata({
+          projectFileId: row.id,
+          fileName: row.file_name,
+          folderId: row.folder_id ?? null,
+          updatedAt: row.updated_at ?? null,
+        });
+        continue;
+      }
       const fileSize = Math.max(0, Number(row.size_bytes) || 0);
       const estimate = await getProjectOfflineStorageEstimate();
       const passBudget = estimate.quotaBytes === null || estimate.usageBytes === null
@@ -220,7 +229,7 @@ export function startProjectOfflineCloudSync(): () => void {
   const run = async () => {
     if (running || !navigator.onLine) return;
     running = true;
-    try { await syncPendingProjectFilesToCloud(5); } catch { /* retry on next trigger */ }
+    try { await syncPendingProjectFilesToCloud(20); } catch { /* retry on next trigger */ }
     finally {
       running = false;
       if (rerunRequested && navigator.onLine) { rerunRequested = false; void run(); }
