@@ -115,3 +115,52 @@ test('rejects malformed lease envelopes and unsafe lease durations', () => {
     leaseToken: 'token-b', now: '2026-11-17T16:00:06.000Z', leaseDurationMs: 5_000,
   }), /lease is malformed/);
 });
+
+test('worker writes require the current revision, token, worker and fencing generation', async () => {
+  const { assertProjectRenderLeaseOwnership } = await import('../src/services/projectRenderLease.ts');
+  const first = claimProjectRenderLease({
+    snapshot: base(), expectedRevision: 1, workerId: 'worker-a',
+    leaseToken: 'token-a', now, leaseDurationMs: 5_000,
+  }).snapshot;
+
+  assert.doesNotThrow(() => assertProjectRenderLeaseOwnership({
+    snapshot: first, expectedRevision: 2, workerId: 'worker-a',
+    leaseToken: 'token-a', leaseGeneration: 1, now: '2026-11-17T16:00:02.000Z',
+  }));
+
+  const recovered = claimProjectRenderLease({
+    snapshot: first, expectedRevision: 2, workerId: 'worker-b',
+    leaseToken: 'token-b', now: '2026-11-17T16:00:05.000Z', leaseDurationMs: 20_000,
+  }).snapshot;
+
+  assert.throws(() => assertProjectRenderLeaseOwnership({
+    snapshot: recovered, expectedRevision: 2, workerId: 'worker-a',
+    leaseToken: 'token-a', leaseGeneration: 1, now: '2026-11-17T16:00:06.000Z',
+  }), /revision is stale/);
+  assert.throws(() => assertProjectRenderLeaseOwnership({
+    snapshot: recovered, expectedRevision: 3, workerId: 'worker-a',
+    leaseToken: 'token-a', leaseGeneration: 1, now: '2026-11-17T16:00:06.000Z',
+  }), /does not match/);
+  assert.doesNotThrow(() => assertProjectRenderLeaseOwnership({
+    snapshot: recovered, expectedRevision: 3, workerId: 'worker-b',
+    leaseToken: 'token-b', leaseGeneration: 2, now: '2026-11-17T16:00:06.000Z',
+  }));
+});
+
+test('worker writes reject expired leases and malformed fencing metadata', async () => {
+  const { assertProjectRenderLeaseOwnership } = await import('../src/services/projectRenderLease.ts');
+  const claimed = claimProjectRenderLease({
+    snapshot: base(), expectedRevision: 1, workerId: 'worker-a',
+    leaseToken: 'token-a', now, leaseDurationMs: 5_000,
+  }).snapshot;
+
+  assert.throws(() => assertProjectRenderLeaseOwnership({
+    snapshot: claimed, expectedRevision: 2, workerId: 'worker-a',
+    leaseToken: 'token-a', leaseGeneration: 1, now: '2026-11-17T16:00:05.000Z',
+  }), /lease has expired/);
+  assert.throws(() => assertProjectRenderLeaseOwnership({
+    snapshot: { ...claimed, lease: { ...claimed.lease!, generation: 0 } },
+    expectedRevision: 2, workerId: 'worker-a', leaseToken: 'token-a',
+    leaseGeneration: 0, now: '2026-11-17T16:00:02.000Z',
+  }), /malformed/);
+});
