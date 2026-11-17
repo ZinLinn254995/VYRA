@@ -40,6 +40,20 @@ test('creates an immutable Project-owned job with a pinned manifest and composit
   }), /SHA-256/);
 });
 
+test('rejects unsupported or unscoped manifest and composition plan envelopes', () => {
+  const job = makeJob();
+  assert.throws(() => createProjectRenderJob({
+    id: 'bad-manifest', ownerId: 'owner-1', idempotencyKey: 'bad:1', inputDigest: 'a'.repeat(64),
+    manifest: { ...job.manifest, version: 99 } as never,
+    compositionPlan: job.compositionPlan, at,
+  }), /supported Project render manifest/);
+  assert.throws(() => createProjectRenderJob({
+    id: 'bad-plan', ownerId: 'owner-1', idempotencyKey: 'bad:2', inputDigest: 'a'.repeat(64),
+    manifest: job.manifest,
+    compositionPlan: { ...job.compositionPlan, projectId: ' ' } as never, at,
+  }), /supported immutable Project composition plan/);
+});
+
 test('advances through preparation, rendering and upload before committing a Project File output', () => {
   let job = makeJob();
   job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 5, at: '2026-11-17T12:00:01.000Z' });
