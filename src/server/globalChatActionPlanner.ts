@@ -136,7 +136,7 @@ function validateParameters(
       typeof parameters.maxCredits === 'number' && Number.isInteger(parameters.maxCredits) && parameters.maxCredits > 0;
   }
   if (operation === 'workspace.navigate') return typeof parameters.destination === 'string' &&
-    ['workspace', 'my-vyrals', 'my-media-library'].includes(parameters.destination);
+    ['workspace'].includes(parameters.destination);
   return true;
 }
 
