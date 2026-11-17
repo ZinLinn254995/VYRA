@@ -108,6 +108,7 @@ export function createProjectRenderJob(input: {
 export function transitionProjectRenderJob(job: ProjectRenderJob, event: ProjectRenderJobEvent): ProjectRenderJob {
   assertTimestamp(event.at);
   if (!job || job.schema !== 'vyra.project-render-job' || job.version !== 1) throw new Error('A supported Project render job is required.');
+  if (Date.parse(event.at) < Date.parse(job.updatedAt)) throw new Error('Render job events cannot move the update timestamp backwards.');
   if (job.status === 'completed' || job.status === 'cancelled') throw new Error('A terminal render job cannot be changed.');
   const next: ProjectRenderJob = { ...job, revision: job.revision + 1, updatedAt: event.at };
 
