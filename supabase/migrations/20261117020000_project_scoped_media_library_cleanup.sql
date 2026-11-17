@@ -36,12 +36,15 @@ begin
     and (
       source_asset_id is not null
       or bucket_id <> 'vyral-assets'
+      or storage_path is null
       or storage_path not like v_user_id::text || '/media-library/%'
+      or storage_path ~ '(^|/)(/|$)'
       or position(chr(92) in storage_path) > 0
       or storage_path ~ '(^|/)\.\.?(/|$)'
       or coalesce(metadata->>'thumbnail_path', '') <> ''
         and (
           metadata->>'thumbnail_path' not like v_user_id::text || '/media-library-thumbnails/%'
+          or metadata->>'thumbnail_path' ~ '(^|/)(/|$)'
           or position(chr(92) in metadata->>'thumbnail_path') > 0
           or metadata->>'thumbnail_path' ~ '(^|/)\.\.?(/|$)'
         )
