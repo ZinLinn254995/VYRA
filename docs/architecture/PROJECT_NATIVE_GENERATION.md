@@ -90,12 +90,12 @@ Chat integration progress:
 
 - The existing Project Chat generation action now routes non-Scene media generation to `generateRunwayProjectFiles`, using the actual Project ID. It no longer requires an Assets Vyral for this path.
 - Generated outputs are represented in chat history by `projectFileId`, not an Asset ID. History rehydrates previews from `media_library_items` scoped to the current Project.
+- The unfinished-generation panel lists Project-native jobs separately from legacy Asset jobs. It can safely resume queued reservations, poll submitted jobs without resubmitting, and recover partially ingested outputs using their stable Project File IDs.
 - Image, video, and audio previews are rendered from signed Project File URLs. The same output is already installed in Offline Storage by the generation service.
 - Existing Scene shot-sequence generation and repair continue through the legacy Asset/DNA/Fingerprint visual-verification path. They are deliberately not silently converted or stripped of continuity checks.
 
 Still required:
 
-- Wire the new Project-job recovery service into the unfinished-generation panel, including partial multi-output ingestion and already-submitted jobs.
 - Extend Scene shot-sequence, repair, and Editor timeline handoff to Project File IDs while preserving sampled-frame continuity verification.
 - Run typecheck, Deno checks, unit/contract tests, integration tests, and verify SQL/RLS/storage behavior in a non-production environment.
 - Confirm generated media opens from Project Storage and Editor offline on the same and a second device.
