@@ -1,6 +1,6 @@
 import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
-import { addMasterTimelineAudioAssetClip, addMasterTimelineTextClip, attachMasterTimelineVideoAsset, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
+import { addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
 import { buildSceneStateProposalInstruction, buildSceneVisualContinuityInstruction } from '../../../src/services/universeSceneStatePrompt.ts';
 import { CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION } from '../../../src/services/creativeDirectorIntelligence.ts';
@@ -429,7 +429,6 @@ function applyMasterTimelineEdit(timeline: MasterTimelineData, parameters: Recor
   const operation = parameters.operation;
   const clipId = String(parameters.clipId ?? '');
   if (operation === 'add_text') return addMasterTimelineTextClip(timeline, String(parameters.trackId), String(parameters.createdClipId), String(parameters.name ?? 'Text'), String(parameters.value ?? ''), Number(parameters.start), Number(parameters.duration));
-  if (operation === 'add_audio') return addMasterTimelineAudioAssetClip(timeline, String(parameters.trackId), String(parameters.createdClipId), String(parameters.assetId), String(parameters.assetVersionId), String(parameters.assetMimeType), String(parameters.name), Number(parameters.start), Number(parameters.duration), Array.isArray(parameters.waveformPeaks) ? parameters.waveformPeaks as number[] : []);
   if (operation === 'delete') return deleteMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.trackId), clipId);
   if (operation === 'move') return moveMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.sourceTrackId), clipId, String(parameters.destinationTrackId), Number(parameters.time));
   if (operation === 'clone') return cloneMasterTimelineClip(timeline, parameters.kind as 'audio' | 'text', String(parameters.trackId), clipId, () => String(parameters.createdClipId ?? ''));
@@ -441,7 +440,7 @@ function applyMasterTimelineEdit(timeline: MasterTimelineData, parameters: Recor
 }
 
 async function createMasterTimelineEditProposal(
-  admin: any, userId: string, activeVyralId: string | null, sessionId: string | null, rawArguments: string, toolCallId: string,
+  admin: any, userId: string, sessionId: string | null, rawArguments: string, toolCallId: string,
 ): Promise<Record<string, unknown>> {
   if (!sessionId) return safeToolError('A verified chat session is required before creating a Timeline preview.');
   let args: Record<string, unknown>;
@@ -450,27 +449,39 @@ async function createMasterTimelineEditProposal(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return safeToolError('Invalid Master Timeline edit arguments.');
     args = parsed as Record<string, unknown>;
   } catch { return safeToolError('Invalid Master Timeline edit arguments.'); }
-  const allowedKeys = ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration','asset_id','scene_id'];
-  if (Object.keys(args).some((key) => !allowedKeys.includes(key)) || !isUuid(args.storyboard_id) ||
-      !['add_text','add_audio','attach_video','move','trim','split','clone','update_text','delete'].includes(String(args.operation))) return safeToolError('The requested Master Timeline edit is invalid.');
+  const allowedKeys = ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration'];
   const operation = String(args.operation);
-  if (!['add_text','add_audio','attach_video'].includes(operation) && !isUuid(args.clip_id)) return safeToolError('Select the exact existing clip.');
-  const kind = operation === 'update_text' || operation === 'add_text' ? 'text' : operation === 'add_audio' ? 'audio' : args.kind;
-  if (operation !== 'attach_video' && !['audio','text'].includes(String(kind))) return safeToolError('Choose a valid Audio or Text clip.');
-  if (['move','trim','split'].includes(operation) && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) return safeToolError('Timeline time must be between 0 and 24 hours.');
-  if (operation === 'attach_video' && (!isUuid(activeVyralId) || !isUuid(args.asset_id) || !isUuid(args.scene_id))) return safeToolError('Attaching Video requires an exact Scene and a ready Video Asset from your active Vyral.');
-  if (operation === 'add_audio' && (!isUuid(activeVyralId) || !isUuid(args.asset_id) || (args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)))) return safeToolError('Adding Audio requires a ready Audio Asset from your active Vyral and a start time from 0 to 24 hours. Duration is taken from its immutable source version.');
-  if (operation === 'add_text' && ((args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) || (args.duration !== undefined && (typeof args.duration !== 'number' || !Number.isFinite(args.duration) || args.duration < 0.2 || args.duration > 3600)) || typeof args.value !== 'string' || !args.value.trim() || args.value.trim().length > 1000 || (args.name !== undefined && (typeof args.name !== 'string' || !args.name.trim() || args.name.trim().length > 180)))) return safeToolError('Text overlays need non-empty copy, a valid label, a start time from 0 to 24 hours, and a duration from 0.2 to 3600 seconds.');
+  if (Object.keys(args).some((key) => !allowedKeys.includes(key)) || !isUuid(args.storyboard_id) ||
+      !['add_text','move','trim','split','clone','update_text','delete'].includes(operation)) {
+    return safeToolError('The requested Master Timeline edit is invalid.');
+  }
+  if (operation !== 'add_text' && !isUuid(args.clip_id)) return safeToolError('Select the exact existing clip.');
+  const kind = operation === 'update_text' || operation === 'add_text' ? 'text' : args.kind;
+  if (operation !== 'add_text' && !['audio','text'].includes(String(kind))) return safeToolError('Choose a valid clip type.');
+  if (['move','trim','split'].includes(operation) &&
+      (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) {
+    return safeToolError('Timeline time must be between 0 and 24 hours.');
+  }
+  if (operation === 'add_text' && (
+    (args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time) || args.time < 0 || args.time > 86400)) ||
+    (args.duration !== undefined && (typeof args.duration !== 'number' || !Number.isFinite(args.duration) || args.duration < 0.2 || args.duration > 3600)) ||
+    typeof args.value !== 'string' || !args.value.trim() || args.value.trim().length > 1000 ||
+    (args.name !== undefined && (typeof args.name !== 'string' || !args.name.trim() || args.name.trim().length > 180))
+  )) return safeToolError('Text overlays need non-empty copy, a valid label, a start time from 0 to 24 hours, and a duration from 0.2 to 3600 seconds.');
   if (operation === 'move' && (!isUuid(args.source_track_id) || !isUuid(args.destination_track_id))) return safeToolError('Select an existing source and destination track.');
   if (['trim','split','clone','update_text','delete'].includes(operation) && !isUuid(args.track_id)) return safeToolError('Select the exact existing track.');
   if (operation === 'trim' && !['start','end'].includes(String(args.edge))) return safeToolError('Choose whether to trim the clip start or end.');
-  if (operation === 'update_text' && (!['name','content'].includes(String(args.field)) || typeof args.value !== 'string' || !args.value.trim() || args.value.trim().length > (args.field === 'name' ? 180 : 1000))) return safeToolError('Text clip edits must contain a valid name or content value.');
-  const { data: storyboard, error } = await admin.from('vyral_storyboards').select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
-  if (error) return safeToolError('The parent Storyboard could not be verified.');
-  if (!storyboard) return safeToolError('That Storyboard is not available in your account.');
+  if (operation === 'update_text' && (!['name','content'].includes(String(args.field)) || typeof args.value !== 'string' || !args.value.trim() || args.value.trim().length > (args.field === 'name' ? 180 : 1000))) {
+    return safeToolError('Text clip edits must contain a valid name or content value.');
+  }
+
+  const { data: storyboard, error } = await admin.from('vyral_storyboards')
+    .select('id,title,details,updated_at').eq('id', args.storyboard_id).eq('user_id', userId).maybeSingle();
+  if (error) return safeToolError('The parent Project could not be verified.');
+  if (!storyboard) return safeToolError('That Project is not available in your account.');
   const details = storyboard.details && typeof storyboard.details === 'object' && !Array.isArray(storyboard.details) ? storyboard.details as Record<string, unknown> : {};
   const raw = details.masterTimeline && typeof details.masterTimeline === 'object' && !Array.isArray(details.masterTimeline) ? details.masterTimeline as Record<string, unknown> : null;
-  if (!raw) return safeToolError('This Storyboard has no saved Master Timeline yet.');
+  if (!raw) return safeToolError('This Project has no saved Editor Timeline yet.');
   const timeline = {
     ...raw,
     sceneRanges: raw.sceneRanges && typeof raw.sceneRanges === 'object' && !Array.isArray(raw.sceneRanges) ? raw.sceneRanges : {},
@@ -479,59 +490,30 @@ async function createMasterTimelineEditProposal(
     audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
     textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
   } as MasterTimelineData;
-  const videoAssetResult = operation === 'attach_video' ? await admin.from('vyral_assets').select('id,name,asset_type,mime_type,processing_status').eq('id', args.asset_id).eq('vyral_id', activeVyralId).eq('user_id', userId).eq('asset_type', 'video').eq('processing_status', 'ready').maybeSingle() : null;
-  if (operation === 'attach_video' && (videoAssetResult?.error || !videoAssetResult?.data)) return safeToolError('That Video Asset is not ready or is not owned by your active Vyral.');
-  const videoAsset = videoAssetResult?.data as Record<string, unknown> | null;
-  const videoVersionResult = operation === 'attach_video' && videoAsset ? await admin.from('vyral_asset_versions').select('id,mime_type,size_bytes,sha256,storage_path,metadata').eq('asset_id', videoAsset.id).eq('vyral_id', activeVyralId).eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle() : null;
-  const videoMetadata = videoVersionResult?.data?.metadata && typeof videoVersionResult.data.metadata === 'object' && !Array.isArray(videoVersionResult.data.metadata) ? videoVersionResult.data.metadata as Record<string, unknown> : {};
-  const videoTechnical = videoMetadata.video_technical_metadata && typeof videoMetadata.video_technical_metadata === 'object' && !Array.isArray(videoMetadata.video_technical_metadata) ? videoMetadata.video_technical_metadata as Record<string, unknown> : {};
-  const videoDuration = typeof videoTechnical.durationSeconds === 'number' && Number.isFinite(videoTechnical.durationSeconds) ? videoTechnical.durationSeconds : null;
-  if (operation === 'attach_video' && (videoVersionResult?.error || !videoVersionResult?.data || typeof videoVersionResult.data.storage_path !== 'string' || !videoVersionResult.data.storage_path || !String(videoVersionResult.data.mime_type || videoAsset?.mime_type || '').toLowerCase().startsWith('video/') || videoTechnical.schemaVersion !== 1 || videoTechnical.sourceSha256 !== videoVersionResult.data.sha256 || videoDuration === null || videoDuration < 0.2 || videoDuration > 3600)) return safeToolError('This Video Asset does not yet have source-version-verified duration metadata. No Scene change was prepared.');
-  const videoVersion = videoVersionResult?.data as Record<string, unknown> | null;
-  if (operation === 'attach_video' && (!Array.isArray(details.scenes) || !details.scenes.some((scene: Record<string, unknown>) => scene?.id === args.scene_id))) return safeToolError('That Scene is not part of this Storyboard. Refresh the Storyboard before attaching Video.');
-  if (operation === 'attach_video' && !(timeline.sceneInstances ?? []).some((instance) => instance.sceneId === args.scene_id)) return safeToolError('That Scene has no Master Timeline instance yet. Refresh the Master Timeline before attaching Video.');
-  const audioAssetResult = operation === 'add_audio' ? await admin.from('vyral_assets').select('id,name,asset_type,mime_type,processing_status').eq('id', args.asset_id).eq('vyral_id', activeVyralId).eq('user_id', userId).eq('asset_type', 'audio').eq('processing_status', 'ready').maybeSingle() : null;
-  if (operation === 'add_audio' && (audioAssetResult?.error || !audioAssetResult?.data)) return safeToolError('That Audio Asset is not ready or is not owned by your active Vyral.');
-  const audioAsset = audioAssetResult?.data as Record<string, unknown> | null;
-  const audioVersionResult = operation === 'add_audio' && audioAsset ? await admin.from('vyral_asset_versions').select('id,version_number,mime_type,size_bytes,sha256,storage_path,metadata').eq('asset_id', audioAsset.id).eq('vyral_id', activeVyralId).eq('user_id', userId).order('version_number', { ascending: false }).limit(1).maybeSingle() : null;
-  if (operation === 'add_audio' && (audioVersionResult?.error || !audioVersionResult?.data || typeof audioVersionResult.data.storage_path !== 'string' || !String(audioVersionResult.data.mime_type || audioAsset?.mime_type || '').toLowerCase().startsWith('audio/'))) return safeToolError('The Audio Asset has no verified immutable audio version. No Timeline change was prepared.');
-  const audioVersion = audioVersionResult?.data as Record<string, unknown> | null;
-  const audioVersionMetadata = audioVersion?.metadata && typeof audioVersion.metadata === 'object' && !Array.isArray(audioVersion.metadata) ? audioVersion.metadata as Record<string, unknown> : {};
-  const audioTechnical = audioVersionMetadata.audio_technical_metadata && typeof audioVersionMetadata.audio_technical_metadata === 'object' && !Array.isArray(audioVersionMetadata.audio_technical_metadata) ? audioVersionMetadata.audio_technical_metadata as Record<string, unknown> : {};
-  const audioDuration = typeof audioTechnical.durationSeconds === 'number' && Number.isFinite(audioTechnical.durationSeconds) ? audioTechnical.durationSeconds : null;
-  const audioPeaks = Array.isArray(audioTechnical.waveformPeaks) && audioTechnical.waveformPeaks.length <= 128 && audioTechnical.waveformPeaks.every((peak) => typeof peak === 'number' && Number.isFinite(peak) && peak >= 0 && peak <= 1) ? audioTechnical.waveformPeaks as number[] : [];
-  if (operation === 'add_audio' && (!audioVersion || audioTechnical.schemaVersion !== 1 || audioTechnical.sourceSha256 !== audioVersion.sha256 || audioDuration === null || audioDuration < 0.2 || audioDuration > 3600)) return safeToolError('This Audio Asset does not yet have source-version-verified duration metadata. Re-upload it or run audio analysis before adding it to the Timeline.');
-  const generatedClipId = ['add_text','add_audio'].includes(operation) ? crypto.randomUUID() : args.clip_id;
+
+  const createdClipId = operation === 'add_text' || operation === 'split' || operation === 'clone' ? crypto.randomUUID() : args.clip_id;
   const parameters: Record<string, unknown> = {
-    operation, clipId: generatedClipId, kind,
-    ...(operation === 'attach_video' ? { sceneId: String(args.scene_id), assetId: String(videoAsset!.id), assetVersionId: String(videoVersion!.id), assetMimeType: String(videoVersion!.mime_type || videoAsset!.mime_type), sourceIn: 0, sourceOut: videoDuration, vyralId: activeVyralId, name: String(videoAsset!.name) } : {}),
-    ...(operation === 'add_audio' ? { trackId: crypto.randomUUID(), createdClipId: generatedClipId, assetId: String(audioAsset!.id), assetVersionId: String(audioVersion!.id), assetMimeType: String(audioVersion!.mime_type || audioAsset!.mime_type), name: String(audioAsset!.name), start: typeof args.time === 'number' ? args.time : 0, duration: audioDuration, waveformPeaks: audioPeaks, vyralId: activeVyralId } : {}),
-    ...(operation === 'add_text' ? { trackId: crypto.randomUUID(), createdClipId: undefined, name: typeof args.name === 'string' ? args.name.trim() : 'Text', value: (args.value as string).trim(), start: typeof args.time === 'number' ? args.time : 0, duration: typeof args.duration === 'number' ? args.duration : 3 } : {}),
+    operation, clipId: createdClipId, kind,
+    ...(operation === 'add_text' ? { trackId: crypto.randomUUID(), createdClipId, name: typeof args.name === 'string' ? args.name.trim() : 'Text', value: (args.value as string).trim(), start: typeof args.time === 'number' ? args.time : 0, duration: typeof args.duration === 'number' ? args.duration : 3 } : {}),
     ...(operation === 'move' ? { sourceTrackId: args.source_track_id, destinationTrackId: args.destination_track_id, time: args.time } : {}),
     ...(operation === 'trim' ? { trackId: args.track_id, edge: args.edge, time: args.time } : {}),
-    ...(operation === 'split' ? { trackId: args.track_id, time: args.time, createdClipId: crypto.randomUUID() } : {}),
-    ...(operation === 'clone' ? { trackId: args.track_id, createdClipId: crypto.randomUUID() } : {}),
+    ...(operation === 'split' ? { trackId: args.track_id, time: args.time, createdClipId } : {}),
+    ...(operation === 'clone' ? { trackId: args.track_id, createdClipId } : {}),
     ...(operation === 'update_text' ? { trackId: args.track_id, field: args.field, value: (args.value as string).trim() } : {}),
     ...(operation === 'delete' ? { trackId: args.track_id } : {}),
   };
-  if (operation === 'add_text') parameters.createdClipId = String(parameters.clipId);
-  const result = operation === 'attach_video'
-    ? attachMasterTimelineVideoAsset(timeline, String(parameters.sceneId), String(parameters.assetId), String(parameters.assetVersionId), String(parameters.assetMimeType), Number(parameters.sourceIn), Number(parameters.sourceOut))
-    : applyMasterTimelineEdit(timeline, parameters);
+  const result = applyMasterTimelineEdit(timeline, parameters);
   if (!result.ok) return safeToolError('The Master Editor rejected this edit (' + result.reason + '). No changes were made.');
   if (JSON.stringify(result.value) === JSON.stringify(timeline)) return { ok: true, changed: false, message: 'The Master Editor rules keep this clip at its current position. No action is needed.' };
-  const locate = (source: MasterTimelineData, id: string) => [...source.audioTracks, ...source.textTracks].flatMap((track) => track.clips.map((clip) => ({ ...clip, trackId: track.id, trackName: track.name }))).find((clip) => clip.id === id);
-  const isAddClip = operation === 'add_text' || operation === 'add_audio';
-  const isVideoAttach = operation === 'attach_video';
-  const videoBefore = isVideoAttach ? timeline.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
-  const videoAfter = isVideoAttach ? result.value.sceneInstances?.find((instance) => instance.sceneId === parameters.sceneId) : null;
-  const before = isVideoAttach
-    ? (videoBefore ? { trackName: 'Scene', name: videoBefore.assetId ?? 'No Video attached', start: videoBefore.videoSourceIn ?? 0, duration: Math.max(0, (videoBefore.videoSourceOut ?? 0) - (videoBefore.videoSourceIn ?? 0)), content: null } : null)
-    : isAddClip ? null : locate(timeline, String(args.clip_id));
-  const after = isVideoAttach
-    ? (videoAfter ? { trackName: 'Scene', name: String(parameters.name), start: videoAfter.videoSourceIn ?? 0, duration: Math.max(0, (videoAfter.videoSourceOut ?? 0) - (videoAfter.videoSourceIn ?? 0)), content: null } : null)
-    : locate(result.value, isAddClip ? String(parameters.createdClipId) : String(args.clip_id));
-  if ((!isAddClip && !before) || (operation !== 'delete' && !after) || (operation === 'delete' && after)) return safeToolError('The selected clip could not be verified in the current Timeline.');
+  const locate = (source: MasterTimelineData, id: string) => [...source.audioTracks, ...source.textTracks]
+    .flatMap((track) => track.clips.map((clip) => ({ ...clip, trackId: track.id, trackName: track.name })))
+    .find((clip) => clip.id === id);
+  const isAddClip = operation === 'add_text';
+  const before = isAddClip ? null : locate(timeline, String(args.clip_id));
+  const after = operation === 'delete' ? null : locate(result.value, String(isAddClip ? parameters.createdClipId : args.clip_id));
+  if ((!isAddClip && !before) || (operation !== 'delete' && !after) || (operation === 'delete' && after)) {
+    return safeToolError('The selected clip could not be verified in the current Timeline.');
+  }
   if (operation === 'delete' && !before) return safeToolError('The selected clip could not be verified for deletion.');
   const confirmationPhrase = operation === 'delete' ? 'DELETE CLIP ' + String(args.clip_id).slice(-6).toUpperCase() : null;
   if (operation === 'delete') {
@@ -543,26 +525,30 @@ async function createMasterTimelineEditProposal(
   const createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + 10 * 60 * 1000);
   const plan = {
     id: crypto.randomUUID(), operation: 'timeline.edit',
-    target: { storyboardId: String(storyboard.id), clipId: String(isVideoAttach ? parameters.sceneId : isAddClip ? parameters.createdClipId : args.clip_id), ...(operation === 'add_audio' || operation === 'attach_video' ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}), ...(operation === 'attach_video' ? { sceneId: parameters.sceneId } : {}) }, 
+    target: { storyboardId: String(storyboard.id), clipId: String(isAddClip ? parameters.createdClipId : args.clip_id) },
     parameters: { ...parameters, expectedUpdatedAt: String(storyboard.updated_at) },
-    summary: 'Master Editor · ' + operation.replace('_',' ') + ' · ' + String(before?.name ?? after?.name ?? 'Text overlay'),
+    summary: 'Editor · ' + operation.replace('_',' ') + ' · ' + String(before?.name ?? after?.name ?? 'Text overlay'),
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
   };
   const idempotencyKey = ('aiop-' + sessionId + '-' + toolCallId).slice(0, 160);
+  const capabilityId = operation === 'add_text' ? 'timeline.add_text'
+    : operation === 'delete' ? 'timeline.remove_clip'
+    : operation === 'move' || operation === 'trim' ? 'timeline.move_clip'
+    : operation === 'split' ? 'timeline.split_clip'
+    : operation === 'clone' ? 'timeline.add_clip'
+    : 'timeline.update_clip';
   const { data: pending, error: pendingError } = await admin.rpc('create_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_idempotency_key: idempotencyKey,
-    p_capability_id: operation === 'add_audio' ? 'timeline.add_audio' : operation === 'attach_video' ? 'timeline.attach_video' : operation === 'add_text' ? 'timeline.add_text' : operation === 'delete' ? 'timeline.remove_clip' : operation === 'move' || operation === 'trim' ? 'timeline.move_clip' : operation === 'split' ? 'timeline.split_clip' : operation === 'clone' ? 'timeline.add_clip' : 'timeline.update_clip', p_plan: plan, p_expires_at: expiresAt.toISOString(),
+    p_capability_id: capabilityId, p_plan: plan, p_expires_at: expiresAt.toISOString(),
   });
   if (pendingError || !pending) return safeToolError('VYRA could not securely save this Timeline preview. No changes were made.');
   return {
     ok: true, requiresApproval: true, actionId: pending.id, status: pending.status,
     summary: plan.summary, storyboard: storyboard.title,
-    before: before ? { track: before.trackName, start: before.start, duration: before.duration, name: before.name, content: before.content, ...(isVideoAttach ? { assetId: videoBefore?.assetId ?? null, assetVersionId: videoBefore?.assetVersionId ?? null } : {}) } : null,
-    after: after ? { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content, ...(isVideoAttach ? { assetId: parameters.assetId, assetVersionId: parameters.assetVersionId } : {}) } : null,
+    before: before ? { track: before.trackName, start: before.start, duration: before.duration, name: before.name, content: before.content } : null,
+    after: after ? { track: after.trackName, start: after.start, duration: after.duration, name: after.name, content: after.content } : null,
     ...(operation === 'delete' ? { destructive: true, confirmationPhrase, message: 'This deletion will remove the selected clip. To confirm, send exactly: ' + confirmationPhrase + '. Ordinary approval phrases will not delete it.' } : {}),
     createdClip: created ? { id: created.id, start: created.start, duration: created.duration, name: created.name } : null,
-    ...(operation === 'attach_video' ? { attachedVideo: { sceneId: parameters.sceneId, assetId: parameters.assetId, assetVersionId: parameters.assetVersionId, name: parameters.name, mimeType: parameters.assetMimeType, sourceDurationSeconds: parameters.sourceOut } } : {}),
-    ...(operation === 'add_audio' ? { sourceAsset: { id: parameters.assetId, versionId: parameters.assetVersionId, name: parameters.name, mimeType: parameters.assetMimeType, durationSeconds: parameters.duration, waveformSamples: Array.isArray(parameters.waveformPeaks) ? parameters.waveformPeaks.length : 0 } } : {}),
     expiresAt: pending.expires_at,
     message: 'Preview only; nothing has changed. Show the exact before/after and wait for explicit approval in this same chat.',
   };
