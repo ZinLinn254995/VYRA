@@ -427,12 +427,14 @@ export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: 
   return signed.signedUrl;
 }
 
-export async function createMediaLibraryFolder(name: string, parentId: string | null = null, universeId?: string | null): Promise<MediaLibraryFolder> {
+export async function createMediaLibraryFolder(name: string, parentId: string | null = null, universeId?: string | null, projectId?: string | null): Promise<MediaLibraryFolder> {
   const db = getDb();
   const userId = await getOwnerId();
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   let folderId: string | undefined;
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   if (universeId) {
     await assertStoryboardUniverse(db, userId, universeId);
     folderId = crypto.randomUUID();
@@ -440,38 +442,42 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
     if (canonicalError) throw new Error(canonicalError.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create Universe folder: ' + canonicalError.message);
   }
   const { data, error } = await db.from('media_library_folders')
-    .insert({ ...(folderId ? { id: folderId, vyral_folder_id: folderId } : {}), user_id: userId, universe_id: universeId ?? null, parent_id: parentId, name: cleanName })
-    .select('id,user_id,universe_id,parent_id,name,created_at,updated_at').single();
+    .insert({ ...(folderId ? { id: folderId, vyral_folder_id: folderId } : {}), user_id: userId, universe_id: universeId ?? null, project_id: projectId ?? null, parent_id: parentId, name: cleanName })
+    .select('id,user_id,universe_id,project_id,parent_id,name,created_at,updated_at').single();
   if (error) {
     if (folderId) await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
   }
-  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId, projectId));
   return data as MediaLibraryFolder;
 }
 
-export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null): Promise<void> {
+export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   if (universeId) {
     const { error: canonicalError } = await db.from('vyral_folders').update({ name: cleanName }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (canonicalError) throw new Error('Could not rename Universe folder: ' + canonicalError.message);
   }
-  const { error } = await applyUniverseScope(db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId), universeId);
+  const { error } = await applyMediaLibraryScope(db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId), universeId, projectId);
   if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
-  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId, projectId));
 }
 
-export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null): Promise<void> {
+export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
-    applyUniverseScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId),
-    applyUniverseScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId),
+    applyMediaLibraryScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId, projectId),
+    applyMediaLibraryScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId, projectId),
   ]);
   if (childError || itemError) throw new Error('Could not check whether this folder is empty.');
   if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
@@ -485,30 +491,32 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
     const { error } = await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (error) throw new Error('Could not delete Universe folder: ' + error.message);
   } else {
-    const { error } = await db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId).is('universe_id', null);
+    const { error } = await applyMediaLibraryScope(db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId), null, projectId);
     if (error) throw new Error('Could not delete folder: ' + error.message);
   }
-  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId, projectId));
 }
 
-export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null): Promise<void> {
+export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   if (universeId) {
     const { error: canonicalError } = await db.from('vyral_folders').update({ parent_id: parentId }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (canonicalError) throw new Error(canonicalError.message.toLowerCase().includes('descendant') ? 'A folder cannot be moved into one of its descendants.' : 'Could not move Universe folder: ' + canonicalError.message);
   }
-  const { error } = await applyUniverseScope(db.from('media_library_folders')
+  const { error } = await applyMediaLibraryScope(db.from('media_library_folders')
     .update({ parent_id: parentId, updated_at: new Date().toISOString() })
-    .eq('id', folderId).eq('user_id', userId), universeId);
+    .eq('id', folderId).eq('user_id', userId), universeId, projectId);
   if (error) {
     if (error.message.toLowerCase().includes('descendant') || error.message.toLowerCase().includes('cycle')) {
       throw new Error('A folder cannot be moved into itself or one of its subfolders.');
     }
     throw new Error('Could not move folder: ' + error.message);
   }
-  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId, projectId));
 }
 
 export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null, universeId?: string | null): Promise<void> {
