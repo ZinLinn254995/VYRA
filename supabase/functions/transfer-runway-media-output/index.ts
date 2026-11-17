@@ -133,6 +133,98 @@ Deno.serve(async (request: Request) => {
     }, claim.status === 'downloading' || claim.status === 'ingesting' ? 409 : 200);
   }
 
+  // New jobs are Project-native: their output row ID is also the canonical
+  // Project File ID. Store directly at the final Project path; never mint an Asset.
+  const targetProjectId = typeof claim.target_project_id === 'string' ? claim.target_project_id : '';
+  if (UUID.test(targetProjectId)) {
+    const projectFileId = typeof claim.output_id === 'string' ? claim.output_id : '';
+    if (!UUID.test(projectFileId)) {
+      await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+        p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
+        p_status: 'failed', p_error_code: 'project_output_identity_missing',
+      });
+      return json({ error: 'The Project output identity could not be verified.' }, 503);
+    }
+    const existingPath = typeof claim.storage_path === 'string' ? claim.storage_path : '';
+    if (existingPath) {
+      const { data: indexed, error: indexedError } = await context.supabaseAdmin.from('media_library_items')
+        .select('id,storage_path,mime_type,size_bytes,metadata')
+        .eq('id', projectFileId).eq('user_id', userId).eq('project_id', targetProjectId)
+        .is('universe_id', null).maybeSingle();
+      if (indexedError || !indexed || indexed.storage_path !== existingPath ||
+          indexed.metadata?.generation_job_id !== body.jobId ||
+          Number(indexed.metadata?.output_index) !== Number(outputIndex)) {
+        return json({ error: 'The previously stored Project output could not be recovered safely.' }, 503);
+      }
+      return json({
+        jobId: body.jobId, outputIndex, targetProjectId, projectFileId,
+        status: 'stored', storagePath: existingPath, sha256: indexed.metadata?.sha256,
+        mimeType: indexed.mime_type, sizeBytes: indexed.size_bytes,
+        message: 'Recovered the canonical Project File after an interrupted transfer.',
+      });
+    }
+
+    const providerUrl = validateProviderOutputUrl(claim.output_url, allowedHosts);
+    if (!providerUrl) {
+      await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+        p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
+        p_status: 'failed', p_error_code: 'provider_output_host_not_allowed',
+      });
+      return json({ error: 'The provider output host is not in VYRA’s approved allowlist.' }, 502);
+    }
+    try {
+      const upstream = await fetch(providerUrl, {
+        method: 'GET', redirect: 'error', cache: 'no-store',
+        headers: { Accept: Object.keys(MIME_EXTENSIONS).join(',') },
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!upstream.ok) throw new Error('provider_output_http_error');
+      const mimeType = (upstream.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+      const extension = MIME_EXTENSIONS[mimeType];
+      if (!extension) throw new Error('unsupported_provider_output_type');
+      const bytes = await readBoundedBody(upstream);
+      const digest = await sha256(bytes);
+      const storagePath = userId + '/media-library/' + targetProjectId + '/' + projectFileId + '.' + extension;
+      const { error: uploadError } = await context.supabaseAdmin.storage.from(BUCKET).upload(
+        storagePath, bytes, { contentType: mimeType, upsert: true, cacheControl: '3600' },
+      );
+      if (uploadError) throw new Error('project_storage_upload_failed');
+      const task = typeof claim.task === 'string' ? claim.task : 'media';
+      const fileName = 'Generated ' + task + ' ' + (Number(outputIndex) + 1) + '.' + extension;
+      const { error: indexError } = await context.supabaseAdmin.from('media_library_items').upsert({
+        id: projectFileId, user_id: userId, universe_id: null, project_id: targetProjectId,
+        folder_id: null, source_kind: 'generated', source_asset_id: null,
+        bucket_id: BUCKET, storage_path: storagePath, file_name: fileName,
+        mime_type: mimeType, size_bytes: bytes.byteLength,
+        metadata: { origin: 'project_generation', generation_job_id: body.jobId,
+          output_index: Number(outputIndex), sha256: digest },
+      }, { onConflict: 'id' });
+      if (indexError) throw new Error('project_media_index_write_failed');
+      const { data: recorded, error: recordError } = await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+        p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
+        p_status: 'stored', p_storage_path: storagePath, p_sha256: digest,
+        p_mime_type: mimeType, p_size_bytes: bytes.byteLength,
+      });
+      if (recordError || !isRecord(recorded) || recorded.recorded !== true) {
+        throw new Error('project_transfer_state_record_failed');
+      }
+      return json({
+        jobId: body.jobId, outputIndex, targetProjectId, projectFileId,
+        status: 'stored', storagePath, sha256: digest, mimeType, sizeBytes: bytes.byteLength,
+        fileName,
+        message: 'Generated media is stored as a canonical Project File. Offline installation and completion are next.',
+      });
+    } catch (error) {
+      const code = error instanceof Error && /^[a-z0-9_]{1,80}$/.test(error.message)
+        ? error.message : 'project_output_transfer_failed';
+      await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+        p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
+        p_status: 'failed', p_error_code: code,
+      });
+      return json({ error: 'The generated output could not be saved as a Project File.' }, 502);
+    }
+  }
+
   const targetVyralId = typeof claim.target_vyral_id === 'string' ? claim.target_vyral_id : '';
   // A prior attempt may have uploaded successfully but lost its response. Reuse that
   // private object instead of depending on the temporary provider URL remaining valid.
