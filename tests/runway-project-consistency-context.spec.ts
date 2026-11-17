@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const service = readFileSync(new URL('../src/services/runwayProjectConsistencyContext.ts', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../src/services/runwayProjectGeneration.ts', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../supabase/migrations/20261116160000_vyral_asset_relationship_graph.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261106200550_vyral_master_dna_persistence.sql', import.meta.url), 'utf8');
 const quoteService = readFileSync(new URL('../supabase/functions/quote-runway-media/index.ts', import.meta.url), 'utf8');
 
 test('Project consistency retrieval is isolated to the authenticated Project and ready Assets', () => {
@@ -106,16 +106,16 @@ test('Project context contains matching nested DNA evidence and excludes other P
   assert.ok(calls.every((call) => call.filters.some(([column, value]) => column === 'vyral_id' && value === 'project-assets-1')));
 });
 
-test('semantic relationship approvals require an explicit authenticated creator review', () => {
-  assert.ok(migration.includes("review_status text not null default 'proposed'"));
-  assert.ok(migration.includes("p_decision not in ('creator_approved','creator_rejected')"));
-  assert.ok(migration.includes("and review_status = 'proposed'"));
-  assert.ok(migration.includes('auth.uid()'));
-  assert.ok(migration.includes('grant execute on function public.review_vyral_asset_relationship'));
-  assert.ok(!migration.includes('vyral_asset_relationships_update_own'));
-  assert.ok(!migration.includes('grant select, insert, update on public.vyral_asset_relationships'));
+test('Project consistency retrieval matches the canonical Asset relationship graph schema', () => {
+  assert.ok(migration.includes("from_kind text not null check (from_kind in ('asset','vyral'))"));
+  assert.ok(migration.includes("to_kind text not null check (to_kind in ('asset','vyral'))"));
+  assert.ok(migration.includes('relationship_type text not null'));
+  assert.ok(migration.includes('rationale text not null'));
+  assert.ok(service.includes(".select('id,from_kind,from_asset_id,to_kind,to_asset_id,relationship_type,rationale')"));
+  assert.ok(service.includes(".eq('from_kind', 'asset').eq('to_kind', 'asset')"));
+  assert.ok(!service.includes('review_status'));
+  assert.ok(!migration.includes('review_status'));
 });
-
 test('direct media generation receives the exact creator-approved active Scene entry state', () => {
   const result = buildRunwaySceneContinuityPrompt('Create a cinematic close-up.', {
     page: 'scene-editor',
