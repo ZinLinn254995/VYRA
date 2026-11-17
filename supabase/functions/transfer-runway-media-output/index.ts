@@ -153,11 +153,15 @@ Deno.serve(async (request: Request) => {
   // Project File ID. Store directly at the final Project path; never mint an Asset.
   const targetProjectId = typeof claim.target_project_id === 'string' ? claim.target_project_id : '';
   if (UUID.test(targetProjectId)) {
+    const leaseToken = typeof claim.lease_token === 'string' ? claim.lease_token : '';
+    if (!UUID.test(leaseToken)) {
+      return json({ error: 'The Project output transfer lease could not be verified.' }, 503);
+    }
     const projectFileId = typeof claim.output_id === 'string' ? claim.output_id : '';
     if (!UUID.test(projectFileId)) {
       await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
         p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
-        p_status: 'failed', p_error_code: 'project_output_identity_missing',
+        p_status: 'failed', p_error_code: 'project_output_identity_missing', p_lease_token: leaseToken,
       });
       return json({ error: 'The Project output identity could not be verified.' }, 503);
     }
@@ -184,7 +188,7 @@ Deno.serve(async (request: Request) => {
     if (!providerUrl) {
       await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
         p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
-        p_status: 'failed', p_error_code: 'provider_output_host_not_allowed',
+        p_status: 'failed', p_error_code: 'provider_output_host_not_allowed', p_lease_token: leaseToken,
       });
       return json({ error: 'The provider output host is not in VYRA’s approved allowlist.' }, 502);
     }
@@ -219,7 +223,7 @@ Deno.serve(async (request: Request) => {
       const { data: recorded, error: recordError } = await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
         p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
         p_status: 'stored', p_storage_path: storagePath, p_sha256: digest,
-        p_mime_type: mimeType, p_size_bytes: bytes.byteLength,
+        p_mime_type: mimeType, p_size_bytes: bytes.byteLength, p_lease_token: leaseToken,
       });
       if (recordError || !isRecord(recorded) || recorded.recorded !== true) {
         throw new Error('project_transfer_state_record_failed');
@@ -235,7 +239,7 @@ Deno.serve(async (request: Request) => {
         ? error.message : 'project_output_transfer_failed';
       await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
         p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
-        p_status: 'failed', p_error_code: code,
+        p_status: 'failed', p_error_code: code, p_lease_token: leaseToken,
       });
       return json({ error: 'The generated output could not be saved as a Project File.' }, 502);
     }
@@ -270,7 +274,7 @@ Deno.serve(async (request: Request) => {
   if (!UUID.test(targetVyralId) || !providerUrl) {
     await context.supabaseAdmin.rpc('record_runway_output_transfer', {
       p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
-      p_status: 'failed', p_error_code: 'provider_output_host_not_allowed',
+      p_status: 'failed', p_error_code: 'provider_output_host_not_allowed', p_lease_token: leaseToken,
     });
     return json({ error: 'The provider output host is not in VYRA’s approved allowlist.' }, 502);
   }
