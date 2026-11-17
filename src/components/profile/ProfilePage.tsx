@@ -119,8 +119,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ) : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
-            onBack={() => { if (initialPage) onBack(); else setActivePage(activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'settings' : 'home'); }}
-            backLabel={initialPage ? backLabel : activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'Back to Settings' : 'Back to Profile'}
+            onBack={() => setActivePage(activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'settings' : 'home')}
+            backLabel={activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'Back to Settings' : backLabel}
             icon={(() => { const Icon = pageInfo[activePage].icon; return <Icon size={21} />; })()}
             title={pageInfo[activePage].title}
             description={pageInfo[activePage].description}
