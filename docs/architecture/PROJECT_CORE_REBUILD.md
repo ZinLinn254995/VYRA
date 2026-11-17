@@ -395,3 +395,56 @@ The render-job contract now wraps the immutable manifest and composition plan in
 - completion only after an output has a canonical Project File ID.
 
 The state transition function is pure and returns a deeply frozen snapshot. It does not create database rows, start a renderer, upload bytes, or claim that an export is available. Persistence, execution leases, provider callbacks, and output ingestion remain future integration work. The job is deliberately runtime-neutral so a browser renderer or an approved external/container provider can implement it without changing the Project File identity contract.
+
+
+## 16. Durable Project Render Job persistence design — November 17, 2026
+
+### Environment audit
+
+The connected Supabase projects were identified read-only:
+- Production: `mljntikeomamzonzirex` (`VYRA`).
+- Development: `wbqheogfoahnjvgkwhxe` (`VYRA Development`).
+
+The Development database currently has `vyral_storyboards`, `generation_jobs`, `media_library_items`, and the existing provider-generation telemetry, but its applied migration history ends at `20261115134317_storyboard_universe_media_library`. It does not yet contain the active branch's later Project-scoped Media Library migrations (including `project_id`) or the new Project Render Job contract. Therefore it is not yet safe to build a render-job foreign key against the Development database's current Media Library schema. Production was not modified.
+
+### Persistence boundary
+
+A dedicated `project_render_jobs` table is required. Reusing `generation_jobs` is rejected: that table represents provider generation/credit reservation and has different lifecycle states, billing fields, and ownership semantics. A timeline render is a separate job, even when its output is ultimately ingested as a Project File.
+
+The persisted row must contain:
+- `id`, `user_id`, `project_id`, and a unique per-owner/per-Project `idempotency_key`;
+- immutable `input_digest`, `manifest`, and `composition_plan` snapshots;
+- `status`, `progress`, `attempt`, and monotonic `revision`;
+- nullable canonical `output_project_file_id`;
+- bounded safe error code/message;
+- `cancel_requested_at`, `completed_at`;
+- nullable execution `lease_token` and `lease_expires_at`;
+- `created_at` and `updated_at`.
+
+The Project foreign key must bind both `project_id` and `user_id` to `vyral_storyboards(id,user_id)`. The output reference must bind to the Project-scoped `media_library_items` row only after the Project-scoped Media Library migration is present. Do not store Blob bytes, signed URLs, object URLs, provider credentials, or transient runtime handles in this table.
+
+### Database invariants
+
+1. Unique idempotency scope: `(user_id, project_id, idempotency_key)`. A replay with the same digest returns the existing job; the same key with a different digest is rejected.
+2. Pinned input immutability: `input_digest`, `manifest`, `composition_plan`, `user_id`, `project_id`, and `idempotency_key` cannot be changed after creation.
+3. Revision compare-and-swap: every accepted lifecycle mutation requires the caller's expected `revision`, then increments it exactly once. Stale writers cannot overwrite newer state.
+4. Lease ownership: only the holder of the current unexpired lease token may advance execution state or commit an output. Expired leases can be reclaimed safely; retries keep the same pinned input and idempotency key while incrementing `attempt`.
+5. Progress and terminal guards: progress is monotonic from 0 to 99 until the output row is verified; completed requires a valid Project File ID and sets progress to 100. Completed/cancelled rows are immutable terminal states.
+6. Cancellation is two-step: the owner requests cancellation; the active worker acknowledges cancellation. A worker must not report cancellation before it has stopped or safely abandoned its execution.
+7. Ownership: RLS is enabled. Authenticated users can read only their own rows. Browser clients receive no direct INSERT/UPDATE/DELETE policy; mutations go through narrowly scoped server-side RPCs. Every privileged function has an explicit role/owner check, a fixed search path, and EXECUTE revoked from PUBLIC/anon/authenticated unless intentionally exposed.
+
+### Atomic operations to implement
+
+- `create_project_render_job`: verify Project ownership, validate schema versions/digest, enforce idempotency, insert the immutable snapshot, and append the initial event atomically.
+- `claim_project_render_job`: atomically claim a queued or lease-expired job and issue a fresh lease token with bounded expiry; concurrent workers cannot both own the same revision.
+- `transition_project_render_job`: enforce expected revision, lease ownership, state machine, progress, cancellation acknowledgement, and retry rules in one transaction.
+- `commit_project_render_output`: verify the output Media Library row belongs to the same user and Project, then atomically mark the job completed and append the final event.
+- `request_project_render_cancellation`: owner-scoped request that increments revision without pretending the renderer has already stopped.
+
+An append-only `project_render_job_events` table should record revision, event type, safe metadata, actor kind, and timestamp for recovery/audit. It must not duplicate large manifest/plan payloads.
+
+### Implementation gate
+
+This section is an architecture specification only. No table, RPC, policy, or migration was applied to either Supabase project. The Supabase CLI v3 documentation confirms that database commands now target the local stack by default and require explicit `--remote` for hosted projects; a local CLI/Docker migration workflow and testable local database are not available in this GitHub-only workspace. The required next step is to bring the Development schema up to the active branch's existing migrations using the repository's actual Supabase CLI workflow, then create and test the new migration locally. Do not apply the design to Production or bypass migration history with ad-hoc DDL.
+
+References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/local-development/cli/migrating-to-v3), [Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations), [Supabase Queues](https://supabase.com/docs/guides/queues).
