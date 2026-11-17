@@ -157,7 +157,8 @@ async function claimProjectFileRestore(
     const current = request.result as ProjectOfflineFileRecord | undefined;
     const unchanged = expected
       ? Boolean(current && current.projectId === expected.projectId &&
-        current.replicaRevision === expected.replicaRevision && !current.deletedAt)
+        current.replicaRevision === expected.replicaRevision && current.updatedAt === expected.updatedAt &&
+        current.fileName === expected.fileName && current.folderId === expected.folderId && !current.deletedAt)
       : !current;
     if (!unchanged) {
       transaction.abort();
@@ -492,7 +493,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
       contentHash = actual;
     }
     const latestBeforeReady = await getProjectOfflineFile(input.projectFileId);
-    if (!latestBeforeReady || latestBeforeReady.replicaRevision !== base.replicaRevision || latestBeforeReady.deletedAt) {
+    if (!latestBeforeReady || latestBeforeReady.replicaRevision !== base.replicaRevision || latestBeforeReady.updatedAt !== base.updatedAt || latestBeforeReady.deletedAt) {
       throw new Error('The local Project file changed while its Cloud replica was being restored.');
     }
     const ready: ProjectOfflineFileRecord = {
@@ -510,7 +511,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     const latest = await getProjectOfflineFile(input.projectFileId).catch(() => null);
     // A newer import, restore, or delete owns this logical file now. Never let
     // an older restore overwrite its state with a stale failure record.
-    if (latest?.replicaRevision === base.replicaRevision && !latest.deletedAt) {
+    if (latest?.replicaRevision === base.replicaRevision && latest.updatedAt === base.updatedAt && !latest.deletedAt) {
       const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
       try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
     }
