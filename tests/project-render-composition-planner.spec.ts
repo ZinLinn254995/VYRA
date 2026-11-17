@@ -116,6 +116,18 @@ test('returns a deeply frozen detached plan and rejects unsupported manifest ver
 });
 
 
+test('compacts scene visual layers after unsupported clips are filtered', () => {
+  const value = input();
+  value.timeline.sceneInstances![0].videoClips!.unshift({
+    id: 'invalid-audio-before-video', start: 0, duration: 2,
+    projectFileId: 'invalid-audio', assetMimeType: 'audio/mpeg', mediaKind: 'audio',
+  });
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.equal(plan.visuals.find((item) => item.clipId === 'scene-video')?.layer, 0);
+  assert.equal(plan.visuals.find((item) => item.clipId === 'image-clip')?.layer, 1);
+  assert.ok(!plan.visuals.some((item) => item.clipId === 'invalid-audio-before-video'));
+});
+
 test('never schedules audio-only sources as visual video layers', () => {
   const value = input();
   value.timeline.videoTracks![0].clips.push({
