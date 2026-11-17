@@ -345,3 +345,22 @@ test('Cloud restore cannot overwrite a newer local replica or deletion', () => {
   assert.ok(install.includes('latest?.replicaRevision === base.replicaRevision && !latest.deletedAt'));
   assert.ok(install.includes('Never let an older restore overwrite its state'));
 });
+
+
+test('Cloud restore atomically claims a Project File ID before writing replica bytes', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const claimStart = storage.indexOf('async function claimProjectFileRestore');
+  const claimEnd = storage.indexOf('async function storeValuesAtomically', claimStart);
+  const claim = storage.slice(claimStart, claimEnd);
+  const installStart = storage.indexOf('export async function installProjectCloudFileToOfflineStorage');
+  const installEnd = storage.indexOf('export async function getProjectOfflineFile', installStart);
+  const install = storage.slice(installStart, installEnd);
+  assert.ok(claim.includes("db.transaction(FILE_STORE, 'readwrite')"));
+  assert.ok(claim.includes('current.replicaRevision === expected.replicaRevision'));
+  assert.ok(claim.includes('!current.deletedAt'));
+  assert.ok(claim.includes(': !current'));
+  assert.ok(claim.includes('transaction.abort()'));
+  assert.ok(claim.includes('store.put(next)'));
+  assert.ok(install.includes('await claimProjectFileRestore(existing, base)'));
+  assert.ok(!install.includes('await storeValue(FILE_STORE, base)'));
+});
