@@ -4,14 +4,12 @@ import { ProjectStorageTab } from './ProjectStorageTab';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
-import { useModalDialog } from '../../hooks/useModalDialog';
 import { Card } from '../ui/Card';
 import { ProjectIdentityIcon } from '../icons/ProjectIdentityIcon';
 import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from '../profile/headerScrollMotion';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
-import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
-import { parseProjectDetailSuggestions } from '../../services/projectDetailSuggestions';
+import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
@@ -20,7 +18,6 @@ import type { RunwayProjectShotSequenceReady } from '../../services/runwayProjec
 import { buildDirectorShotTimelineClips } from '../../services/directorShotTimeline';
 import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, type SceneContinuityLedger } from '../../services/universeSceneLedger';
 
-type StoryboardAiProvenance = { provider: string; model: string; generatedAt: string };
 type SceneRenderRevision = { id: string; createdAt: string; duration: number; storageKey: string; mimeType: string; checksum: string; status: 'ready' };
 type SceneProjectClip = { id: string; name: string; start: number; duration: number; sourceIn?: number; sourceOut?: number; assetId?: string | null; assetVersionId?: string | null; assetMimeType?: string | null; source?: 'ai_director_shot' | 'manual'; shotId?: string; content?: string };
 type SceneProjectTrack = { id: string; type: 'video' | 'audio' | 'text'; name: string; muted?: boolean; hidden?: boolean; clips: SceneProjectClip[] };
@@ -29,7 +26,7 @@ type SceneCreativeDirection = { schemaVersion: 1; source: 'ai_director_plan'; pr
 type SceneShotRepairHistoryEntry = { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number };
 type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updatedAt: string; renderRevisionIds: string[]; renderRevisions?: SceneRenderRevision[]; latestRenderRevisionId?: string | null; timeline?: SceneProjectTimeline; creativeDirection?: SceneCreativeDirection; repairHistory?: SceneShotRepairHistoryEntry[] };
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
-type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
+type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; continuityLedger?: SceneContinuityLedger } };
 type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createProjectRequest?: number; openProjectRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenProjects: () => void; onAiContextChange?: (context: WorkspaceAiContext) => void; };
 
 const readStoryboards = (key: string): Storyboard[] => {
@@ -75,13 +72,11 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const storyboardSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
   const deletedStoryboardIdsRef = useRef<Set<string>>(new Set());
   const storyboardStorageKeyRef = useRef(storageKey);
-  const suggestionRequestIdRef = useRef(0);
   const [storyboardToDelete, setStoryboardToDelete] = useState<Storyboard | null>(null);
   const [isDeletingStoryboard, setIsDeletingStoryboard] = useState(false);
   const [activeStoryboard, setActiveStoryboard] = useState<Storyboard | null>(null);
   const [localWorkspaceAiContext, setLocalWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [activeStoryboardConfirmed, setActiveStoryboardConfirmed] = useState(false);
-  const [storyboardDetailsExpanded, setStoryboardDetailsExpanded] = useState(false);
   const [storyboardEditorView, setStoryboardEditorView] = useState<'master' | 'chat' | 'storage'>('chat');
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
@@ -109,17 +104,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     ),
   );
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [topic, setTopic] = useState('');
-  const [category, setCategory] = useState('');
-  const [style, setStyle] = useState('');
-  const [mood, setMood] = useState('');
-  const [tags, setTags] = useState('');
-  const [detailOrigins, setDetailOrigins] = useState<Record<string, 'ai_suggested' | 'creator_edited'>>({});
-  const [cachedStoryboardSuggestion, setCachedStoryboardSuggestion] = useState<{ key: string; suggestion: StoryboardSuggestion } | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
-  const [suggestionError, setSuggestionError] = useState('');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('');
   const [storyboardAiMessage, setStoryboardAiMessage] = useState('');
   const [sceneContinuityMessage, setSceneContinuityMessage] = useState('');
@@ -276,90 +260,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   }, [activeStoryboard?.id, activeSceneId, activeStartingContext]);
   const lastAppliedSceneProposalRef = useRef<string | null>(null);
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
-  const updateDetail = (key: 'title' | 'topic' | 'category' | 'style' | 'mood' | 'tags', value: string) => {
-    if (key === 'title') setTitle(value);
-    else if (key === 'topic') setTopic(value);
-    else if (key === 'category') setCategory(value);
-    else if (key === 'style') setStyle(value);
-    else if (key === 'mood') setMood(value);
-    else setTags(value);
-    setDetailOrigins((current) => ({ ...current, [key]: 'creator_edited' }));
-  };
-  type StoryboardSuggestion = { title: string; topic: string; category: string; style: string; mood: string; tags: string[]; provider: string; model: string; generatedAt: string };
-  const requestStoryboardSuggestion = async (seedTitle: string, seedTopic: string, optional = false): Promise<StoryboardSuggestion | null> => {
-    const accessToken = await getCurrentAccessToken();
-    if (!accessToken) {
-      if (optional) return null;
-      throw new Error('Sign in before requesting AI suggestions.');
-    }
-    const response = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + accessToken,
-        'Idempotency-Key': 'storyboard-details-' + crypto.randomUUID(),
-      },
-      body: JSON.stringify({
-        task: 'suggest_details',
-        detailsScope: 'storyboard',
-        messages: [{ role: 'user', content: [
-          'Suggest useful default metadata for a storyboard. Return JSON only. Use title, topic, category, style, mood and tags where supported. Put each field in the shape {"value":"..."}; tags may use {"value":["tag"]}.',
-          'Do not invent facts when an idea is supplied. If both title and idea are blank, invent one suitable original short-video concept and concise metadata. The creator can edit every field.',
-          'Current title: ' + seedTitle, 'Current idea: ' + seedTopic,
-        ].join('\n') }],
-      }),
-    });
-    const data = await response.json().catch(() => ({})) as { text?: string; error?: string; provider?: string; modelName?: string };
-    if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-    const parsed = parseProjectDetailSuggestions(data.text);
-    const asText = (key: string) => typeof parsed[key]?.value === 'string'
-      ? String(parsed[key].value).trim().slice(0, 500) : '';
-    const rawTags = parsed.tags?.value;
-    return {
-      title: asText('title'), topic: asText('topic'), category: asText('category'),
-      style: asText('style'), mood: asText('mood'),
-      tags: Array.isArray(rawTags) ? rawTags.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
-      provider: data.provider || 'gemini', model: data.modelName || 'unknown', generatedAt: new Date().toISOString(),
-    };
-  };
-  const applyStoryboardSuggestionToForm = (suggestion: StoryboardSuggestion) => {
-    const values = { title: suggestion.title, topic: suggestion.topic, category: suggestion.category, style: suggestion.style, mood: suggestion.mood, tags: suggestion.tags.join(', ') };
-    for (const key of Object.keys(values) as Array<keyof typeof values>) {
-      const value = values[key];
-      if (!value || detailOrigins[key] === 'creator_edited') continue;
-      if (key === 'title') setTitle(value);
-      else if (key === 'topic') setTopic(value);
-      else if (key === 'category') setCategory(value);
-      else if (key === 'style') setStyle(value);
-      else if (key === 'mood') setMood(value);
-      else setTags(value);
-      setDetailOrigins((current) => ({ ...current, [key]: 'ai_suggested' }));
-    }
-  };
-  const suggestStoryboardDetails = async () => {
-    const requestId = ++suggestionRequestIdRef.current;
-    const requestStorageKey = storyboardStorageKeyRef.current;
-    setSuggestionError('');
-    setIsSuggesting(true);
-    try {
-      const suggestion = await requestStoryboardSuggestion(title, topic);
-      // A response started under a previous account or superseded by a newer
-      // request must never populate the current owner's form or suggestion cache.
-      if (requestId !== suggestionRequestIdRef.current || requestStorageKey !== storyboardStorageKeyRef.current) return;
-      if (suggestion) {
-        setCachedStoryboardSuggestion({ key: workspaceStoryboardSuggestionKey(title, topic, detailOrigins), suggestion });
-        applyStoryboardSuggestionToForm(suggestion);
-      }
-    } catch (error) {
-      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) {
-        setSuggestionError(error instanceof Error ? error.message : 'AI suggestions are unavailable.');
-      }
-    } finally {
-      if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false);
-    }
-  };
-  const dialogRef = useRef<HTMLElement>(null);
-  const dialogBodyRef = useRef<HTMLDivElement>(null);
   const workspaceScrollRef = useRef<HTMLElement>(null);
   const preservedWorkspaceScrollTopRef = useRef(0);
   const storyboardBarRef = useRef<HTMLElement>(null);
@@ -376,16 +276,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   const storyboardPreviewProgress = useRef(0);
   const storyboardPreviewDrag = useRef<{ startY: number; lastY: number; lastAt: number; velocity: number; startProgress: number; moved: boolean; distance: number } | null>(null);
   const storyboardPreviewSettleTimer = useRef<number | null>(null);
-  const visualViewport = useModalDialog(createOpen, dialogRef, dialogBodyRef);
-
-  // Retained pages stay mounted to preserve their data, but transient dialogs
-  // must not remain open (or keep the document scroll-locked) after navigation.
-  useEffect(() => {
-    if (!isActive) {
-      setCreateOpen(false);
-      setStoryboardToDelete(null);
-    }
-  }, [isActive]);
 
   useEffect(() => {
     setSceneContinuityMessage('');
@@ -762,24 +652,12 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       // owner-bound editor surface before painting the next account's workspace.
       storyboardStorageKeyRef.current = storageKey;
       deletedStoryboardIdsRef.current.clear();
-      suggestionRequestIdRef.current += 1;
       lastStoryboardSyncAtRef.current = 0;
       setActiveStoryboard(null);
       setActiveStoryboardConfirmed(false);
       setStoryboardToDelete(null);
       setIsDeletingStoryboard(false);
-      setCreateOpen(false);
-      setTitle('');
-      setTopic('');
-      setCategory('');
-      setStyle('');
-      setMood('');
-      setTags('');
-      setDetailOrigins({});
-      setCachedStoryboardSuggestion(null);
-      setSuggestionError('');
-      setIsSuggesting(false);
-      setStoryboardDetailsExpanded(false);
+      
       setStoryboardEditorView('chat');
       setSelectedSceneIds([]);
       setActiveSceneId(null);
@@ -998,7 +876,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
   }, [storageKey, isAuthenticated, isActive, loadedStorageKey]);
 
-  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null);  setStoryboardEditorView('chat'); setStoryboardDetailsExpanded(false); setActiveStoryboard({ ...item, details: { ...item.details, tags: [...(item.details?.tags || [])], origins: { ...item.details?.origins } } }); setActiveStoryboardConfirmed(true); setStoryboardAiMessage(''); };
+  const openStoryboardEditor = (item: Storyboard) => { setSelectedSceneIds([]); setActiveSceneId(null); setStoryboardEditorView('chat'); setActiveStoryboard(item); setActiveStoryboardConfirmed(true); };
 
   // Resolve the requested Project before the browser paints the editor host.
   // This prevents the retired Workspace landing page from flashing for one frame.
@@ -1061,60 +939,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     if (createProjectRequest > 0 && isActive) createDefaultStoryboardRef.current();
   }, [createProjectRequest, isActive]);
 
-  const createStoryboard = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isAuthenticated) { onLoginRequired(); return; }
-    setIsSuggesting(true);
-    setSuggestionError('');
-    setStoryboardAiMessage('');
-    let nextTitle = title.trim();
-    let nextTopic = topic.trim();
-    let nextCategory = category.trim();
-    let nextStyle = style.trim();
-    let nextMood = mood.trim();
-    let nextTags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
-    const nextOrigins = { ...detailOrigins };
-    let aiProvenance: StoryboardAiProvenance | undefined;
-    // Reuse a just-reviewed suggestion instead of charging for a duplicate AI request.
-    // Generate fresh defaults only when the idea changed since the last suggestion.
-    if (nextTitle || nextTopic) {
-      try {
-        const key = workspaceStoryboardSuggestionKey(nextTitle, nextTopic, nextOrigins);
-        const suggestion = cachedStoryboardSuggestion?.key === key
-          ? cachedStoryboardSuggestion.suggestion
-          : await requestStoryboardSuggestion(nextTitle, nextTopic, true);
-        if (suggestion) {
-          aiProvenance = { provider: suggestion.provider, model: suggestion.model, generatedAt: suggestion.generatedAt };
-          setCachedStoryboardSuggestion({ key, suggestion });
-          const apply = (field: 'title' | 'topic' | 'category' | 'style' | 'mood', value: string) => {
-            if (!value || nextOrigins[field] === 'creator_edited') return value;
-            nextOrigins[field] = 'ai_suggested';
-            return value;
-          };
-          if (suggestion.title && nextOrigins.title !== 'creator_edited') nextTitle = apply('title', suggestion.title);
-          if (suggestion.topic && nextOrigins.topic !== 'creator_edited') nextTopic = apply('topic', suggestion.topic);
-          if (suggestion.category && nextOrigins.category !== 'creator_edited') nextCategory = apply('category', suggestion.category);
-          if (suggestion.style && nextOrigins.style !== 'creator_edited') nextStyle = apply('style', suggestion.style);
-          if (suggestion.mood && nextOrigins.mood !== 'creator_edited') nextMood = apply('mood', suggestion.mood);
-          if (suggestion.tags.length && nextOrigins.tags !== 'creator_edited') { nextTags = suggestion.tags; nextOrigins.tags = 'ai_suggested'; }
-        }
-      } catch (error) {
-        setStoryboardAiMessage('Storyboard saved. AI details could not be generated this time; you can edit them later.');
-      }
-    }
-    const now = new Date().toISOString();
-    const next: Storyboard = {
-      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'storyboard-' + Date.now().toString(36),
-      title: nextTitle || nextTopic.slice(0, 100) || 'Untitled Storyboard',
-      topic: nextTopic, createdAt: now, updatedAt: now,
-      details: { category: nextCategory, style: nextStyle, mood: nextMood, tags: nextTags, origins: nextOrigins, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []), ...(aiProvenance ? { ai_provenance: aiProvenance } : {}) },
-    };
-    setStoryboards((current) => [next, ...current]);
-    void persistStoryboard(next);
-    setTitle(''); setTopic(''); setCategory(''); setStyle(''); setMood(''); setTags(''); setDetailOrigins({}); setCachedStoryboardSuggestion(null); setCreateOpen(false);
-    setIsSuggesting(false);
-  };
-
   const createDefaultStoryboard = () => {
     if (!isAuthenticated) { onLoginRequired(); return; }
     const now = new Date().toISOString();
@@ -1124,14 +948,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       topic: '',
       createdAt: now,
       updatedAt: now,
-      details: { category: '', style: '', mood: '', tags: [], origins: {}, scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
+      details: { scenes: [], continuityLedger: hydrateSceneContinuityLedger(undefined, []) },
     };
     setSelectedSceneIds([]);
     setActiveSceneId(null);
     
     setActiveStoryboard(storyboard);
     setActiveStoryboardConfirmed(true);
-    setStoryboardDetailsExpanded(false);
+    
     setStoryboardEditorView('chat');
     setStoryboardAiMessage('');
     setStoryboards((current) => [storyboard, ...current.filter((item) => item.id !== storyboard.id)]);
@@ -1143,7 +967,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setActiveStoryboard(null);
     
     setActiveStoryboardConfirmed(false);
-    setStoryboardDetailsExpanded(true);
+    
     setStoryboardEditorView('chat');
     setStoryboardAiMessage('');
   };
@@ -1160,7 +984,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     void persistStoryboard(confirmed);
     setActiveStoryboard(confirmed);
     setActiveStoryboardConfirmed(true);
-    setStoryboardDetailsExpanded(false);
+    
     setStoryboardEditorView('chat');
     setStoryboardAiMessage('');
   };
@@ -1638,7 +1462,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setActiveStoryboard(null);
       
       setActiveStoryboardConfirmed(false);
-      setStoryboardDetailsExpanded(true);
+      
       setStoryboardEditorView('chat');
       setStoryboardAiMessage('');
       onEditorExit?.();
@@ -1885,42 +1709,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         onConfirm={() => void confirmDeleteStoryboard()}
       />
 
-      {createOpen && (
-        <div role="presentation" className="fixed inset-x-0 z-[60] flex items-center justify-center overflow-hidden bg-slate-950/75 p-2 backdrop-blur-md sm:p-4" style={{ top: visualViewport.top, height: visualViewport.height }} onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
-          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-storyboard-title" className="flex min-h-0 w-full max-w-md flex-col overflow-hidden overscroll-contain rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] shadow-[var(--vyra-shadow-overlay)]" style={{ maxHeight: Math.max(120, visualViewport.height - 16) }}>
-            <div ref={dialogBodyRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
-              <div className="mb-4">
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <h2 id="create-storyboard-title" className="min-w-0 text-2xl font-bold tracking-tight text-[var(--vyra-text-primary)]">Create Storyboard</h2>
-                  <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close" className="shrink-0 rounded-lg p-2 text-[var(--vyra-text-muted)] transition hover:bg-[var(--vyra-bg-hover)]"><X size={18} /></button>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--vyra-text-secondary)]">Start with an idea. AI can suggest the details, and you can edit anything.</p>
-              </div>
-              <form onSubmit={createStoryboard} className="space-y-4">
-                <div className="min-w-0 space-y-2.5">
-                  <label htmlFor="vyra-storyboard-name" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard name <span className="font-normal text-[var(--vyra-text-muted)]">(optional — AI can suggest one)</span></label>
-                  <input id="vyra-storyboard-name" type="text" maxLength={100} value={title} onChange={(event) => updateDetail('title', event.target.value)} placeholder="e.g. The Last City" disabled={isSuggesting} className={inputClass} />
-                </div>
-                <div className="min-w-0 space-y-2.5">
-                  <label htmlFor="vyra-storyboard-description" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Short description <span className="font-normal text-[var(--vyra-text-muted)]">(optional)</span></label>
-                  <textarea id="vyra-storyboard-description" rows={3} maxLength={500} value={topic} onChange={(event) => updateDetail('topic', event.target.value)} placeholder="Describe your idea (optional)" disabled={isSuggesting} className={inputClass + ' min-h-24 resize-y px-3 py-2.5'} />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-category" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Category</label><input id="vyra-storyboard-category" value={category} onChange={(event) => updateDetail('category', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-style" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Visual style</label><input id="vyra-storyboard-style" value={style} onChange={(event) => updateDetail('style', event.target.value)} placeholder="e.g. cinematic, documentary" disabled={isSuggesting} className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-mood" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Mood</label><input id="vyra-storyboard-mood" value={mood} onChange={(event) => updateDetail('mood', event.target.value)} placeholder="Suggested automatically" disabled={isSuggesting} className={inputClass} /></div>
-                  <div className="space-y-1"><label htmlFor="vyra-storyboard-tags" className="block text-xs font-semibold text-[var(--vyra-text-primary)]">Tags</label><input id="vyra-storyboard-tags" value={tags} onChange={(event) => updateDetail('tags', event.target.value)} placeholder="Comma-separated" disabled={isSuggesting} className={inputClass} /></div>
-                </div>
-                {suggestionError && <p role="alert" className="text-xs text-[var(--vyra-danger)]">{suggestionError}</p>}
-                <div className="flex flex-wrap justify-between gap-2 pt-2">
-                  <Button type="button" variant="secondary" onClick={suggestStoryboardDetails} disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? 'Suggesting…' : '✦ Suggest with AI'}</Button>
-                  <div className="flex gap-2"><Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={isSuggesting || (!title.trim() && !topic.trim())}>{isSuggesting ? "Preparing…" : "Create Storyboard"}</Button></div>
-                </div>
-              </form>
-            </div>
-          </section>
-        </div>
-      )}
+
     </main>
   );
 };
