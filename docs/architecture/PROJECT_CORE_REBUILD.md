@@ -411,7 +411,7 @@ A fresh read-only audit on November 17, 2026 found:
 - Development has both `vyral_storyboards` and the older generic `projects` table. The current `media_library_items` and `media_library_folders` tables have `universe_id`, but **do not yet have `project_id`**. The Project-scoped Media Library migration `20261117010000_project_scoped_media_library.sql` is therefore still required before a render output can safely reference a Project-scoped Media Library row.
 - The active branch contains 102 migration files. The recorded Development history and current repository filenames have multiple version/name mismatches: 21 files have no exact same-name history entry, while 8 recorded entries have no exact same-name current file. Some are older applied versions of migrations that have since been renamed/re-versioned, so these counts must not be interpreted as a list of 21 safe-to-replay migrations. A timestamp-only push or name-only replay is unsafe.
 - The active branch contains nine migration files that still require ordered local-chain validation against Development: the existing Vyral relationship uniqueness migration (`20261113150000`), four Runway submission/polling/destination/ingestion migrations (`20261116100000`, `20261116110000`, `20261116130000`, and `20261116140000`), and four Project-native migrations (`20261117010000` through `20261117040000`). The relationship migration predates the end of the Development ledger but has no matching applied ledger entry.
-- A read-only catalog query confirms the relevant missing schema pieces: `generation_jobs.target_project_id` is absent (the older `generation_jobs.project_id` is a different column), and `media_generation_job_outputs.project_file_id` is absent. These are added by the pending Project-native migrations; do not confuse the legacy provider-generation Project reference with the canonical Workspace Project destination.
+- A read-only catalog query confirms the relevant missing schema pieces: `generation_jobs.target_project_id` is absent (the older `generation_jobs.project_id` is a different column), and the `media_generation_job_outputs` table itself is not present yet. The table is created by the pending Runway polling migration; `project_file_id` is added later by the Project-output migration. Do not confuse the legacy provider-generation Project reference with the canonical Workspace Project destination.
 - Production is also not aligned: its migration history has a different baseline and does not include the current Media Library, Runway, or Project-native migration sequence. No Production schema was changed.
 
 **Conclusion:** do not run `db push`, `migration repair`, or replay the missing files against Development yet. First reconcile the eight history-only entries with their original SQL and establish which current files they represent; then verify every intervening migration's prerequisites in order. Only after a clean, reproducible local database reset and migration test should the Development project be advanced. The Render Job foreign key remains blocked until the Project-scoped Media Library schema is present and verified.
@@ -519,7 +519,7 @@ The read-only Development schema inspection found:
 - `media_library_items` and `media_library_folders` currently have `universe_id`, but not `project_id`.
 - `generation_jobs` has the historical `project_id` field, but not the canonical `target_project_id` required by the new Workspace Project destination. The old field must not be treated as equivalent.
 - `media_generation_job_outputs` does not have `project_file_id`.
-- The existing `vyral_storyboards`, `generation_jobs`, Media Library, and generation-output tables are present, but the Project-specific relationships described below are not yet represented in Development.
+- The existing `vyral_storyboards`, `generation_jobs`, and Media Library foundations are present, but the Runway generation-output table and Project-specific relationships described below are not yet represented in Development.
 
 ### Required dependency order for the active Project/Runway migrations
 
@@ -603,3 +603,33 @@ A static migration review and read-only Development catalog inspection found tha
 **Source decision:** removed the unapplied `20261116160000_vyral_asset_relationship_graph.sql` from the active branch. Keep `vyral_asset_relationships` and its Master DNA contracts as the single canonical graph. The earlier `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` remains in the migration chain and is now explicitly ordered after the table-creation migration. No Development or Production database object was changed.
 
 This removal is source-only and has not yet been verified by a clean local Supabase reset; the local migration test remains a required gate.
+
+## 21. Project/Runway migration preflight — November 18, 2026
+
+A read-only Development catalog preflight was performed against the nine ordered migration files listed in section 18. It checks prerequisites and existing data that could block index/constraint creation. No migration was applied.
+
+### Confirmed prerequisites and blockers
+
+- `generation_jobs`, `media_generation_job_events`, `provider_attempts`, `media_generation_quotes`, `vyrals`, `vyral_storyboards`, and `media_library_storage_cleanup_jobs` exist.
+- The Runway-specific `generation_jobs` fields (`provider_task_id`, submission/polling state, `target_vyral_id`, `target_project_id`, and ingestion state) are not present yet, as expected before the pending migrations.
+- `media_generation_job_outputs` does not exist in Development. It is created by `20261116110000_runway_media_task_polling.sql`; later ingestion and Project-output migrations depend on that table.
+- `media_library_items.project_id` and `media_library_folders.project_id` are absent. `20261117010000_project_scoped_media_library.sql` must precede Project-native generation/output changes.
+- `vyrals(id,user_id)` already has a unique constraint, satisfying the composite owner foreign key required by the legacy Project Assets destination migration.
+- `vyral_storyboards(id,user_id)` currently has only its primary key on `id`; `20261117030000_project_native_generation_jobs.sql` creates the required composite unique index before adding the matching owner-scoped foreign key.
+- The Storage cleanup queue table required by `20261117020000_project_scoped_media_library_cleanup.sql` exists.
+
+### Data checks for pending uniqueness constraints
+
+- No duplicate `media_generation_job_events` groups were found for the event types queried. The partial unique indexes for submitted/processing/succeeded/failed/cancelled events therefore have no current duplicate rows to block creation.
+- No duplicate provider task IDs can exist yet because `generation_jobs.provider_task_id` has not been added.
+- The existing `vyral_asset_relationships` table has zero rows in Development, and no duplicate semantic relationship edges were found. The pending NULL-aware uniqueness migration `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` has no current duplicate data to block its index.
+- `media_generation_job_outputs` is absent, so its per-job/output-index and later Project-file uniqueness indexes will be built on a new empty table in a clean migration chain.
+
+### Decision
+
+- The nine-file dependency order in section 18 is structurally consistent with the live Development prerequisites inspected so far.
+- The missing tables/columns are expected pending changes, not reasons to patch Development manually.
+- This is a catalog/data preflight only. It is not a substitute for a clean local Supabase reset, full migration execution, SQL tests, or application regression tests.
+- Do not run hosted `db push`, migration repair, manual DDL, or selective replay. Continue with the local migration-chain verification gate before designing or applying the Project Render Job persistence migration.
+
+No Development or Production database schema, data, migration ledger, Vault secret, or deployment was changed during this preflight.
