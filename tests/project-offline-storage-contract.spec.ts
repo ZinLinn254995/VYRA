@@ -154,3 +154,25 @@ test('Editor reuses existing Project Storage files without creating duplicate lo
   assert.ok(editor.includes('placeTimelineMediaClip(value?.videoTracks || [], clip, kind'));
   assert.ok(editor.includes("placeTimelineOverlayClip(value?.audioTracks || [], clip, 'Audio'"));
 });
+
+
+test('Project Storage queues Offline rename, move, and tombstoned delete mutations', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
+  assert.ok(storage.includes("kind: 'upload' | 'rename' | 'move' | 'delete'"));
+  assert.ok(storage.includes('queueProjectOfflineFileMutation'));
+  assert.ok(storage.includes("operationId: input.kind + ':' + input.projectFileId"));
+  assert.ok(storage.includes("kind === 'delete' ? { deletedAt: now }"));
+  assert.ok(storage.includes('completeProjectOfflineFileDeletion'));
+  assert.ok(storage.includes('includeDeleted = false'));
+  assert.ok(sync.includes('renameMediaLibraryItem'));
+  assert.ok(sync.includes('moveMediaLibraryItems'));
+  assert.ok(sync.includes('deleteMediaLibraryItems'));
+  assert.ok(sync.includes('if (local?.deletedAt && local.projectId === projectId) continue'));
+  assert.ok(sync.includes('if (existingRow) await deleteMediaLibraryItems'));
+  assert.ok(page.includes("kind: 'rename', fileName: nextName"));
+  assert.ok(page.includes("kind: 'move', folderId: destination"));
+  assert.ok(page.includes("kind: 'delete'"));
+  assert.ok(page.includes('const deletedIds = new Set'));
+});
