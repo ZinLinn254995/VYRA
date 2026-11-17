@@ -173,3 +173,22 @@ The next cleanup pass traced the current Runway output path and confirmed that t
 - No production migration or deployment has been performed.
 
 **Status:** not merge-ready. The next implementation unit is the additive project-native generation destination and output registration path, followed by AI capability mapping and Editor media-reference decoupling.
+
+
+## Project identity and storage schema reconciliation — 2026-11-17
+
+A deeper schema inspection found a second, more fundamental blocker that must be resolved before writing a project-native generation migration:
+
+- `generation_jobs.project_id` already exists in the older usage-credit foundation migration, but its composite owner foreign key points to `public.projects(id,user_id)`.
+- The active Workspace's actual storyboard/project identity is stored in `public.vyral_storyboards`; the new Storage migration adds `media_library_items.project_id` and `media_library_folders.project_id` as foreign keys to `vyral_storyboards(id)`.
+- The Runway integration added later does not use the existing `generation_jobs.project_id`; it added a separate `target_vyral_id` foreign key to `vyrals` and verifies a Vyral metadata pointer back to `vyral_storyboards`.
+- Therefore the same column name `project_id` currently means two different project identity domains: `projects` for the credit ledger/generic generation foundation, and `vyral_storyboards` for the active Workspace and Storage. A generation job cannot safely populate its existing `project_id` with a storyboard UUID under the current foreign key.
+- The generic Storage migration also still validates the project against `vyral_storyboards`, and the shared Media Library service continues to carry compatibility code for Universe/Vyral assets. A truly generic Storage path needs a clear source-of-truth and must not accidentally ingest into the canonical Vyral Asset/DNA pipeline.
+
+### Required schema decision before generation implementation
+
+Use one canonical Project identity across Workspace, Storage, generation jobs, and AI tools. First inspect all readers/writers and existing rows for `public.projects`, `public.vyral_storyboards`, `generation_jobs.project_id`, and `generation_jobs.target_vyral_id`. Then choose a safe migration strategy: either make the active Workspace project use the canonical `projects` table with a compatibility mapping to storyboards, or retain storyboard IDs as the canonical identity and add a separately named storyboard destination column/owner FK to generation jobs. Do not repurpose the existing `project_id` FK without a data migration and complete call-site audit.
+
+Only after that identity is settled should the new job reservation RPC bind project destination and credit reservation atomically, and the output pipeline register files in the same Storage scope. Existing Vyral-targeted jobs must remain recoverable until terminal; preserve the old transfer/ingestion path for those jobs during the transition.
+
+**Updated status:** no generation schema or service code has been changed yet. The current schema has conflicting project identity domains; inventing a migration before reconciling them risks orphaning jobs or cross-project data. This is a blocking architecture issue, not a reason to retain the old Vyral product workflow.
