@@ -99,7 +99,7 @@ function snapshotSource(clip: ProjectRenderClip, path: string, issues: ProjectRe
   return undefined;
 }
 
-function snapshotClip(clip: ProjectRenderClip, path: string, issues: ProjectRenderManifestIssue[]): ProjectRenderClip {
+function snapshotClip(clip: ProjectRenderClip, path: string, issues: ProjectRenderManifestIssue[], requiresMediaSource = true): ProjectRenderClip {
   if (!clip || typeof clip.id !== 'string' || !clip.id.trim()) {
     issues.push({ code: 'invalid-track', path, message: 'Every timeline clip must have a stable clip ID.' });
     return { id: '', start: 0, duration: 0 };
@@ -109,7 +109,7 @@ function snapshotClip(clip: ProjectRenderClip, path: string, issues: ProjectRend
       (clip.sourceOut !== undefined && (!Number.isFinite(clip.sourceOut) || clip.sourceOut <= (clip.sourceIn ?? 0)))) {
     issues.push({ code: 'invalid-timing', path, message: 'Clip placement, duration, and source trim must be finite, non-negative, and ordered.' });
   }
-  const source = snapshotSource(clip, path, issues);
+  const source = requiresMediaSource ? snapshotSource(clip, path, issues) : undefined;
   return {
     id: clip.id,
     ...(clip.name !== undefined ? { name: clip.name } : {}),
@@ -124,7 +124,7 @@ function snapshotClip(clip: ProjectRenderClip, path: string, issues: ProjectRend
   };
 }
 
-function snapshotTracks(tracks: ProjectRenderTrack[] | undefined, label: string, issues: ProjectRenderManifestIssue[]): ProjectRenderTrack[] {
+function snapshotTracks(tracks: ProjectRenderTrack[] | undefined, label: string, issues: ProjectRenderManifestIssue[], requiresMediaSource = true): ProjectRenderTrack[] {
   if (!Array.isArray(tracks)) return [];
   return tracks.map((track, trackIndex) => {
     const path = label + '[' + trackIndex + ']';
@@ -138,7 +138,7 @@ function snapshotTracks(tracks: ProjectRenderTrack[] | undefined, label: string,
       ...(track.muted !== undefined ? { muted: track.muted } : {}),
       ...(track.volume !== undefined ? { volume: track.volume } : {}),
       ...(track.visible !== undefined ? { visible: track.visible } : {}),
-      clips: track.clips.map((clip, clipIndex) => snapshotClip(clip, path + '.clips[' + clipIndex + ']', issues)),
+      clips: track.clips.map((clip, clipIndex) => snapshotClip(clip, path + '.clips[' + clipIndex + ']', issues, requiresMediaSource)),
     };
   });
 }
@@ -176,7 +176,7 @@ export function createProjectRenderManifest(input: ProjectRenderManifestInput): 
   });
   const videoTracks = snapshotTracks(input.timeline.videoTracks, 'videoTracks', issues);
   const audioTracks = snapshotTracks(input.timeline.audioTracks, 'audioTracks', issues);
-  const textTracks = snapshotTracks(input.timeline.textTracks, 'textTracks', issues);
+  const textTracks = snapshotTracks(input.timeline.textTracks, 'textTracks', issues, false);
   for (const [sceneId, range] of Object.entries(input.timeline.sceneRanges ?? {})) {
     if (!sceneId || !Number.isFinite(range?.sourceIn) || !Number.isFinite(range?.sourceOut) || range.sourceIn < 0 || range.sourceOut <= range.sourceIn) {
       issues.push({ code: 'invalid-scene', path: 'sceneRanges.' + sceneId, message: 'Scene source ranges must be finite and ordered.' });
