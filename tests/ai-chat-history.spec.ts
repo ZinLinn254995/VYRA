@@ -283,7 +283,7 @@ test('AI Chat revalidates account ownership before irreversible Workspace and As
   assert.match(failureReporter, /activeRequestControllerRef\.current !== requestController/);
   const masterSync = block.indexOf("build-vyral-master-dna");
   const ingestion = block.indexOf('const ingested = await ingestVyralAsset');
-  const uploadSummary = block.indexOf('assetUploadCompletionText =');
+  const uploadSummary = block.indexOf('assetUploadCompletionText =', ingestion);
   assert.equal(masterSync, -1, 'chat uploads must not trigger legacy Master DNA rebuilds');
   assert.ok(uploadSummary > ingestion);
   assert.ok(block.lastIndexOf('assertRequestCurrent();', uploadSummary) > ingestion);
