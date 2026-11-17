@@ -233,3 +233,12 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 - Regression coverage asserts the Project File playback plan and both Director clip conversion paths preserve the source identity and trim bounds.
 - Important boundary: the current Master Timeline transport is a synchronized preview/playback engine, not a final video export renderer. The Editor source currently has no complete Project File-aware render/export pipeline. Do not describe export as supported until a separate rendering implementation and end-to-end output verification exist.
 - Remaining: execute the new and existing Editor suites; verify audio/video sync and seeking in a real browser; validate offline playback after reload; implement and verify a Project File-aware final render/export pipeline; then test legacy timeline compatibility.
+
+
+## Project File playback engine verification coverage (Nov 17, 2026)
+
+- Audio and Video playback engines both resolve canonical Project File IDs through their dedicated resolver callbacks; they do not call the legacy Asset resolver when a Project File ID is present.
+- Added regression tests for Audio plan generation, Audio engine resolution, and Video engine resolution using Project File IDs without Asset/version identifiers.
+- Corrected the Scene-level video MIME validation expression so valid video/* MIME types are accepted by the Project File playback path.
+- Playback error text now describes both Project Files and historical Asset sources.
+- These are source-level regression additions only. The test suites have not yet been executed in this environment; browser playback, seeking, and sync still require runtime verification.
