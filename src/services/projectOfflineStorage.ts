@@ -723,11 +723,10 @@ export async function completeProjectOfflineFileDeletion(projectFileId: string):
   // tombstoned records, so a restore cannot recreate this storage key mid-cleanup.
   if (record.storageBackend === 'opfs') {
     const directory = await getOpfsDirectory();
-    if (directory) {
-      try { await directory.removeEntry(record.storageKey); } catch (error) {
-        // A missing entry is already-clean; other failures must retain the tombstone.
-        if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
-      }
+    if (!directory) throw new Error('Offline Storage is unavailable; the deletion tombstone was retained for safe cleanup.');
+    try { await directory.removeEntry(record.storageKey); } catch (error) {
+      // A missing entry is already-clean; other failures must retain the tombstone.
+      if (!(error && typeof error === 'object' && 'name' in error && error.name === 'NotFoundError')) throw error;
     }
   } else {
     await deleteValue(BLOB_STORE, record.storageKey);
