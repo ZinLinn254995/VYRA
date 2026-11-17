@@ -238,3 +238,16 @@ test('Editor scopes cached Project File playback URLs to the active Project and 
   assert.ok(resolver.indexOf('const matchesKind = expectedKind') < resolver.indexOf('const cachedUrl = projectFileObjectUrlsRef.current.get(cacheKey)'), 'validate the stored media type before reusing a cached URL');
 });
 
+test('Cloud recovery repairs evicted local binaries without changing Project File identity', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(storage.includes('const existingBlob = await getProjectOfflineFileBlob(input.projectFileId)'));
+  assert.ok(storage.includes('if (existingBlob) return existing'));
+  assert.ok(storage.includes('Treat that replica as damaged and reinstall the Cloud copy'));
+  assert.ok(sync.includes('const localBlob = await getProjectOfflineFileBlob(row.id)'));
+  assert.ok(sync.includes('if (localBlob) {'));
+  assert.ok(sync.includes('Fall through and repair from Cloud'));
+  assert.ok(sync.includes('if (downloaded.size !== expectedSize) continue'));
+  assert.ok(sync.includes('projectFileId: row.id'), 'repair must retain the canonical Cloud Project File ID');
+});
+
