@@ -40,7 +40,7 @@ test('approved Asset upload is bound to the exact local file, owner and destinat
   const end = page.indexOf('// A provider response or post-response Asset transfer', start);
   const browserFlow = page.slice(start, end);
   assert.ok(start >= 0 && end > start, 'The approved upload handoff must exist in AI Chat.');
-  assert.match(browserFlow, /pendingVyralUploadFilesRef\.current\.get\(clientDraftId\)/);
+  assert.match(browserFlow, /pendingAttachmentFilesRef\.current\.get\(clientDraftId\)/);
   assert.match(browserFlow, /sourceFile\.name !== fileName/);
   assert.match(browserFlow, /sourceFile\.size !== sizeBytes/);
   assert.match(browserFlow, /sourceFile\.type[\s\S]*?mimeType\.toLowerCase\(\)/);
