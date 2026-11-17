@@ -12,11 +12,11 @@ const record = (overrides: Partial<ProjectOfflineFileRecord> = {}): ProjectOffli
 
 const ports = (overrides: Record<string, unknown> = {}) => ({
   getOfflineRecord: async () => record(),
-  getOfflineBlob: async () => new Blob(['local']),
+  getOfflineBlob: async () => new Blob(['data']),
   getProjectCloudSource: async () => ({ projectFileId: 'file-1', signedUrl: 'https://private.invalid/file', mimeType: 'video/mp4', fileName: 'clip.mp4', sizeBytes: 4, expectedSha256: null }),
   installCloudReplica: async () => record(),
   getLegacyPlaybackUrl: async () => 'https://private.invalid/legacy',
-  fetchBlob: async () => new Blob(['cloud']),
+  fetchBlob: async () => new Blob(['data']),
   ...overrides,
 });
 
