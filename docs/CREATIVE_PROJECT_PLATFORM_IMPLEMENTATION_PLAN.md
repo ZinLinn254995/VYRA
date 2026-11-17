@@ -139,3 +139,37 @@ The runtime switch remains intentionally blocked until all of the above paths ar
 - This is a terminology and UI wiring cleanup only. The generation lifecycle still has a `targetVyralId` contract, legacy Vyral tables/functions and AI capabilities remain, and Storage runtime/migration/security checks are not yet verified.
 - The feature branch is currently divergent from `main` (compare reported 1841 commits ahead and 38 behind at the last inspection). Do not merge until the branch is reconciled and CI is green.
 - Verification: GitHub source inspection only; no test/build/browser run is available for these commits yet.
+
+
+## Generation and AI capability dependency audit — 2026-11-17
+
+The next cleanup pass traced the current Runway output path and confirmed that the visible Project terminology is ahead of the underlying data model. It is not safe to remove the remaining Vyral layer by renaming identifiers alone.
+
+### Confirmed generation coupling
+
+- `src/services/runwayProjectGeneration.ts` still accepts `targetVyralId`, verifies a `vyrals` row, and scopes job lookup/recovery by `generation_jobs.target_vyral_id`.
+- `src/services/runwayProjectOutputIngestion.ts` registers provider output through `vyral_assets` and `vyral_asset_versions`, then requires `vyral_dna_records` and SHA-256 rows in `vyral_fingerprints` before completion.
+- `create-runway-media-job`, `complete-runway-media-output`, and `transfer-runway-media-output` still bind output to a Vyral ID. The transfer worker's private staging path and its claim RPC also use that destination.
+- `20261116130000_runway_project_asset_destination.sql` adds the Vyral foreign key and reservation wrapper. It is migration history and must not be edited or deleted as a shortcut.
+- The current project-scoped Media Library schema can hold generic project files, but generation output has not yet been registered into it. The two paths are not interchangeable today.
+
+### Required safe replacement
+
+1. Add a nullable, owner-checked `project_id` destination to generation jobs through a new forward migration; preserve existing `target_vyral_id` values for already-created jobs and recovery.
+2. Add a new reservation RPC that binds the approved quote, credit reservation, user, and project atomically. Keep the old RPC available for historical jobs until they are terminal and reconciled.
+3. Update the output claim/transfer/completion path so project ownership is verified server-side and outputs become ordinary private project Storage objects plus `media_library_items` rows. Do not create Vyral Assets, DNA records, Fingerprints, Master DNA, or mandatory metadata for ordinary generated files.
+4. Preserve idempotency, output hashes, bounded downloads, provider-host allowlists, retry/recovery, credit accounting, and project-scoped cleanup. Existing jobs must remain recoverable throughout the transition.
+5. Switch the UI/service contract only after the new server path and database constraints are complete. Then remove obsolete Vyral-only generation paths after confirming no active jobs depend on them.
+
+### AI capability registry finding
+
+`src/server/vyraAiCapabilityRegistry.ts` still exposes large Vyral, Asset/DNA, Marketplace, and Universe-adjacent capability groups. `src/server/aiCapabilityExecutor.ts` is a fail-closed dispatcher, so deleting registry entries without tracing every prompt, executor adapter, and UI caller would create recognized-but-unavailable actions or broken chat tools. The next pass must map registered IDs to adapters and call sites, then replace the legacy groups with a small project-scoped Storage/editor tool surface.
+
+### Merge gate remains closed
+
+- Latest comparison at this audit: branch `feature/my-storyboard` is **1,852 commits ahead and 38 commits behind** `main`; compare status is `diverged` and merge base is `596653d35b0181d3d9e9fe87add5ffd71ac0f335`.
+- This is not a normal small feature-branch delta. Before merge, inspect the 1,852-commit history and determine why it differs from current `main`; do not force-push, reset, or merge blindly.
+- No Node tests, TypeScript check, build, browser tests, SQL migration execution, or live generation/recovery tests have been verified for this branch tip. A Vercel deployment status alone is not a test result.
+- No production migration or deployment has been performed.
+
+**Status:** not merge-ready. The next implementation unit is the additive project-native generation destination and output registration path, followed by AI capability mapping and Editor media-reference decoupling.
