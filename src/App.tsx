@@ -129,6 +129,7 @@ function VyraApp() {
         setProfileOpen(false);
         setProjectWorkspaceOpen(false);
         setActiveSection('workspace');
+      }
     };
     window.addEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
     return () => window.removeEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
