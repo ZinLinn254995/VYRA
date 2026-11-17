@@ -79,7 +79,7 @@ test('rejects stale lifecycle events whose timestamps precede the last accepted 
   job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 10, at: '2026-11-17T12:00:05.000Z' });
   assert.throws(() => transitionProjectRenderJob(job, {
     type: 'advance', status: 'rendering', progress: 20, at: '2026-11-17T12:00:04.000Z',
-  }), /timestamps backwards/);
+  }), /update timestamp backwards/);
 });
 
 test('failed jobs retry with the same input identity and an incremented attempt', () => {
