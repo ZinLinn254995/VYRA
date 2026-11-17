@@ -21,6 +21,7 @@ export type ProjectOfflineFileRecord = {
   cloudState: ProjectCloudReplicaState;
   storageBackend: 'opfs' | 'indexeddb';
   storageKey: string;
+  replicaRevision?: string;
   contentHash: string | null;
   createdAt: string;
   updatedAt: string;
@@ -420,6 +421,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     cloudState: 'synced',
     storageBackend,
     storageKey,
+    replicaRevision: createId(),
     contentHash: input.expectedSha256 ?? null,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -458,6 +460,10 @@ export async function installProjectCloudFileToOfflineStorage(input: {
       }
       contentHash = actual;
     }
+    const latestBeforeReady = await getProjectOfflineFile(input.projectFileId);
+    if (!latestBeforeReady || latestBeforeReady.replicaRevision !== base.replicaRevision || latestBeforeReady.deletedAt) {
+      throw new Error('The local Project file changed while its Cloud replica was being restored.');
+    }
     const ready: ProjectOfflineFileRecord = {
       ...base,
       storageBackend,
@@ -470,8 +476,13 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     emitOfflineStorageChanged(input.projectFileId);
     return ready;
   } catch (error) {
-    const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
-    try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
+    const latest = await getProjectOfflineFile(input.projectFileId).catch(() => null);
+    // A newer import, restore, or delete owns this logical file now. Never let
+    // an older restore overwrite its state with a stale failure record.
+    if (latest?.replicaRevision === base.replicaRevision && !latest.deletedAt) {
+      const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
+      try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
+    }
     throw error instanceof Error ? error : new Error('Could not restore the Cloud file into Offline Storage.');
   }
 }
