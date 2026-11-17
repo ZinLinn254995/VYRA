@@ -96,6 +96,9 @@ export async function buildRunwayProjectConsistencyContext(
   // creator-authored or pass the explicit approval workflow before persistence.
   // Restrict consistency retrieval to Asset-to-Asset edges in this exact Vyral.
   const relationships = (Array.isArray(relationshipRows) ? relationshipRows : []) as RelationshipRow[];
+  const assetRelationships = relationships.filter((edge): edge is RelationshipRow & { from_asset_id: string; to_asset_id: string } =>
+    edge.from_kind === 'asset' && edge.to_kind === 'asset' &&
+    typeof edge.from_asset_id === 'string' && typeof edge.to_asset_id === 'string');
 
   const retrievalAssets: UniverseRetrievalAsset[] = assets.map((asset) => {
     const metadata = isRecord(asset.metadata) ? asset.metadata : {};
@@ -161,7 +164,7 @@ export async function buildRunwayProjectConsistencyContext(
       dna.some((record) => record.verification_status === 'creator_confirmed') ? '  Knowledge authority: creator-confirmed for the recorded statements only' : '  Knowledge authority: observed / unconfirmed',
     ].filter(Boolean).join('\n');
   });
-  const relationshipLines = relationships
+  const relationshipLines = assetRelationships
     .filter((edge) => selected.has(edge.from_asset_id) && selected.has(edge.to_asset_id))
     .slice(0, 24)
     .map((edge) => {
