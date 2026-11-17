@@ -232,3 +232,15 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Removed an obsolete `storyboardUniverse` variable reference from the embedded Project Chat call; it now passes a null optional Vyral context, matching the other Project Chat entry point.
 - Verification is source inspection only. No TypeScript build, automated tests, browser tests, database migration execution, or Supabase policy validation has been run. Vercel status remains pending and no GitHub Actions workflow runs were returned for the latest commit.
 - These changes remove stale product naming and one legacy data dependency; they do not complete the broader Vyral/Asset/DNA removal or generic Editor media migration. Those remain active cleanup work, not accepted permanent leftovers.
+
+
+## Cleanup progress — 2026-11-17 (retire visible Universe workflows)
+
+- Removed the Profile My Universes/My Vyrals route and its legacy `MyVyralsPage` and `VyralDetailsContent` components. The old details editor included DNA/Fingerprint/clone/export workflows and is no longer reachable or present in the Profile component tree.
+- Replaced the Workspace My Projects shortcut so it returns to the canonical Projects home; global Chat navigation now recognizes My Projects instead of My Universes.
+- Removed Universe mode from `MyMediaLibraryPage`. The visible Storage page now supports only Personal Storage and Project Storage; its upload, list/cache, folder, move, rename, delete, thumbnail, and status messaging paths no longer branch on Universe IDs or mention DNA synchronization.
+- Fixed Projects home to load `vyral_storyboards` directly, not through a legacy `vyrals.metadata.storyboard_id` pointer. Also removed a stale `storyboardUniverse` reference from the second embedded Chat path.
+- Added forward migration `20261117030000_project_native_generation_jobs.sql`: new generation jobs can bind to canonical Workspace projects through `target_project_id`; the existing `target_vyral_id` is retained only for historical-job compatibility until those jobs reach terminal recovery.
+- Added forward migration `20261117040000_project_media_generation_output.sql`: introduces project-file output identity and a project-native output completion RPC while retaining the legacy Asset completion path for historical jobs.
+- These two generation migrations are not applied or exercised. The client generation workflow, transfer worker, output ingestion, Editor playback, and tests still need to switch to `target_project_id` and generic project files before the legacy target column and Vyral Asset/DNA pipeline can be removed.
+- Verification remains source inspection only. No TypeScript build, Node tests, browser E2E, migration execution, or RLS/Storage-policy validation has been run. Latest Vercel check is pending; no GitHub Actions workflow runs were returned.
