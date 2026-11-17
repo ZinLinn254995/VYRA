@@ -114,3 +114,21 @@ test('returns a deeply frozen detached plan and rejects unsupported manifest ver
   assert.equal(Object.isFrozen(plan.visuals[0]), true);
   assert.throws(() => buildProjectRenderCompositionPlan({ ...manifest, version: 2 } as never), /supported immutable/);
 });
+
+
+test('never schedules audio-only sources as visual video layers', () => {
+  const value = input();
+  value.timeline.videoTracks![0].clips.push({
+    id: 'audio-mislabeled-visual', start: 0, duration: 3,
+    projectFileId: 'audio-only-file', assetMimeType: 'audio/mpeg', mediaKind: 'audio',
+  });
+  value.timeline.sceneInstances![0].videoClips!.push({
+    id: 'scene-audio-source', start: 0, duration: 2,
+    projectFileId: 'scene-audio-file', assetMimeType: 'audio/aac', mediaKind: 'audio',
+  });
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.ok(!plan.visuals.some((item) => item.clipId === 'audio-mislabeled-visual'));
+  assert.ok(!plan.visuals.some((item) => item.clipId === 'scene-audio-source'));
+  assert.ok(!plan.requiredSources.some((source) =>
+    source.kind === 'project-file' && ['audio-only-file', 'scene-audio-file'].includes(source.projectFileId)));
+});
