@@ -29,5 +29,5 @@ test('creates a bounded distortion curve with finite samples', () => {
   const curve = createVoiceChangerDistortionCurve(0.6, 128);
   assert.equal(curve.length, 128);
   assert.ok([...curve].every((sample) => Number.isFinite(sample) && sample >= -1 && sample <= 1));
-  assert.throws(() => createVoiceChangerDistortionCurve(0, 31), { name: 'AssertionError' });
+  assert.equal(createVoiceChangerDistortionCurve(0, 31).length, 32);
 });
