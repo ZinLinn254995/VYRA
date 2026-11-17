@@ -8,6 +8,8 @@ import {
   updateProjectOfflineCloudState,
   completeProjectOfflineFileDeletion,
   completeProjectOfflineFileMutation,
+  listProjectOfflineFiles,
+  removeProjectOfflineFile,
 } from './projectOfflineStorage';
 import { deleteMediaLibraryItems, moveMediaLibraryItems, renameMediaLibraryItem } from './mediaLibraryCloud';
 
@@ -129,6 +131,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
   let offset = 0;
   let restored = 0;
   let restoredBytes = 0;
+  const cloudManifestIds = new Set<string>();
   while (true) {
     const { data: rows, error } = await db.from('media_library_items')
       .select('id,project_id,folder_id,file_name,mime_type,size_bytes,storage_path,bucket_id,updated_at,metadata')
@@ -141,6 +144,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
     if (!rows?.length) break;
 
     for (const row of rows) {
+      cloudManifestIds.add(row.id);
       if (row.bucket_id !== BUCKET || typeof row.storage_path !== 'string' ||
           !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
       const local = await getProjectOfflineFile(row.id);
@@ -171,6 +175,15 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
     }
     if (rows.length < pageSize) break;
     offset += rows.length;
+  }
+
+  // Prune only after the complete manifest was read. Synced local files absent
+  // from Cloud were deleted on another device; queued/failed uploads are retained.
+  const localFiles = await listProjectOfflineFiles(projectId);
+  for (const local of localFiles) {
+    if (local.cloudState === 'synced' && !cloudManifestIds.has(local.id)) {
+      await removeProjectOfflineFile(local.id);
+    }
   }
   return restored;
 }
@@ -203,17 +216,21 @@ export async function restoreAccountProjectsToOfflineStorage(): Promise<number> 
 export function startProjectOfflineCloudSync(): () => void {
   if (typeof window === 'undefined') return () => undefined;
   let running = false;
+  let rerunRequested = false;
   const run = async () => {
     if (running || !navigator.onLine) return;
     running = true;
     try { await syncPendingProjectFilesToCloud(5); } catch { /* retry on next trigger */ }
-    finally { running = false; }
+    finally {
+      running = false;
+      if (rerunRequested && navigator.onLine) { rerunRequested = false; void run(); }
+    }
   };
   const onOnline = () => {
     void run();
     void restoreAccountProjectsToOfflineStorage().catch(() => undefined);
   };
-  const onLocalFileReady = () => { void run(); };
+  const onLocalFileReady = () => { if (running) rerunRequested = true; else void run(); };
   window.addEventListener('online', onOnline);
   window.addEventListener('vyra:project-offline-file-ready', onLocalFileReady);
   void run();
