@@ -55,3 +55,17 @@ test('Project-native generation architecture preserves the legacy recovery bound
   assert.ok(doc.includes('No new output requires'));
   assert.ok(doc.includes('Migration and rollout gates'));
 });
+
+
+test('Project Chat sends non-Scene generation to the Project File service and persists file identity', () => {
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(chat.includes("import { generateRunwayProjectFiles }"));
+  assert.ok(chat.includes('if (!activeDirectorScenePlan && !repairRequest)'));
+  assert.ok(chat.includes('projectId: storyboardId'));
+  assert.ok(chat.includes('projectFiles.push({ projectFileId: file.projectFileId'));
+  assert.ok(chat.includes('message.projectFiles?.length'));
+  assert.ok(chat.includes('projectFiles: message.projectFiles.flatMap'));
+  assert.ok(chat.includes(".eq('project_id', storyboardId).is('universe_id', null)"));
+  assert.ok(chat.includes('File remains saved in Project Storage'));
+  assert.ok(chat.includes('Scene shot sequences remain on the verified legacy continuity workflow'));
+});
