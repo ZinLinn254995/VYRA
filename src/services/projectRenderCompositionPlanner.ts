@@ -262,6 +262,47 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     // Match mergeTimelineVideoRows, then the Editor's stable start/duration sort.
     .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
     .sort((a, b) => a.start - b.start || a.duration - b.duration);
+  // Track-local adjacency is authoritative for transitions between two
+  // uploaded clips on the same Editor row. Scene media may overlap that row,
+  // but must not break a transition that is explicitly keyed to neighboring
+  // clips within the row.
+  for (const track of manifest.videoTracks) {
+    if (track.visible === false) continue;
+    const trackClips = track.clips.filter(isRenderableVisualClip).flatMap((clip) => {
+      const duration = sourceRange(clip).durationSeconds;
+      return duration > 0 ? [{ id: clip.id, start: clip.start, duration }] : [];
+    }).sort((a, b) => a.start - b.start || a.duration - b.duration);
+    for (let index = 0; index < trackClips.length - 1; index += 1) {
+      const current = trackClips[index];
+      const next = trackClips[index + 1];
+      const boundarySeconds = current.start + current.duration;
+      if (Math.abs(next.start - boundarySeconds) > 0.001) continue;
+
+      const clipKey = current.id + ':' + next.id;
+      const clipTransition = manifest.transitions[clipKey];
+      if (clipTransition && !resolvedTransitions.has(clipKey)) {
+        resolvedTransitions.set(clipKey, {
+          key: clipKey, effect: clipTransition.effect,
+          durationSeconds: clipTransition.duration, scope: 'video',
+          boundarySeconds, fromId: current.id, toId: next.id,
+        });
+      }
+
+      // The Editor accepts a small timing tolerance at scene boundaries. Keep
+      // the canonical scene transition identity while pinning the actual clip
+      // edge used by the timeline.
+      const matchingScene = scenes.find((scene, sceneIndex) =>
+        sceneIndex < scenes.length - 1 &&
+        Math.abs(scenes[sceneIndex + 1].startSeconds - boundarySeconds) <= 0.001);
+      if (matchingScene) {
+        const sceneKey = matchingScene.sceneId + ':' + scenes[scenes.indexOf(matchingScene) + 1].sceneId;
+        const sceneTransition = resolvedTransitions.get(sceneKey);
+        if (sceneTransition?.scope === 'scene') {
+          resolvedTransitions.set(sceneKey, { ...sceneTransition, boundarySeconds });
+        }
+      }
+    }
+  }
   for (let index = 0; index < orderedVideoClips.length - 1; index += 1) {
     const current = orderedVideoClips[index];
     const next = orderedVideoClips[index + 1];
