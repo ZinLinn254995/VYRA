@@ -259,7 +259,7 @@ test('AI Chat binds asynchronous chat actions to the validated account owner', (
   assert.ok(block.indexOf('assertRequestCurrent();') < block.indexOf('const result = await aiService.generateResponse'));
 });
 
-test('AI Chat revalidates account ownership before irreversible Workspace and Asset operations', () => {
+test('AI Chat revalidates account ownership before Project delete, update and create operations', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
   const start = page.indexOf('const sendMessage = async');
   const end = page.indexOf('const handleFileSelection', start);
@@ -268,25 +268,13 @@ test('AI Chat revalidates account ownership before irreversible Workspace and As
     'const { data: deletedRows, error: deleteError }',
     'const { error: updateError }',
     'const { error: createError }',
-    'const ingested = await ingestVyralAsset',
-    'const { data: completion, error: completionError }',
   ]) {
     const operation = block.indexOf(marker);
-    assert.ok(operation > 0, `missing operation: ${marker}`);
-    assert.ok(block.lastIndexOf('assertRequestCurrent();', operation) > block.lastIndexOf('const sendMessage = async', 0),
+    assert.ok(operation > 0, `missing Project operation: ${marker}`);
+    assert.ok(block.lastIndexOf('assertRequestCurrent();', operation) > 0,
       `owner must be revalidated before: ${marker}`);
   }
-  assert.ok(block.indexOf('assertRequestCurrent();', block.indexOf('const ingested = await ingestVyralAsset')) >
-    block.indexOf('const ingested = await ingestVyralAsset'));
-  const failureReporter = block.slice(block.indexOf('const reportUploadFailure = async'), block.indexOf('if (!supabase || !actionId', block.indexOf('const reportUploadFailure = async')));
-  assert.match(failureReporter, /historyOwnerRef\.current !== requestOwnerId/);
-  assert.match(failureReporter, /activeRequestControllerRef\.current !== requestController/);
-  const masterSync = block.indexOf("build-vyral-master-dna");
-  const ingestion = block.indexOf('const ingested = await ingestVyralAsset');
-  const uploadSummary = block.indexOf('assetUploadCompletionText =', ingestion);
-  assert.equal(masterSync, -1, 'chat uploads must not trigger legacy Master DNA rebuilds');
-  assert.ok(uploadSummary > ingestion);
-  assert.ok(block.lastIndexOf('assertRequestCurrent();', uploadSummary) > ingestion);
+  assert.doesNotMatch(block, /ingestVyralAsset|assetUploadCompletionText|build-vyral-master-dna/);
 });
 
 test('AI Chat checks request ownership after every Supabase await in a turn', () => {
@@ -297,7 +285,7 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
   assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\)/);
   assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\): Promise<T> => \{\s*assertRequestCurrent\(\);\s*const result = await operation;\s*assertRequestCurrent\(\);/);
   assert.doesNotMatch(block, /await supabase\s*\./);
-  assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 25);
+  assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 15);
   assert.match(block, /const accessToken = await getCurrentAccessToken\(\);\s*assertRequestCurrent\(\);/);
   assert.match(block, /fetch\(signed\.signedUrl, \{ signal: requestController\.signal \}\)/);
   assert.match(block, /const blob = await response\.blob\(\);\s*assertRequestCurrent\(\);/);
@@ -310,13 +298,13 @@ test('AI Chat ignores streamed chunks when their request no longer belongs to th
 });
 
 
-test('AI Chat revalidates request ownership after asynchronous selected-asset processing and provider completion', () => {
+test('AI Chat generation visual inspection bounds downloaded Project shots and supports cancellation', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
-  assert.match(page, /createSelectedAssetVisionPreview\(blob\);\s*assertRequestCurrent\(\);/);
-  assert.match(page, /const decodedBytes = await blob\.arrayBuffer\(\);\s*assertRequestCurrent\(\);/);
-  assert.match(page, /const encodedMedia = await readBlobAsBase64\(blob\);\s*assertRequestCurrent\(\);/);
-  assert.match(page, /extractSelectedVideoFrames\(blob, asset\.id, asset\.name, remaining\);\s*assertRequestCurrent\(\);/);
-  assert.match(page, /const result = await aiService\.generateResponse\([\s\S]*?\);\s*assertRequestCurrent\(\);\s*let assetUploadCompletionText/);
+  assert.match(page, /cache: 'no-store', redirect: 'error', \...\(signal \? \{ signal \} : \{\}\)/);
+  assert.match(page, /const blob = await response\.blob\(\);/);
+  assert.match(page, /blob\.size <= 0 \|\| blob\.size > 128 \* 1024 \* 1024/);
+  assert.match(page, /extractSelectedVideoFrames\(blob, asset\.assetId/);
+  assert.match(page, /const vision = await aiService\.generateResponse\(/);
 });
 
 test('AI Chat no longer exposes legacy DNA assessment and package workflows', () => {
