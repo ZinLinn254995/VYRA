@@ -57,6 +57,8 @@ jobs:
         run: npm run test:project-render-manifest
       - name: Local-first Project render source resolver tests
         run: npm run test:project-render-source-resolver
+      - name: Renderer-neutral Project composition planner tests
+        run: npm run test:project-render-composition-planner
       - name: Master Timeline Text overlay tests
         run: npm run test:master-timeline-text-overlay
       - name: Workspace secure Video preview tests
