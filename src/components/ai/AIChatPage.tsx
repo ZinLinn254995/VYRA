@@ -674,13 +674,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
-      const resolvedActiveVyralId = storyboardUniverseId ?? null;
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       const navigationTarget = extractGlobalChatNavigationTarget(text);
       if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
-          'my-vyrals': 'My Universes',
           'my-media-library': 'My Media Library',
         };
         const assistantMessage: ChatMessage = {
@@ -1164,7 +1162,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
-        ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
         ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         signal: requestController.signal,
