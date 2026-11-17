@@ -405,7 +405,15 @@ The connected Supabase projects were identified read-only:
 - Production: `mljntikeomamzonzirex` (`VYRA`).
 - Development: `wbqheogfoahnjvgkwhxe` (`VYRA Development`).
 
-The Development database currently has `vyral_storyboards`, `generation_jobs`, `media_library_items`, and the existing provider-generation telemetry, but its applied migration history ends at `20261115134317_storyboard_universe_media_library`. It does not yet contain the active branch's later Project-scoped Media Library migrations (including `project_id`) or the new Project Render Job contract. Therefore it is not yet safe to build a render-job foreign key against the Development database's current Media Library schema. Production was not modified.
+A fresh read-only audit on November 17, 2026 found:
+
+- Development is `ACTIVE_HEALTHY` on PostgreSQL 17. Its applied migration history ends at version `20261115134317` (`storyboard_universe_media_library`).
+- Development has both `vyral_storyboards` and the older generic `projects` table. The current `media_library_items` and `media_library_folders` tables have `universe_id`, but **do not yet have `project_id`**. The Project-scoped Media Library migration `20261117010000_project_scoped_media_library.sql` is therefore still required before a render output can safely reference a Project-scoped Media Library row.
+- The active branch contains 102 migration files. Comparing the recorded Development migration names with the current filenames shows 21 repository migrations without a same-name history entry and 8 database history entries whose names no longer match a current migration filename. Some historical versions have clearly been renamed/re-versioned, so a simple timestamp-based push or name-only replay is not safe.
+- The Development history also does not yet include the later Runway submission/polling/output migrations (`20261116100000` through `20261116140000`), the Asset relationship graph migration (`20261116160000`), or the four Project-native migrations (`20261117010000` through `20261117040000`).
+- Production is also not aligned: its migration history has a different baseline and does not include the current Media Library, Runway, or Project-native migration sequence. No Production schema was changed.
+
+**Conclusion:** do not run `db push`, `migration repair`, or replay the missing files against Development yet. First reconcile the eight history-only entries with their original SQL and establish which current files they represent; then verify every intervening migration's prerequisites in order. Only after a clean, reproducible local database reset and migration test should the Development project be advanced. The Render Job foreign key remains blocked until the Project-scoped Media Library schema is present and verified.
 
 ### Persistence boundary
 
