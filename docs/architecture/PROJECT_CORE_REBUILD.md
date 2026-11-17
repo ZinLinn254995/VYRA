@@ -239,6 +239,7 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 
 - Audio and Video playback engines both resolve canonical Project File IDs through their dedicated resolver callbacks; they do not call the legacy Asset resolver when a Project File ID is present.
 - Added regression tests for Audio plan generation, Audio engine resolution, and Video engine resolution using Project File IDs without Asset/version identifiers.
+- Added a Video engine regression covering a Project File clip's source offset during seek, pause/resume synchronization, and the invariant that the legacy Asset resolver is never called.
 - Corrected the Scene-level video MIME validation expression so valid video/* MIME types are accepted by the Project File playback path.
 - Playback error text now describes both Project Files and historical Asset sources.
 - These are source-level regression additions only. The test suites have not yet been executed in this environment; browser playback, seeking, and sync still require runtime verification.
