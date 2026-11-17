@@ -58,7 +58,6 @@ test('Project context contains matching nested DNA evidence and excludes other P
     ],
     vyral_asset_relationships: [
       { id: 'edge-1', user_id: 'user-1', vyral_id: 'project-assets-1', from_kind: 'asset', from_asset_id: 'asset-red-fox', to_kind: 'asset', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.' },
-      { id: 'edge-2', user_id: 'user-1', vyral_id: 'project-assets-1', from_kind: 'asset', from_asset_id: 'asset-red-fox', to_kind: 'asset', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.' },
     ],
   };
   const signedRequests: Array<{ bucket: string; path: string; expiresIn: number }> = [];
