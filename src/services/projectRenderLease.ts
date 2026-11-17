@@ -147,3 +147,50 @@ export function releaseProjectRenderLease(input: {
   }
   return { ...snapshot, revision: snapshot.revision + 1, lease: null };
 }
+
+/**
+ * Fence every worker-originated write (progress, phase transition, cancellation
+ * acknowledgement, and output commit) against the currently persisted lease.
+ * The database adapter must run this check inside the same transaction as its
+ * revision compare-and-swap; a pure in-memory check is not concurrency control.
+ */
+export function assertProjectRenderLeaseOwnership(input: {
+  snapshot: ProjectRenderLeaseSnapshot;
+  expectedRevision: number;
+  workerId: string;
+  leaseToken: string;
+  leaseGeneration: number;
+  now: string;
+}): void {
+  const { snapshot } = input;
+  const nowMs = Date.parse(input.now);
+  const lease = snapshot?.lease;
+
+  if (!snapshot || !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 1 ||
+      !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== snapshot.revision) {
+    throw new Error('The render job revision is stale; reload before writing.');
+  }
+  if (!Number.isFinite(nowMs)) {
+    throw new Error('A valid timestamp is required to verify worker lease ownership.');
+  }
+  if (!lease || typeof lease.token !== 'string' || !lease.token.trim() ||
+      typeof lease.workerId !== 'string' || !lease.workerId.trim() ||
+      !Number.isSafeInteger(lease.generation) || lease.generation < 1 ||
+      !Number.isFinite(Date.parse(lease.acquiredAt)) ||
+      !Number.isFinite(Date.parse(lease.expiresAt)) ||
+      Date.parse(lease.expiresAt) <= Date.parse(lease.acquiredAt)) {
+    throw new Error('The persisted worker lease is malformed or no longer present.');
+  }
+  if (!input.workerId?.trim() || !input.leaseToken?.trim() ||
+      !Number.isSafeInteger(input.leaseGeneration) || input.leaseGeneration < 1 ||
+      lease.workerId !== input.workerId || lease.token !== input.leaseToken ||
+      lease.generation !== input.leaseGeneration) {
+    throw new Error('The worker lease fence does not match the current owner and generation.');
+  }
+  if (Date.parse(lease.expiresAt) <= nowMs) {
+    throw new Error('The worker lease has expired; the worker may not write.');
+  }
+  if (!['queued', 'preparing', 'rendering', 'uploading', 'cancel_requested'].includes(snapshot.status)) {
+    throw new Error('The render job is not in a worker-writable state.');
+  }
+}
