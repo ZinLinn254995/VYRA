@@ -1,5 +1,3 @@
-import type { VoiceChangerSettings } from '../services/voiceChanger';
-
 export type MasterTimelineAudioPlaybackTrack = {
   id: string;
   muted?: boolean;
@@ -12,7 +10,6 @@ export type MasterTimelineAudioPlaybackTrack = {
     assetId?: string;
     assetVersionId?: string;
     projectFileId?: string;
-    voiceEffect?: Partial<VoiceChangerSettings>;
   }>;
 };
 
@@ -30,7 +27,6 @@ export type MasterTimelineAudioPlaybackItem = {
   sourceOffsetSeconds: number;
   durationSeconds: number;
   gain: number;
-  voiceEffect?: Partial<VoiceChangerSettings>;
 };
 
 /**
@@ -77,7 +73,6 @@ export function buildMasterTimelineAudioPlaybackPlan(
         sourceOffsetSeconds: sourceIn + elapsed,
         durationSeconds: end - Math.max(playheadTime, clip.start),
         gain,
-        ...(clip.voiceEffect ? { voiceEffect: clip.voiceEffect } : {}),
       });
     }
   }
