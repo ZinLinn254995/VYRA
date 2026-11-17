@@ -382,3 +382,16 @@ Decision:
 5. Do not add rendering dependencies, change Cloudflare billing/runtime configuration, deploy, or alter production resources as part of this architecture-only gate.
 
 References: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/), [Containers overview](https://developers.cloudflare.com/containers/), and [Containers instance limits](https://developers.cloudflare.com/containers/platform/limits/).
+
+
+## 15. Project Render Job lifecycle contract
+
+The render-job contract now wraps the immutable manifest and composition plan in a Project-owned job envelope. It defines:
+- stable job, owner, Project, idempotency, and SHA-256 input identity;
+- explicit `queued → preparing → rendering → uploading → completed` phases;
+- monotonic progress and revision counters;
+- cancellation request and cancellation acknowledgement as separate states;
+- failure codes/messages and retry from the same pinned input with an incremented attempt;
+- completion only after an output has a canonical Project File ID.
+
+The state transition function is pure and returns a deeply frozen snapshot. It does not create database rows, start a renderer, upload bytes, or claim that an export is available. Persistence, execution leases, provider callbacks, and output ingestion remain future integration work. The job is deliberately runtime-neutral so a browser renderer or an approved external/container provider can implement it without changing the Project File identity contract.
