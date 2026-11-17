@@ -477,3 +477,11 @@ References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/l
 - Lease durations are bounded to 1 second–15 minutes. The server-side adapter must generate unpredictable tokens and perform every claim/renew/release with a database compare-and-swap transaction; this pure module is not a distributed lock and does not provide persistence by itself.
 - Added `tests/project-render-lease.spec.ts` and the `test:project-render-lease` script for contract coverage.
 - This does not add a database table, RPC, worker runtime, scheduler, or automatic recovery loop. Those remain gated on Development migration-chain alignment and local database testing. No Supabase project was modified.
+
+### Worker-write fencing requirement
+
+- Added `assertProjectRenderLeaseOwnership` as a pure guard for every worker-originated mutation: progress checkpoints, phase transitions, cancellation acknowledgement, and output commit.
+- A write must present the persisted job revision, exact worker ID, exact opaque lease token, and exact lease generation. The lease must be structurally valid and unexpired at the transaction's authoritative timestamp.
+- When an expired lease is reclaimed, the new generation/token invalidates the previous worker even if that old process later resumes. The database adapter must check this fence and perform the revision compare-and-swap atomically in the same transaction as the write; checking in application memory before a separate update is unsafe.
+- Added regression coverage for the former worker attempting a write after recovery, wrong generation/token, stale revision, expired lease, and malformed lease metadata.
+- The guard is a contract helper only. It does not create a lock or provide atomicity without the future database transaction. Tests remain unexecuted in this GitHub-only environment.
