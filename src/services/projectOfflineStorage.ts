@@ -145,6 +145,33 @@ async function addValue<T>(storeName: string, value: T): Promise<void> {
   });
 }
 
+async function claimProjectFileRestore(
+  expected: ProjectOfflineFileRecord | null,
+  next: ProjectOfflineFileRecord,
+): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction(FILE_STORE, 'readwrite');
+  const store = transaction.objectStore(FILE_STORE);
+  const request = store.get(next.id);
+  request.onsuccess = () => {
+    const current = request.result as ProjectOfflineFileRecord | undefined;
+    const unchanged = expected
+      ? Boolean(current && current.projectId === expected.projectId &&
+        current.replicaRevision === expected.replicaRevision && !current.deletedAt)
+      : !current;
+    if (!unchanged) {
+      transaction.abort();
+      return;
+    }
+    store.put(next);
+  };
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not claim the Project file for Cloud restore.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('The Project file changed before Cloud restore could claim it.'));
+  });
+}
+
 async function storeValuesAtomically(
   entries: Array<{ storeName: string; value: unknown }>,
   deletions: Array<{ storeName: string; key: IDBValidKey }> = [],
@@ -426,7 +453,10 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
-  await storeValue(FILE_STORE, base);
+  // Claim the stable ID in one IndexedDB transaction. Concurrent restores
+  // cannot both replace the same replica metadata, and a missing record is
+  // created with collision-safe semantics rather than an unconditional put.
+  await claimProjectFileRestore(existing, base);
   try {
     if (directory) {
       try {
