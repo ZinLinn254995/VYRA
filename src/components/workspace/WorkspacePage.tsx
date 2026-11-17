@@ -1846,7 +1846,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        {storyboardUniverse ? <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse.id} embedded /> : <div role="status" className="flex flex-1 items-center justify-center px-4 text-center text-xs text-[var(--vyra-text-muted)]">Preparing this Project’s Assets for AI Chat…</div>}
+                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
                       </div>
                     ) : null}
                     <div className={storyboardEditorView === 'universe' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
