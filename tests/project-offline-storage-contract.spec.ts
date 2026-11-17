@@ -95,3 +95,15 @@ test('Project local imports and device recovery respect available storage capaci
   assert.ok(sync.includes('UNKNOWN_QUOTA_RESTORE_BUDGET'));
   assert.ok(sync.includes('getProjectOfflineStorageEstimate()'));
 });
+
+
+test('Project Chat persists attachments and sends supported media to AI inspection', () => {
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(chat.includes('importProjectFileToOfflineStorage'));
+  assert.ok(chat.includes('projectId: storyboardId'));
+  assert.ok(chat.includes('Project File ID:'));
+  assert.ok(chat.includes('createVisionImagePreview(attachedFile)'));
+  assert.ok(chat.includes('extractSelectedVideoFrames(attachedFile'));
+  assert.ok(chat.includes('Attached text content:'));
+  assert.ok(chat.includes('1 * 1024 * 1024'));
+});
