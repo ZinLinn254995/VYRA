@@ -1303,12 +1303,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           }
           if (!blob) continue;
           if (blob.size > 64 * 1024 * 1024) continue;
-          if (visionImages.length >= 8) break;
-          if (attachment.mimeType.startsWith('image/') && !currentVisionIds.has(attachment.projectFileId)) {
+          if (attachment.mimeType.startsWith('image/') && visionImages.length < 8 && !currentVisionIds.has(attachment.projectFileId)) {
             const preview = await createVisionImagePreview(blob);
             visionImages.push({ ...preview, assetId: attachment.projectFileId, assetName: attachment.name });
             currentVisionIds.add(attachment.projectFileId);
-          } else if (attachment.mimeType.startsWith('video/') && !currentVisionIds.has(attachment.projectFileId)) {
+          } else if (attachment.mimeType.startsWith('video/') && visionImages.length < 8 && !currentVisionIds.has(attachment.projectFileId)) {
             const frames = await extractSelectedVideoFrames(blob, attachment.projectFileId, attachment.name, Math.min(4, 8 - visionImages.length));
             visionImages.push(...frames);
             currentVisionIds.add(attachment.projectFileId);
