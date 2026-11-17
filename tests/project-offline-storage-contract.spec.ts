@@ -444,3 +444,22 @@ test('Failed Cloud restore cleans only the binary replica still owned by its cla
   assert.ok(cleanup.includes("localState: 'failed' as const"));
   assert.ok(cleanup.indexOf('latest?.replicaRevision === base.replicaRevision') < cleanup.indexOf('cleanupDirectory.removeEntry(storageKey)'));
 });
+
+
+test('Failed restore cleanup first atomically claims its exact copying revision', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('async function markProjectFileRestoreFailedIfOwned');
+  const end = storage.indexOf('async function storeValuesAtomically', start);
+  const helper = storage.slice(start, end);
+  assert.ok(helper.includes("db.transaction(FILE_STORE, 'readwrite')"));
+  assert.ok(helper.includes('current.replicaRevision !== expected.replicaRevision'));
+  assert.ok(helper.includes('current.updatedAt !== expected.updatedAt'));
+  assert.ok(helper.includes("current.localState !== 'copying'"));
+  assert.ok(helper.includes('current.deletedAt'));
+  assert.ok(helper.includes('store.put(failed)'));
+  const restoreStart = storage.indexOf('export async function installProjectCloudFileToOfflineStorage');
+  const restoreEnd = storage.indexOf('export async function getProjectOfflineFile', restoreStart);
+  const restore = storage.slice(restoreStart, restoreEnd);
+  assert.ok(restore.includes('markProjectFileRestoreFailedIfOwned(base, failed)'));
+  assert.ok(restore.includes('if (ownsFailure)'));
+});
