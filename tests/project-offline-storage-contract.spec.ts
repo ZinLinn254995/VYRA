@@ -52,3 +52,15 @@ test('Project architecture documents account recovery and two-way background syn
     'Verification gates',
   ]) assert.ok(document.includes(requirement), 'Missing architecture requirement: ' + requirement);
 });
+
+test('Project Cloud sync reuses the canonical Project File ID for upload and device recovery', () => {
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(sync.includes('syncPendingProjectFilesToCloud'));
+  assert.ok(sync.includes('restoreProjectOfflineFilesFromCloud'));
+  assert.ok(sync.includes('startProjectOfflineCloudSync'));
+  assert.ok(sync.includes("id: record.id"));
+  assert.ok(sync.includes(".eq('project_id', projectId)"));
+  assert.ok(sync.includes('installProjectCloudFileToOfflineStorage'));
+  assert.ok(sync.includes("window.addEventListener('online'"));
+  assert.ok(sync.includes("window.addEventListener('vyra:project-offline-file-ready'"));
+});
