@@ -187,13 +187,14 @@ Deno.serve(async (request: Request) => {
     if (existingPath) {
       const { data: outputRecord, error: outputRecordError } = await context.supabaseAdmin
         .from('media_generation_job_outputs')
-        .select('transfer_status,storage_path,sha256,mime_type,size_bytes')
+        .select('id,transfer_status,storage_path,sha256,mime_type,size_bytes')
         .eq('job_id', body.jobId).eq('output_index', outputIndex).maybeSingle();
       const { data: indexed, error: indexedError } = await context.supabaseAdmin.from('media_library_items')
         .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')
         .eq('id', projectFileId).eq('user_id', userId).eq('project_id', targetProjectId)
         .is('universe_id', null).maybeSingle();
-      if (outputRecordError || !outputRecord || outputRecord.storage_path !== existingPath ||
+      if (outputRecordError || !outputRecord || outputRecord.id !== projectFileId ||
+          outputRecord.transfer_status !== 'ingesting' || outputRecord.storage_path !== existingPath ||
           typeof outputRecord.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(outputRecord.sha256) ||
           typeof outputRecord.mime_type !== 'string' || !Number.isSafeInteger(outputRecord.size_bytes) ||
           Number(outputRecord.size_bytes) <= 0 ||
