@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const service = readFileSync(new URL('../src/services/mediaLibraryCloud.ts', import.meta.url), 'utf8');
 const projectStorageTab = readFileSync(new URL('../src/components/workspace/ProjectStorageTab.tsx', import.meta.url), 'utf8');
-const projectStoragePage = readFileSync(new URL('../src/components/profile/MyMediaLibraryPage.tsx', import.meta.url), 'utf8');
+const projectStoragePage = readFileSync(new URL('../src/components/workspace/ProjectStoragePage.tsx', import.meta.url), 'utf8');
 const projectChat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
 const projectStorageCleanup = readFileSync(new URL('../supabase/migrations/20261117020000_project_scoped_media_library_cleanup.sql', import.meta.url), 'utf8');
 
@@ -40,8 +40,8 @@ test('project file deletion queues only owner-prefixed standalone binaries atomi
 
 test('Project Storage UI is a generic project-scoped file manager', () => {
   assert.match(projectStorageTab, /projectId=\{projectId\}/);
-  assert.match(projectStoragePage, /projectId\?: string/);
-  assert.match(projectStoragePage, /createMediaLibraryFolder\(folderName, activeFolderId, universeId, projectId\)/);
+  assert.match(projectStoragePage, /projectId: string/);
+  assert.match(projectStoragePage, /createMediaLibraryFolder\(folderName, activeFolderId, null, projectId\)/);
   assert.doesNotMatch(projectStorageTab, /from\('vyrals'\)|\.insert\(/);
   assert.doesNotMatch(projectStorageTab, /DNA|Fingerprint|Universe/);
   assert.match(projectChat, /storyboardId/);
