@@ -307,8 +307,12 @@ test('AI Director Project deletion writes a cloud tombstone instead of removing 
 });
 
 test('Project AI Chat remains available before any optional project Storage library exists', () => {
-  assert.ok(workspace.includes('activeVyralId={storyboardUniverse?.id ?? null}'));
-  assert.ok(workspace.includes('<AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === \'chat\')}'));
-  assert.ok(!workspace.includes('{storyboardUniverse ? <AIChatPage'));
-  assert.ok(!workspace.includes('Preparing this Project’s Assets for AI Chat'));
+  const projectChatStart = workspace.indexOf("storyboardEditorView === 'chat' ? (");
+  const projectChatEnd = workspace.indexOf("storyboardEditorView === 'universe' ?", projectChatStart);
+  assert.ok(projectChatStart >= 0 && projectChatEnd > projectChatStart);
+  const projectChat = workspace.slice(projectChatStart, projectChatEnd);
+  assert.ok(projectChat.includes('<AIChatPage'));
+  assert.ok(projectChat.includes('activeVyralId={storyboardUniverse?.id ?? null}'));
+  assert.ok(!projectChat.includes('storyboardUniverse ?'));
+  assert.ok(!projectChat.includes('Preparing this Project’s Assets for AI Chat'));
 });
