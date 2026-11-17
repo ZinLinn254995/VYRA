@@ -151,13 +151,18 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
       const local = await getProjectOfflineFile(row.id);
       if (local?.deletedAt && local.projectId === projectId) continue;
       if (local?.localState === 'available' && local.projectId === projectId) {
-        await reconcileProjectOfflineFileMetadata({
-          projectFileId: row.id,
-          fileName: row.file_name,
-          folderId: row.folder_id ?? null,
-          updatedAt: row.updated_at ?? null,
-        });
-        continue;
+        const localBlob = await getProjectOfflineFileBlob(row.id);
+        if (localBlob) {
+          await reconcileProjectOfflineFileMetadata({
+            projectFileId: row.id,
+            fileName: row.file_name,
+            folderId: row.folder_id ?? null,
+            updatedAt: row.updated_at ?? null,
+          });
+          continue;
+        }
+        // A metadata row is not proof that the binary still exists (OPFS may
+        // be evicted independently). Fall through and repair from Cloud.
       }
       const fileSize = Math.max(0, Number(row.size_bytes) || 0);
       const estimate = await getProjectOfflineStorageEstimate();
