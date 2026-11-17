@@ -11,6 +11,7 @@ import {
   listProjectOfflineFiles,
   removeProjectOfflineFile,
   reconcileProjectOfflineFileMetadata,
+  recoverInterruptedProjectOfflineEvictions,
 } from './projectOfflineStorage';
 import { deleteMediaLibraryItems, moveMediaLibraryItems, renameMediaLibraryItem } from './mediaLibraryCloud';
 
@@ -159,6 +160,9 @@ export function syncPendingProjectFilesToCloud(limit = 5): Promise<number> {
  * IDs are retained; only missing local replicas are downloaded and installed.
  */
 export async function restoreProjectOfflineFilesFromCloud(projectId: string, limit = 100): Promise<number> {
+  // Finish interrupted local-only evictions before reconciling the Cloud manifest.
+  // The recovery helper uses per-file Web Locks and skips unsafe browsers.
+  await recoverInterruptedProjectOfflineEvictions(projectId);
   if (!projectId) throw new Error('A Project is required for Offline recovery.');
   const db = getDb();
   const userId = await getOwnerId();
