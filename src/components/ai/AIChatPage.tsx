@@ -679,7 +679,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
-          'my-media-library': 'My Media Library',
         };
         const assistantMessage: ChatMessage = {
           id: makeId(),
