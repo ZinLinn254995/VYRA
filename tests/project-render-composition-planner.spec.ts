@@ -162,6 +162,28 @@ test('resolves visual clip transitions to their timeline boundary', () => {
   }]);
 });
 
+test('resolves transitions between Director scene media and uploaded visual clips', () => {
+  const value = input();
+  value.timeline.sceneInstances = [
+    { id: 'director-clip', sceneId: 'scene-a', sourceIn: 0, sourceOut: 8,
+      projectFileId: 'director-file', assetMimeType: 'video/mp4' },
+  ];
+  value.timeline.videoTracks = [{
+    id: 'uploaded-row', clips: [{
+      id: 'uploaded-next', start: 8, duration: 3,
+      projectFileId: 'uploaded-file', assetMimeType: 'video/mp4', mediaKind: 'video',
+    }],
+  }];
+  value.timeline.transitions = {
+    'director-clip:uploaded-next': { effect: 'crossfade', duration: 0.6 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'director-clip:uploaded-next', effect: 'crossfade', durationSeconds: 0.6,
+    scope: 'video', boundarySeconds: 8, fromId: 'director-clip', toId: 'uploaded-next',
+  }]);
+});
+
 test('preserves transition metadata but marks stale keys unresolved', () => {
   const value = input();
   value.timeline.transitions = {
