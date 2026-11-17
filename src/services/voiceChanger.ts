@@ -7,7 +7,8 @@ export type VoiceChangerPresetId =
   | 'alien'
   | 'deep'
   | 'bright'
-  | 'vintage';
+  | 'vintage'
+  | 'custom';
 
 export type VoiceChangerSettings = {
   presetId: VoiceChangerPresetId;
@@ -52,7 +53,7 @@ const clamp = (value: unknown, min: number, max: number, fallback: number) =>
 export function normalizeVoiceChangerSettings(input?: Partial<VoiceChangerSettings> | null): VoiceChangerSettings {
   const presetId = VOICE_CHANGER_PRESETS.some((preset) => preset.id === input?.presetId)
     ? input!.presetId as VoiceChangerPresetId
-    : 'clean';
+    : input?.presetId === 'custom' ? 'custom' : 'clean';
   return {
     presetId,
     enabled: input?.enabled === true,
