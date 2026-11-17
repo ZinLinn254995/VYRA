@@ -253,3 +253,14 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Removed the large active-Vyral context assembly from `supabase/functions/vyra-openai-chat/index.ts` (32 KB of DNA/Fingerprint/Master-DNA, Universe inventory, creator evidence, and consistency-retrieval instructions). Project Chat no longer loads or injects that context.
 - Remaining AI Chat server code still contains legacy Vyral read/proposal adapters and the old Asset upload-completion workflow; these are not considered acceptable final architecture and must be removed or replaced with generic Project Storage operations. Generation and Editor still require Project-file identity migration before their Asset dependencies can be deleted.
 - Source-only changes; no TypeScript/build/test/browser/SQL/RLS verification has been run.
+
+
+## Cleanup progress — 2026-11-17 (remove Chat Asset workflows and isolate Project Storage)
+
+- Removed the remaining Vyral/Asset read and proposal tool definitions from Project Chat, including the dedicated Vyral read executor and active Universe tool list. The AI capability registry no longer exposes the Vyral or Asset capability groups; Marketplace was removed earlier.
+- Replaced the old AI Chat Asset-handoff test suite with boundary tests asserting that Project Chat has no selected-Vyral Asset context or DNA inventory tools. Removed obsolete My Vyrals/Profile Universe UI assertions from Media Library tests.
+- Removed an unused import of the old Universe scene-state prompt module from the Chat Edge Function. The module itself is not deleted until all branch references are audited.
+- Project Storage uploads now place project-scoped binaries under `{userId}/media-library/{projectId}/{fileId}.{ext}`; Personal Storage retains its previous `{userId}/media-library/{fileId}.{ext}` namespace. Added a source contract test for this distinction.
+- **Generation remains a hard blocker:** Workspace currently passes `activeVyralId={null}` to Chat, while `runwayProjectGeneration.ts` still requires a Vyral destination and `runwayProjectOutputIngestion.ts` still creates Asset/DNA/Fingerprint records. The project-native SQL migrations `20261117030000` and `20261117040000` are only a foundation; the client service, transfer worker, completion endpoint, and recovery flow still use the legacy path. Do not claim Project media generation is migrated or working until these are connected and verified.
+- **Editor remains a hard blocker:** existing timeline clips still use Asset/Version IDs and Vyral playback helpers; upload/recovery is disabled without a Vyral ID. New Project-file clip references and backward-compatible playback resolution are still required.
+- No build, TypeScript check, Node test suite, browser E2E, migration execution, or RLS/Storage policy validation has been run for this batch. These changes are not merge-ready.
