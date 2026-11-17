@@ -97,7 +97,10 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
       instance.videoClips.forEach((clip, layer) => {
         const source = clipSource(clip);
         if (!source) return;
-        const kind = source.mimeType?.toLowerCase().startsWith('image/') || clip.mediaKind === 'image' ? 'image' : 'video';
+        const mime = source.mimeType?.toLowerCase() ?? '';
+        if (clip.mediaKind === 'audio' || mime.startsWith('audio/')) return;
+        if (mime && !mime.startsWith('video/') && !mime.startsWith('image/')) return;
+        const kind = mime.startsWith('image/') || clip.mediaKind === 'image' ? 'image' : 'video';
         const range = sourceRange(clip);
         const start = startSeconds + clip.start;
         const end = Math.min(endSeconds, start + range.durationSeconds);
@@ -136,8 +139,9 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
       const source = clipSource(clip);
       if (!source) return;
       const mime = source.mimeType?.toLowerCase() ?? '';
+      if (clip.mediaKind === 'audio' || mime.startsWith('audio/')) return;
+      if (mime && !mime.startsWith('video/') && !mime.startsWith('image/')) return;
       const kind = clip.mediaKind === 'image' || mime.startsWith('image/') ? 'image' : 'video';
-      if (kind === 'video' && mime && !mime.startsWith('video/')) return;
       const range = sourceRange(clip);
       const endSeconds = clip.start + range.durationSeconds;
       if (endSeconds <= clip.start) return;
