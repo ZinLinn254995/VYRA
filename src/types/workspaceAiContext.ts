@@ -1,15 +1,3 @@
-export type WorkspaceSceneStateProposalHandoff = {
-  id: string;
-  storyboardId: string;
-  sceneId: string;
-  ledger: unknown;
-  /** Exact ledger snapshot used during evaluation; prevents stale AI handoffs overwriting newer edits. */
-  evaluatedAgainstLedger: unknown;
-  validationStatus: 'consistent' | 'needs_review';
-  violations: Array<{ path: string; kind: string; reason: string }>;
-  capturedAt: string;
-};
-
 export type WorkspaceAiContext = {
   /** Local-only evaluation snapshot. AIService strips this before sending prompt context to the server. */
   continuityRuntime?: {
