@@ -215,6 +215,16 @@ export async function createProjectRenderJobFromInputs(input: {
 export function transitionProjectRenderJob(job: ProjectRenderJob, event: ProjectRenderJobEvent): ProjectRenderJob {
   assertTimestamp(event.at);
   if (!job || job.schema !== 'vyra.project-render-job' || job.version !== 1) throw new Error('A supported Project render job is required.');
+  if (!job.id?.trim() || !job.projectId?.trim() || !job.ownerId?.trim() ||
+      !/^[a-f0-9]{64}$/i.test(job.inputDigest) || !Number.isSafeInteger(job.revision) || job.revision < 1 ||
+      !Number.isSafeInteger(job.attempt) || job.attempt < 1 ||
+      !Number.isFinite(job.progress) || job.progress < 0 || job.progress > 100) {
+    throw new Error('The render job snapshot contains invalid identity or lifecycle values.');
+  }
+  assertTimestamp(job.updatedAt);
+  if (!['queued', 'preparing', 'rendering', 'uploading', 'cancel_requested', 'completed', 'failed', 'cancelled'].includes(job.status)) {
+    throw new Error('The render job has an unsupported lifecycle status.');
+  }
   if (job.status === 'completed' || job.status === 'cancelled') throw new Error('A terminal render job cannot be changed.');
   if (Date.parse(event.at) < Date.parse(job.updatedAt)) throw new Error('Render job events cannot move the update timestamp backwards.');
   const next: ProjectRenderJob = { ...job, revision: job.revision + 1, updatedAt: event.at };
@@ -262,6 +272,8 @@ export function transitionProjectRenderJob(job: ProjectRenderJob, event: Project
     next.error = null;
     next.cancelRequestedAt = null;
     next.completedAt = null;
+  } else {
+    throw new Error('The render job event type is unsupported.');
   }
   return freeze(next);
 }
