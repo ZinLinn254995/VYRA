@@ -296,7 +296,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
     };
     void initializeLibrary();
     return () => { mounted = false; };
-  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId, projectId]);
   useEffect(() => () => { if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current); }, []);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
