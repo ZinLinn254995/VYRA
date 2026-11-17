@@ -28,7 +28,7 @@ import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
-import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
+import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary, uploadMediaLibraryFiles } from '../../services/mediaLibraryCloud';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -1372,8 +1372,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     if (masterPlaybackState !== 'idle') stopMasterTimelinePlayback();
     const clip = selectedAudioClipRecord;
     const audio = audioPreviewRef.current;
-    if (!clip || !clip.assetId || !clip.assetVersionId || !audio) {
-      setAudioPreviewError('This clip has no verified Vyral Audio Asset source.');
+    if (!clip || (!clip.projectFileId && (!clip.assetId || !clip.assetVersionId)) || !audio) {
+      setAudioPreviewError('This clip has no verified Project media source.');
       return;
     }
     if (!supabase) { setAudioPreviewError('Private Audio Storage is not configured.'); return; }
@@ -1392,8 +1392,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
-      const result = await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId, versionId: clip.assetVersionId });
-      audio.src = result.signedUrl;
+      const playbackUrl = clip.projectFileId
+        ? (await getProjectMediaLibraryItemPlaybackSource(clip.projectFileId, projectId || '', 'audio')).signedUrl
+        : (await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId!, versionId: clip.assetVersionId! })).signedUrl;
+      audio.src = playbackUrl;
       audio.load();
       setAudioPreviewClipKey(selectedAudioClipKey);
       await audio.play();
@@ -1453,8 +1455,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!files.length) return;
-    if (!supabase || !vyralId) {
-      setMediaUploadError('Open this Project’s Vyral before uploading media.');
+    if (!supabase || (!projectId && !vyralId)) {
+      setMediaUploadError('Open a Project before uploading media.');
       return;
     }
     setMediaUploadBusy(true);
@@ -1539,6 +1541,56 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         const normalizedFile = file.type.toLowerCase().startsWith(kind + '/')
           ? file
           : new File([file], file.name, { type: mimeByExtension[extension] || (kind + '/octet-stream') });
+        if (projectId) {
+          let projectFileId: string | null = null;
+          await uploadMediaLibraryFiles(
+            [normalizedFile],
+            null,
+            undefined,
+            undefined,
+            undefined,
+            (itemId) => { projectFileId = itemId; },
+            undefined,
+            projectId,
+          );
+          if (!projectFileId) throw new Error(file.name + ' uploaded without a Project file record.');
+          const projectClip: TimelineClip = {
+            id: crypto.randomUUID(),
+            name: file.name,
+            content: file.name,
+            start: kind === 'audio'
+              ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
+              : 0,
+            duration: 5,
+            sourceIn: 0,
+            sourceOut: 5,
+            projectFileId,
+            assetMimeType: normalizedFile.type || (kind + '/octet-stream'),
+            waveform: [],
+            mediaKind: kind,
+          };
+          if (kind === 'audio') {
+            const placement = placeTimelineOverlayClip(nextAudioTracks, projectClip, 'Audio', () => crypto.randomUUID());
+            nextAudioTracks = placement.tracks as TimelineTrack[];
+          } else {
+            const placement = placeTimelineMediaClip(nextVideoTracks, projectClip, kind, () => crypto.randomUUID());
+            nextVideoTracks = placement.tracks as TimelineTrack[];
+            sceneOrderedClips.splice(Math.min(sceneInsertionIndex, sceneOrderedClips.length), 0, projectClip);
+            applyScenesClipTrainLayout(sceneOrderedClips);
+            sceneInsertionIndex += 1;
+          }
+          commitChange({
+            sceneRanges: value?.sceneRanges || {},
+            sceneInstances: nextSceneInstances,
+            videoTracks: nextVideoTracks,
+            transitions: { ...(value?.transitions || {}) },
+            audioTracks: nextAudioTracks,
+            textTracks: value?.textTracks || [],
+          });
+          continue;
+        }
+        // Legacy historical Editor uploads remain recoverable until their old
+        // Asset-backed timelines have been migrated to Project file references.
         // Put the selected device file on the timeline before doing metadata
         // extraction or writing a persistent local copy. Cloud ingestion later
         // replaces this short provisional duration with the detected duration.
@@ -2964,7 +3016,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         {!isTextEditMode && (
           <div className="pointer-events-none absolute right-4 top-[3.25rem] z-40 flex flex-col items-end gap-2">
             {mediaUploadError && <div role="status" className="max-w-56 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2 text-xs text-[var(--vyra-text-primary)] shadow-lg">{mediaUploadError}</div>}
-            <button type="button" disabled={mediaUploadBusy || !vyralId} onClick={() => mediaFileInputRef.current?.click()}
+            <button type="button" disabled={mediaUploadBusy || (!projectId && !vyralId)} onClick={() => mediaFileInputRef.current?.click()}
               title="Upload Video, Image or Audio" aria-label="Upload Video, Image or Audio"
               className="pointer-events-auto grid size-10 place-items-center rounded-md border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white shadow-sm transition-colors hover:brightness-105 disabled:cursor-wait disabled:opacity-60">
               {mediaUploadBusy ? <LoaderCircle size={20} className="animate-spin" /> : <Plus size={22} strokeWidth={2} />}
