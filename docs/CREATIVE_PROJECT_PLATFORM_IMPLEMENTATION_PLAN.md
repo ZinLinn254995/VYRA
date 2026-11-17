@@ -112,3 +112,16 @@ The runtime switch remains intentionally blocked until all of the above paths ar
 - This change does not yet replace the visible legacy Storage/Universe tab; that remains deliberately intact until generic project-scoped Storage supports every file operation and cleanup path.
 
 **Verification status:** source/test changes were committed, but this environment has not run the Node test, TypeScript build, browser tests, or GitHub Actions for the new commits. Do not interpret the static test-source update as a passing test run.
+
+
+## 2026-11-17 — Generic Project Storage runtime implementation
+
+- Added explicit `projectId` scope to Media Library reads, signed-URL lookup, folder CRUD/move, file move/rename/delete, uploads, and thumbnail backfill.
+- Project queries are constrained by the authenticated owner, `project_id`, and `universe_id IS NULL`; legacy personal and Universe scopes remain separate.
+- Project mutations verify the Storyboard owner and verify the selected folder/file rows belong to that exact project before changing them.
+- Replaced the Storyboard Storage tab's hidden Vyral/Universe creation with the existing generic Media Library UI bound directly to the Storyboard ID.
+- Added an atomic project-file deletion RPC. It rejects canonical Vyral-backed rows and unsafe paths, queues standalone originals/thumbnails for owner-scoped cleanup, then deletes only the selected project's index rows in the same transaction.
+- Generic project uploads remain in the private owner-prefixed `media-library/` and `media-library-thumbnails/` Storage paths; project identity is carried by the database index, not inferred from a client-provided path.
+- Added project runtime scope tests and wired them into CI alongside migration safety tests.
+- Verification status: source/commit inspection only. The new migration has not been applied to Supabase; tests, TypeScript check, browser flow, and production deployment have not been run. Do not expose the new Storage runtime in production until CI passes and the migration is reviewed/applied in the intended environment.
+- Remaining audit: project-scope generated/chat asset registration and AI file-tool operations; confirm project deletion/recovery interactions; verify Supabase RLS/Storage policies and execute the migration in a non-production environment before enabling the workflow.
