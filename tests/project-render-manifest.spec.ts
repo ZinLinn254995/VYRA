@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProjectRenderManifest, getProjectRenderSourceKey } from '../src/services/projectRenderManifest.ts';
+import { createProjectRenderManifest, getProjectRenderSourceKey, type ProjectRenderManifestInput } from '../src/services/projectRenderManifest.ts';
 
-const baseInput = () => ({
+const baseInput = (): ProjectRenderManifestInput => ({
   projectId: 'project-1',
   createdAt: '2026-11-17T10:00:00.000Z',
   scenes: [{ id: 'scene-1', title: 'Opening', duration: 12 }],
@@ -37,7 +37,7 @@ test('creates a versioned render snapshot with stable Project File and legacy As
 
 test('does not retain signed URLs, object URLs, editor-only waveform data, or mutate source timeline', () => {
   const input = baseInput();
-  const clip = input.timeline.videoTracks[0].clips[0] as typeof input.timeline.videoTracks[0]['clips'][0] & { waveform: number[]; url: string };
+  const clip = input.timeline.videoTracks![0].clips[0] as typeof input.timeline.videoTracks[0]['clips'][0] & { waveform: number[]; url: string };
   clip.waveform = [0.2, 0.8];
   clip.url = 'blob:temporary-editor-url';
   const before = JSON.stringify(input);
@@ -51,20 +51,20 @@ test('does not retain signed URLs, object URLs, editor-only waveform data, or mu
 
 test('rejects clips without stable source identity and invalid source trim ranges', () => {
   const input = baseInput();
-  input.timeline.videoTracks[0].clips[0].projectFileId = undefined as never;
-  input.timeline.videoTracks[0].clips[0].assetId = undefined as never;
-  input.timeline.videoTracks[0].clips[0].assetVersionId = undefined as never;
+  input.timeline.videoTracks![0].clips[0].projectFileId = undefined;
+  input.timeline.videoTracks![0].clips[0].assetId = undefined;
+  input.timeline.videoTracks![0].clips[0].assetVersionId = undefined;
   assert.throws(() => createProjectRenderManifest(input), /missing-source/);
   const invalid = baseInput();
-  invalid.timeline.audioTracks[0].clips[0].sourceOut = 0.5;
+  invalid.timeline.audioTracks![0].clips[0].sourceOut = 0.5;
   assert.throws(() => createProjectRenderManifest(invalid), /invalid-timing/);
 });
 
 test('rejects invalid timeline tracks, scene ranges, transitions, and scene durations', () => {
   const invalid = baseInput();
-  invalid.timeline.videoTracks[0].clips[0].start = -1;
-  invalid.timeline.sceneRanges['scene-1'].sourceOut = 0;
-  invalid.timeline.transitions['bad'] = { effect: '', duration: -1 };
+  invalid.timeline.videoTracks![0].clips[0].start = -1;
+  invalid.timeline.sceneRanges!['scene-1'].sourceOut = 0;
+  invalid.timeline.transitions!['bad'] = { effect: '', duration: -1 };
   invalid.scenes[0].duration = 0;
   assert.throws(() => createProjectRenderManifest(invalid));
 });
