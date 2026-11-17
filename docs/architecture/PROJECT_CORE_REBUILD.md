@@ -344,3 +344,20 @@ This audit is a deliberate architecture hold, not an export implementation claim
 - The Project media lookup now returns the stored SHA-256 metadata so the resolver can pass it into Offline installation for integrity verification.
 - Added resolver contract tests for local-first behavior, cross-Project rejection, Cloud restore identity preservation, MIME/size failures, and historical Asset version continuity.
 - This resolver returns source bytes only. It does not compose frames/audio, encode a video, or implement a render job. Automated tests and runtime verification have not been run in this environment.
+
+
+## 13. Renderer-neutral composition planner
+
+The immutable manifest now feeds a pure composition-planning layer. It does not encode media or choose a codec; it converts the captured timeline into a serializable render schedule containing:
+
+- ordered Scene time ranges and source ranges;
+- Scene-instance video clips and direct Video-track clips;
+- Image overlays and their stable source identities;
+- overlapping Audio-track clips with trim ranges and effective track gain;
+- visible Text overlays with track stacking order;
+- transition keys, effect names, and durations without inventing transition placement semantics;
+- a deduplicated source inventory keyed by Project File ID or immutable legacy Asset/version pair.
+
+The plan is detached and deeply frozen. It contains no signed URLs, object URLs, Blob bytes, or runtime handles. Project File bytes remain the responsibility of the Project-scoped source resolver. The composition plan is a deterministic input contract for a future renderer, not a claim that video encoding/export is implemented.
+
+A dedicated contract suite covers Scene ordering, image/video/audio/text layering, overlapping audio, source trims, scene-boundary clipping, transition preservation, source deduplication, legacy identity continuity, and immutability.
