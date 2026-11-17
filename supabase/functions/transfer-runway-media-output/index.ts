@@ -235,6 +235,25 @@ Deno.serve(async (request: Request) => {
       const bytes = await readBoundedBody(upstream);
       const digest = await sha256(bytes);
       const storagePath = userId + '/media-library/' + targetProjectId + '/' + projectFileId + '.' + extension;
+      // A prior interrupted attempt may have created the media-library row before
+      // its output state was committed. Never let an ID collision overwrite a
+      // different owner's, Project's, or generation's canonical file.
+      const { data: existingItem, error: existingItemError } = await context.supabaseAdmin
+        .from('media_library_items')
+        .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')
+        .eq('id', projectFileId).maybeSingle();
+      if (existingItemError || (existingItem && (
+          existingItem.user_id !== userId || existingItem.project_id !== targetProjectId ||
+          existingItem.universe_id !== null || existingItem.source_asset_id !== null ||
+          existingItem.source_kind !== 'generated' || existingItem.bucket_id !== BUCKET ||
+          existingItem.storage_path !== storagePath || existingItem.mime_type !== mimeType ||
+          Number(existingItem.size_bytes) !== bytes.byteLength ||
+          existingItem.metadata?.generation_job_id !== body.jobId ||
+          Number(existingItem.metadata?.output_index) !== Number(outputIndex) ||
+          existingItem.metadata?.sha256 !== digest
+        ))) {
+        throw new Error('project_file_identity_conflict');
+      }
       const { error: uploadError } = await context.supabaseAdmin.storage.from(BUCKET).upload(
         storagePath, bytes, { contentType: mimeType, upsert: true, cacheControl: '3600' },
       );
