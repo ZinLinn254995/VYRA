@@ -129,7 +129,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
     const hasLegacyAssetSource = typeof instance.assetId === 'string' && instance.assetId.length > 0 &&
       typeof instance.assetVersionId === 'string' && instance.assetVersionId.length > 0;
     if ((!hasProjectFileSource && !hasLegacyAssetSource) ||
-        typeof instance.assetMimeType !== 'string' || !/^video\\//i.test(instance.assetMimeType) ||
+        typeof instance.assetMimeType !== 'string' || !/^video\//i.test(instance.assetMimeType) ||
         !Number.isFinite(instance.videoSourceIn) || (instance.videoSourceIn as number) < 0 ||
         !Number.isFinite(instance.videoSourceOut) || (instance.videoSourceOut as number) <= (instance.videoSourceIn as number)) continue;
 
