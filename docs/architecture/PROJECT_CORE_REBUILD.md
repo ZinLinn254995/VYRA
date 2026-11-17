@@ -157,6 +157,7 @@ Completed on the working branch:
 - OPFS-first / IndexedDB-fallback local binary storage with durable file metadata and sync queue.
 - Stable Project File IDs across local import and Cloud replicas.
 - Project Storage upload now copies to Offline Storage first and renders the local item immediately.
+- Project Chat attachments are copied into the same Offline Storage before the turn; image/video attachments are inspected through AI Vision, and small text attachments are included in the prompt with their stable Project File ID.
 - Project Storage previews prefer the local binary and remain usable when Cloud metadata reads fail.
 - Folder relationships are retained in local records and synchronized to the Cloud media row.
 - Background Cloud upload remains outside the visible upload progress UI.
@@ -166,7 +167,7 @@ Completed on the working branch:
 
 Still pending:
 
-- Project Chat attachments and generation must use Project File IDs directly.
+- Project Chat attachment persistence and image/video/text inspection are partially integrated; generation jobs and generic retrieval by Project File ID still need the Project-native backend path.
 - Editor playback and timeline clips must resolve Project File IDs while preserving historical Asset/version references.
 - Offline rename/move/delete operations need durable local mutation records and Cloud reconciliation.
 - Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
