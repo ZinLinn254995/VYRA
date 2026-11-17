@@ -173,8 +173,20 @@ Deno.serve(async (request: Request) => {
         .is('universe_id', null).maybeSingle();
       if (indexedError || !indexed || indexed.storage_path !== existingPath ||
           indexed.metadata?.generation_job_id !== body.jobId ||
-          Number(indexed.metadata?.output_index) !== Number(outputIndex)) {
+          Number(indexed.metadata?.output_index) !== Number(outputIndex) ||
+          typeof indexed.metadata?.sha256 !== 'string' ||
+          typeof indexed.mime_type !== 'string' || !Number.isSafeInteger(indexed.size_bytes) ||
+          Number(indexed.size_bytes) <= 0) {
         return json({ error: 'The previously stored Project output could not be recovered safely.' }, 503);
+      }
+      const { data: recovered, error: recoveryError } = await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+        p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
+        p_status: 'stored', p_storage_path: existingPath,
+        p_sha256: indexed.metadata.sha256, p_mime_type: indexed.mime_type,
+        p_size_bytes: indexed.size_bytes, p_lease_token: leaseToken,
+      });
+      if (recoveryError || !isRecord(recovered) || recovered.recorded !== true) {
+        return json({ error: 'The previously stored Project output lease could not be recovered safely.' }, 503);
       }
       return json({
         jobId: body.jobId, outputIndex, targetProjectId, projectFileId,
@@ -274,7 +286,7 @@ Deno.serve(async (request: Request) => {
   if (!UUID.test(targetVyralId) || !providerUrl) {
     await context.supabaseAdmin.rpc('record_runway_output_transfer', {
       p_user_id: userId, p_job_id: body.jobId, p_output_index: outputIndex,
-      p_status: 'failed', p_error_code: 'provider_output_host_not_allowed', p_lease_token: leaseToken,
+      p_status: 'failed', p_error_code: 'provider_output_host_not_allowed',
     });
     return json({ error: 'The provider output host is not in VYRA’s approved allowlist.' }, 502);
   }
