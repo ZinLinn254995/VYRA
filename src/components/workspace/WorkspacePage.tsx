@@ -1844,7 +1844,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : null}
                     <div className={storyboardEditorView === 'storage' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
-                      <ProjectStorageTab storyboardId={activeStoryboard.id} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={storyboardEditorView === 'storage'} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired}  />
+                      <ProjectStorageTab projectId={activeStoryboard.id} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={storyboardEditorView === 'storage'} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired}  />
                     </div>
                 </div>
               );
