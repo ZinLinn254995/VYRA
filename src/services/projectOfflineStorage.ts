@@ -351,6 +351,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
   if (!input.projectId || !input.projectFileId) throw new Error('A Project and Project File ID are required.');
   if (!input.blob || input.blob.size <= 0) throw new Error('The Cloud file is empty.');
   const existing = await getProjectOfflineFile(input.projectFileId);
+  if (existing?.deletedAt && existing.projectId === input.projectId) throw new Error('This Project file has a pending deletion and cannot be restored.');
   if (existing?.localState === 'available' && existing.projectId === input.projectId) return existing;
 
   const storageKey = input.projectFileId + '.blob';
