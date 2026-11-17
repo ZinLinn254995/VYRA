@@ -103,3 +103,12 @@ Important deletion finding: the current personal-library delete path calls `dele
 Important upload finding: generic personal uploads currently use owner-prefixed `media-library/` and `media-library-thumbnails/` object paths. Project uploads may use the same private owner namespace, but the database index must carry `project_id`; cleanup and authorization must continue to validate the owner prefix and must not infer project ownership from an untrusted Storage path.
 
 The runtime switch remains intentionally blocked until all of the above paths are implemented and tested together. Keep the current legacy Storyboard Universe behavior in place until then; do not expose a half-migrated Storage page with broken upload or destructive actions.
+
+## Progress update — 2026-11-17 (continued)
+
+- Removed the second legacy Project AI Chat gate: the Scene-layout Chat now renders with a nullable optional Vyral context rather than waiting for a Vyral library to exist.
+- Removed the hidden `StoryboardUniverseTab` preloader that previously created a Vyral container in the background just to make that Chat render.
+- Extended the Project AI Chat regression test to cover both the current Project Chat view and the legacy Scene-layout Chat path, including the absence of the hidden Universe preloader.
+- This change does not yet replace the visible legacy Storage/Universe tab; that remains deliberately intact until generic project-scoped Storage supports every file operation and cleanup path.
+
+**Verification status:** source/test changes were committed, but this environment has not run the Node test, TypeScript build, browser tests, or GitHub Actions for the new commits. Do not interpret the static test-source update as a passing test run.
