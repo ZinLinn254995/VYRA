@@ -69,6 +69,35 @@ test('restores missing local Project File bytes from Cloud under the same ID', a
   assert.equal(result.replica, 'restored');
 });
 
+test('verifies Cloud bytes and restored metadata before returning a render source', async () => {
+  const sha256OfData = '3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7';
+  const input = { projectId: 'project-1', source: { kind: 'project-file' as const, projectFileId: 'file-1' }, expectedKind: 'video' as const };
+
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      getOfflineRecord: async () => null,
+      getProjectCloudSource: async () => ({ projectFileId: 'file-1', signedUrl: 'https://private.invalid/file', mimeType: 'video/mp4', fileName: 'clip.mp4', sizeBytes: 4, expectedSha256: '0'.repeat(64) }),
+      installCloudReplica: async () => { throw new Error('must not install unverified bytes'); },
+    }) as never),
+    /SHA-256 integrity check/,
+  );
+
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      getOfflineRecord: async () => null,
+      installCloudReplica: async () => record({ projectId: 'another-project' }),
+    }) as never),
+    /metadata does not match/,
+  );
+
+  const valid = await resolveProjectRenderSourceBlob(input, ports({
+    getOfflineRecord: async () => null,
+    getProjectCloudSource: async () => ({ projectFileId: 'file-1', signedUrl: 'https://private.invalid/file', mimeType: 'video/mp4', fileName: 'clip.mp4', sizeBytes: 4, expectedSha256: sha256OfData }),
+    installCloudReplica: async () => record({ contentHash: sha256OfData }),
+  }) as never);
+  assert.equal(valid.replica, 'restored');
+});
+
 test('rejects wrong Project ownership, MIME mismatch, and incomplete Cloud downloads', async () => {
   await assert.rejects(() => resolveProjectRenderSourceBlob({ projectId: 'project-1', source: { kind: 'project-file', projectFileId: 'file-1' }, expectedKind: 'video' }, ports({ getOfflineRecord: async () => record({ mimeType: 'audio/mpeg' }) }) as never), /MIME type/);
   await assert.rejects(() => resolveProjectRenderSourceBlob({ projectId: 'project-1', source: { kind: 'project-file', projectFileId: 'file-1' }, expectedKind: 'video' }, ports({ getOfflineRecord: async () => null, getOfflineBlob: async () => null, fetchBlob: async () => new Blob(['x']) }) as never), /size does not match/);
