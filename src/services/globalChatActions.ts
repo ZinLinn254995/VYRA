@@ -159,6 +159,8 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
 
 
 
+export type GlobalChatNavigationTarget = 'workspace' | 'my-projects';
+
 export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
   const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
   const patterns: Array<[GlobalChatNavigationTarget, RegExp]> = [
