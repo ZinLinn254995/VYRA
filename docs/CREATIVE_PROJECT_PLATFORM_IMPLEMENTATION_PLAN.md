@@ -84,7 +84,7 @@ Storage is a general-purpose file manager, not a knowledge system.
 - Removed the main Project AI Chat's dependency on first preparing a Vyral library. The Chat surface now renders with a null optional Vyral context when no library exists; project media generation still needs its own supported Asset destination flow.
 - Added a regression assertion for this Chat behavior.
 
-**Not yet complete:** `mediaLibraryCloud.ts` and `MyMediaLibraryPage` still need to pass and enforce `project_id` in every list/create/upload/move/rename/delete/thumbnail path. `StoryboardUniverseTab` still creates the legacy Vyral container until that runtime migration is ready. Do not deploy the migration or remove that legacy path before the project-scoped runtime and deletion cleanup are implemented and verified.
+**Status correction (superseded by the later Generic Project Storage runtime implementation below):** the project-scoped runtime is now wired through `mediaLibraryCloud.ts`, `MyMediaLibraryPage`, and `ProjectStorageTab`; project reads, folder/file mutations, uploads, thumbnail paths, and project-file deletion have explicit `projectId` handling. The initial audit below records the risks that drove that implementation, not outstanding missing code. Remaining gates are migration execution in a non-production environment, RLS/Storage-policy verification, and automated end-to-end checks.
 
 ## Storage runtime audit — 2026-11-17
 
@@ -102,7 +102,7 @@ Important deletion finding: the current personal-library delete path calls `dele
 
 Important upload finding: generic personal uploads currently use owner-prefixed `media-library/` and `media-library-thumbnails/` object paths. Project uploads may use the same private owner namespace, but the database index must carry `project_id`; cleanup and authorization must continue to validate the owner prefix and must not infer project ownership from an untrusted Storage path.
 
-The runtime switch remains intentionally blocked until all of the above paths are implemented and tested together. Do not expose Storage until every operation is verified end-to-end; retain existing safe fallback behavior where required.
+The implementation is now present (see the later runtime implementation section). This historical audit is not evidence that the switch is still blocked at source level; the workflow remains unverified for release until the listed migration, policy, and end-to-end checks pass.
 
 ## Progress update — 2026-11-17 (continued)
 
@@ -137,7 +137,7 @@ The runtime switch remains intentionally blocked until all of the above paths ar
 - Renamed Workspace routing/request props from `*UniverseRequest` to `*ProjectRequest` and changed the shared AI context type to remove the obsolete `storyboardUniverse` payload.
 - Updated the AI Chat UI contract test to match Project Storage and nullable Vyral context.
 - This is a terminology and UI wiring cleanup only. The generation lifecycle still has a `targetVyralId` contract, legacy Vyral tables/functions and AI capabilities remain, and Storage runtime/migration/security checks are not yet verified.
-- The feature branch is currently divergent from `main` (compare reported 1841 commits ahead and 38 behind at the last inspection). Do not merge until the branch is reconciled and CI is green.
+- The feature branch remains divergent from `main`; ahead/behind counts change as commits land. Re-run the compare immediately before reconciliation, inspect the merge base and commit history, and do not merge until the divergence is understood and CI is green.
 - Verification: GitHub source inspection only; no test/build/browser run is available for these commits yet.
 
 
