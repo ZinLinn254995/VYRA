@@ -121,7 +121,7 @@ A local file URL/object URL is a short-lived access handle, not a persistent ide
 
 - Chat attachments and generation inputs resolve through the Project File service.
 - Generated outputs are ingested as new Project Files directly; they do not require a Vyral Asset/DNA ingestion path.
-- Editor timeline clips reference `projectFileId` as the canonical media identity.
+- Editor timeline clips can reference `projectFileId` as the canonical media identity; local playback now prefers the device replica and falls back to the Cloud media-library row. Existing Asset/version clip references remain readable.
 - Existing timeline clips with legacy Asset/version references remain readable during migration; new clips must use Project File IDs.
 - Storage, Chat, and Editor share the same local-first resolver and never maintain independent binary copies.
 
@@ -158,6 +158,7 @@ Completed on the working branch:
 - Stable Project File IDs across local import and Cloud replicas.
 - Project Storage upload now copies to Offline Storage first and renders the local item immediately.
 - Project Chat attachments are copied into the same Offline Storage before the turn; image/video attachments are inspected through AI Vision, and small text attachments are included in the prompt with their stable Project File ID.
+- Master Timeline Editor playback resolves Project File IDs from Offline Storage first for image, video, and audio; Cloud signed URLs are the fallback, and legacy Asset/version playback remains supported.
 - Project Storage previews prefer the local binary and remain usable when Cloud metadata reads fail.
 - Folder relationships are retained in local records and synchronized to the Cloud media row.
 - Background Cloud upload remains outside the visible upload progress UI.
@@ -168,7 +169,7 @@ Completed on the working branch:
 Still pending:
 
 - Project Chat attachment persistence and image/video/text inspection are partially integrated; generation jobs and generic retrieval by Project File ID still need the Project-native backend path.
-- Editor playback and timeline clips must resolve Project File IDs while preserving historical Asset/version references.
+- Editor upload/import paths still need to create Project File IDs directly rather than legacy Asset/version IDs; verify every timeline editing, trim, audio, and render path uses the Project File resolver.
 - Offline rename/move/delete operations need durable local mutation records and Cloud reconciliation.
 - Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
 - Full typecheck, build, runtime, browser, RLS, and multi-device tests have not yet been run.
