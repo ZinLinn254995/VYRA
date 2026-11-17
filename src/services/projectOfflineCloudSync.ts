@@ -100,44 +100,51 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
   if (!projectId) throw new Error('A Project is required for Offline recovery.');
   const db = getDb();
   const userId = await getOwnerId();
-  const { data: rows, error } = await db.from('media_library_items')
-    .select('id,project_id,folder_id,file_name,mime_type,size_bytes,storage_path,bucket_id,updated_at,metadata')
-    .eq('user_id', userId)
-    .eq('project_id', projectId)
-    .is('universe_id', null)
-    .order('updated_at', { ascending: false })
-    .limit(Math.min(MAX_BATCH * 10, Math.max(1, limit)));
-  if (error) throw new Error('Could not load the Project Cloud manifest: ' + error.message);
-
+  const pageSize = Math.min(MAX_BATCH * 10, Math.max(1, limit));
+  let offset = 0;
   let restored = 0;
   let restoredBytes = 0;
-  for (const row of rows ?? []) {
-    if (row.bucket_id !== BUCKET || typeof row.storage_path !== 'string' ||
-        !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
-    const local = await getProjectOfflineFile(row.id);
-    if (local?.localState === 'available' && local.projectId === projectId) continue;
-    const fileSize = Math.max(0, Number(row.size_bytes) || 0);
-    const estimate = await getProjectOfflineStorageEstimate();
-    const passBudget = estimate.quotaBytes === null || estimate.usageBytes === null
-      ? UNKNOWN_QUOTA_RESTORE_BUDGET
-      : Math.min(MAX_RESTORE_BYTES_PER_PROJECT, Math.max(0, estimate.quotaBytes - estimate.usageBytes - Math.max(32 * 1024 * 1024, Math.floor(estimate.quotaBytes * 0.08))));
-    if (fileSize <= 0 || restoredBytes + fileSize > passBudget) continue;
-    const { data: downloaded, error: downloadError } = await db.storage.from(BUCKET).download(row.storage_path);
-    if (downloadError || !downloaded) continue;
-    const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
-    const expectedHash = typeof metadata.sha256 === 'string' ? metadata.sha256 : null;
-    await installProjectCloudFileToOfflineStorage({
-      projectId,
-      projectFileId: row.id,
-      folderId: row.folder_id ?? null,
-      fileName: row.file_name,
-      mimeType: row.mime_type,
-      lastModified: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
-      blob: downloaded,
-      expectedSha256: expectedHash,
-    });
-    restored += 1;
-    restoredBytes += downloaded.size;
+  while (true) {
+    const { data: rows, error } = await db.from('media_library_items')
+      .select('id,project_id,folder_id,file_name,mime_type,size_bytes,storage_path,bucket_id,updated_at,metadata')
+      .eq('user_id', userId)
+      .eq('project_id', projectId)
+      .is('universe_id', null)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error('Could not load the Project Cloud manifest: ' + error.message);
+    if (!rows?.length) break;
+
+    for (const row of rows) {
+      if (row.bucket_id !== BUCKET || typeof row.storage_path !== 'string' ||
+          !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
+      const local = await getProjectOfflineFile(row.id);
+      if (local?.localState === 'available' && local.projectId === projectId) continue;
+      const fileSize = Math.max(0, Number(row.size_bytes) || 0);
+      const estimate = await getProjectOfflineStorageEstimate();
+      const passBudget = estimate.quotaBytes === null || estimate.usageBytes === null
+        ? UNKNOWN_QUOTA_RESTORE_BUDGET
+        : Math.min(MAX_RESTORE_BYTES_PER_PROJECT, Math.max(0, estimate.quotaBytes - estimate.usageBytes - Math.max(32 * 1024 * 1024, Math.floor(estimate.quotaBytes * 0.08))));
+      if (fileSize <= 0 || restoredBytes + fileSize > passBudget) continue;
+      const { data: downloaded, error: downloadError } = await db.storage.from(BUCKET).download(row.storage_path);
+      if (downloadError || !downloaded) continue;
+      const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
+      const expectedHash = typeof metadata.sha256 === 'string' ? metadata.sha256 : null;
+      await installProjectCloudFileToOfflineStorage({
+        projectId,
+        projectFileId: row.id,
+        folderId: row.folder_id ?? null,
+        fileName: row.file_name,
+        mimeType: row.mime_type,
+        lastModified: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+        blob: downloaded,
+        expectedSha256: expectedHash,
+      });
+      restored += 1;
+      restoredBytes += downloaded.size;
+    }
+    if (rows.length < pageSize) break;
+    offset += rows.length;
   }
   return restored;
 }
