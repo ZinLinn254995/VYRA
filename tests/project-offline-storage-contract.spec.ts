@@ -180,3 +180,18 @@ test('Project Storage queues Offline rename, move, and tombstoned delete mutatio
   assert.ok(page.includes("kind: 'delete'"));
   assert.ok(page.includes('const deletedIds = new Set'));
 });
+
+
+test('Project Chat keeps attachment IDs in message history and rehydrates prior-turn context', () => {
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(chat.includes("projectFiles: [{ projectFileId: attachedProjectFileId"));
+  assert.ok(chat.includes('const attachmentRefs = nextMessages.flatMap'));
+  assert.ok(chat.includes('getProjectOfflineFileBlob(attachment.projectFileId)'));
+  assert.ok(chat.includes(".eq('project_id', storyboardId).is('universe_id', null).maybeSingle()"));
+  assert.ok(chat.includes('installProjectCloudFileToOfflineStorage'));
+  assert.ok(chat.includes('extractSelectedVideoFrames(blob, attachment.projectFileId'));
+  assert.ok(chat.includes('createVisionImagePreview(blob)'));
+  assert.ok(chat.includes('historicalText.set(attachment.projectFileId'));
+  assert.ok(chat.includes('promptMessages.map(({ role, content }) => ({ role, content }))'));
+  assert.ok(chat.includes('message.projectFiles.map(({ projectFileId, name, mimeType })'));
+});
