@@ -1,4 +1,4 @@
-import type { ProjectRenderCompositionPlan } from './projectRenderCompositionPlanner';
+import { buildProjectRenderCompositionPlan, type ProjectRenderCompositionPlan } from './projectRenderCompositionPlanner';
 import type { ProjectRenderManifest } from './projectRenderManifest';
 
 export type ProjectRenderJobStatus =
@@ -126,6 +126,13 @@ export async function createProjectRenderInputDigest(
       !compositionPlan || compositionPlan.schema !== 'vyra.project-render-composition-plan' || compositionPlan.version !== 1 ||
       manifest.projectId !== compositionPlan.projectId) {
     throw new Error('A matching supported Project render manifest and composition plan are required.');
+  }
+  // A digest is only trustworthy when the plan is the deterministic projection
+  // of the pinned manifest. Never allow a caller to pair a valid Project manifest
+  // with a different source list, clip schedule, or layer ordering.
+  const expectedPlan = buildProjectRenderCompositionPlan(manifest);
+  if (canonicalRenderInput(expectedPlan) !== canonicalRenderInput(compositionPlan)) {
+    throw new Error('The composition plan does not match the pinned Project render manifest.');
   }
   if (!globalThis.crypto?.subtle) throw new Error('Web Crypto SHA-256 is unavailable in this runtime.');
   const canonical = canonicalRenderInput({ manifest, compositionPlan });
