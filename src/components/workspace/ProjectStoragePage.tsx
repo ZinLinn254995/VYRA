@@ -222,10 +222,12 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100, projectId });
       if (requestId !== libraryRequestRef.current) return;
-      const localRecords = await listProjectOfflineFiles(projectId);
+      const localRecords = await listProjectOfflineFiles(projectId, true);
       if (requestId !== libraryRequestRef.current) return;
-      const cloudIds = new Set(result.items.map((item) => item.id));
-      const localItems: MediaLibraryItem[] = localRecords.filter((record) => !cloudIds.has(record.id)
+      const deletedIds = new Set(localRecords.filter((record) => record.deletedAt).map((record) => record.id));
+      const visibleCloudItems = result.items.filter((item) => !deletedIds.has(item.id));
+      const cloudIds = new Set(visibleCloudItems.map((item) => item.id));
+      const localItems: MediaLibraryItem[] = localRecords.filter((record) => !record.deletedAt && !cloudIds.has(record.id)
           && (record.folderId ?? null) === activeFolderId
           && (filter === 'all' || kindOf(record.mimeType) === filter)
           && (!serverQuery || record.fileName.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))).map((record) => ({
@@ -236,7 +238,7 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
         metadata: { offline_only: true, cloud_state: record.cloudState },
         created_at: record.createdAt, updated_at: record.updatedAt, signed_url: null, thumbnail_url: null,
       }));
-      const mergedItems = [...result.items, ...localItems];
+      const mergedItems = [...visibleCloudItems, ...localItems];
       const mergedResult = { ...result, items: mergedItems };
       setFolders(result.folders); setItems(mergedItems); setHasMoreItems(result.hasMore);
       libraryCacheRef.current.set(cacheKey, { ...mergedResult, cachedAt: Date.now() });
@@ -246,9 +248,9 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
         // Cloud may be unreachable while offline. Keep the Project usable from
         // its local replica inventory instead of clearing the Storage view.
         try {
-          const localRecords = await listProjectOfflineFiles(projectId);
+          const localRecords = await listProjectOfflineFiles(projectId, true);
           if (requestId !== libraryRequestRef.current) return;
-          const localItems: MediaLibraryItem[] = localRecords.filter((record) =>
+          const localItems: MediaLibraryItem[] = localRecords.filter((record) => !record.deletedAt &&
             (record.folderId ?? null) === activeFolderId
             && (filter === 'all' || kindOf(record.mimeType) === filter)
             && (!serverQuery || record.fileName.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))
