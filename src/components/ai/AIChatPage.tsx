@@ -65,7 +65,7 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 type VisionImage = { mimeType: 'image/jpeg'; data: string; width: number; height: number };
 type VisionVideoFrame = VisionImage & { assetId: string; assetName: string; frameTimeMs: number };
 
-const createSelectedAssetVisionPreview = async (source: Blob): Promise<VisionImage> => {
+const createVisionImagePreview = async (source: Blob): Promise<VisionImage> => {
   const bitmap = await createImageBitmap(source);
   try {
     const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
@@ -73,28 +73,16 @@ const createSelectedAssetVisionPreview = async (source: Blob): Promise<VisionIma
     const height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const context = canvas.getContext('2d', { alpha: false });
-    if (!context) throw new Error('Could not prepare the selected Asset for AI Vision.');
+    if (!context) throw new Error('Could not prepare the video frame for AI Vision.');
     context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(bitmap, 0, 0, width, height);
-    let preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode selected Asset preview.')), 'image/jpeg', 0.82));
-    if (preview.size > 600 * 1024) preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not compress selected Asset preview.')), 'image/jpeg', 0.55));
-    if (preview.size > 600 * 1024) throw new Error('A selected image preview exceeds the AI Vision size limit.');
-    const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Could not read selected Asset preview.')); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid selected Asset preview.')); reader.readAsDataURL(preview); });
+    let preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode vision preview.')), 'image/jpeg', 0.82));
+    if (preview.size > 600 * 1024) preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not compress vision preview.')), 'image/jpeg', 0.55));
+    if (preview.size > 600 * 1024) throw new Error('A video frame preview exceeds the AI Vision size limit.');
+    const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Could not read vision preview.')); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid vision preview.')); reader.readAsDataURL(preview); });
     const separator = dataUrl.indexOf(',');
-    if (separator < 0) throw new Error('Invalid selected Asset preview encoding.');
+    if (separator < 0) throw new Error('Invalid vision preview encoding.');
     return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
   } finally { bitmap.close(); }
-};
-
-const readBlobAsBase64 = async (blob: Blob): Promise<string> => {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read the selected media file.'));
-    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid media file encoding.'));
-    reader.readAsDataURL(blob);
-  });
-  const comma = dataUrl.indexOf(',');
-  if (comma < 0) throw new Error('Invalid media file encoding.');
-  return dataUrl.slice(comma + 1);
 };
 
 const extractSelectedVideoFrames = async (
@@ -152,7 +140,7 @@ const extractSelectedVideoFrames = async (
       const frameBlob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode a video frame.')), 'image/jpeg', 0.78)
       );
-      const preview = await createSelectedAssetVisionPreview(frameBlob);
+      const preview = await createVisionImagePreview(frameBlob);
       const minutes = Math.floor(time / 60).toString().padStart(2, '0');
       const seconds = Math.floor(time % 60).toString().padStart(2, '0');
       frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}`, frameTimeMs: Math.round(time * 1000) });
@@ -681,12 +669,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     if (!requestOwnerId || requestOwnerId !== historyOwnerId) return;
     let visionImages: Array<VisionImage & { assetId: string; assetName: string }> = [];
     
-    const mediaFiles: {
-      mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
-      data: string;
-      assetId?: string;
-      assetName?: string;
-    }[] = [];
     const attachedFile = selectedFile;
     const uploadClientDraftId = attachedFile ? crypto.randomUUID() : null;
     if (attachedFile && uploadClientDraftId) pendingAttachmentFilesRef.current.set(uploadClientDraftId, attachedFile);
@@ -1244,7 +1226,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
       const accessToken = await getCurrentAccessToken();
       assertRequestCurrent();
-      const canStreamText = visionImages.length === 0 && mediaFiles.length === 0;
+      const canStreamText = visionImages.length === 0;
       if (canStreamText) {
         streamingAssistantId = makeId();
         setMessages((previous) => [...previous, {
@@ -1277,7 +1259,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           },
         } : {}),
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
-        ...(mediaFiles.length ? { mediaFiles } : {}),
       });
       assertRequestCurrent();
       let assetUploadCompletionText = '';
