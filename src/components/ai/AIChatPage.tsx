@@ -256,9 +256,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setProjectRecoveryLoading(true);
     setProjectRecoveryError(null);
     try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user?.id) {
+        setProjectFileRecoveryJobs([]);
+        setProjectRecoveryJobs([]);
+        return;
+      }
       const { data: nativeJobs, error: nativeError } = await supabase.from('generation_jobs')
         .select('id,status,asset_ingestion_status,target_project_id')
-        .eq('user_id', historyOwnerRef.current)
+        .eq('user_id', authData.user.id)
         .eq('target_project_id', storyboardId)
         .in('status', ['submitted', 'processing', 'unknown', 'succeeded'])
         .neq('asset_ingestion_status', 'ready')
