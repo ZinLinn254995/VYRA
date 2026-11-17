@@ -1,5 +1,5 @@
 import React from 'react';
-import { MyMediaLibraryPage } from '../profile/MyMediaLibraryPage';
+import { ProjectStoragePage } from './ProjectStoragePage';
 
 type Props = {
   projectId: string;
