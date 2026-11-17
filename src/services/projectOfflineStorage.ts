@@ -249,6 +249,14 @@ export async function importProjectFileToOfflineStorage(input: {
 }): Promise<{ file: ProjectOfflineFileRecord; syncOperation: ProjectOfflineSyncOperation }> {
   if (!input.projectId) throw new Error('A Project is required to import a file.');
   if (!input.file || input.file.size <= 0) throw new Error('The selected file is empty.');
+  const capacity = await getProjectOfflineStorageEstimate();
+  if (capacity.quotaBytes !== null && capacity.usageBytes !== null) {
+    const availableBytes = Math.max(0, capacity.quotaBytes - capacity.usageBytes);
+    const reservedBytes = Math.max(16 * 1024 * 1024, Math.floor(capacity.quotaBytes * 0.05));
+    if (input.file.size + reservedBytes > availableBytes) {
+      throw new Error('There is not enough available device storage to keep this file safely offline. Free some space and try again.');
+    }
+  }
   const projectFileId = input.projectFileId || createId();
   const storageKey = projectFileId + '.blob';
   const now = new Date().toISOString();
