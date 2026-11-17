@@ -112,6 +112,28 @@ type Props = {
   onTextPreviewOverlaysChange?: (overlays: MasterTimelineTextOverlay[]) => void;
 };
 
+async function readUploadedMediaDuration(file: File, kind: 'video' | 'image' | 'audio'): Promise<number> {
+  if (kind === 'image') return 5;
+  const media = document.createElement(kind);
+  const objectUrl = URL.createObjectURL(file);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (duration: number) => {
+      if (settled) return;
+      settled = true;
+      media.removeAttribute('src');
+      media.load();
+      URL.revokeObjectURL(objectUrl);
+      resolve(Number.isFinite(duration) && duration > 0 ? Math.min(duration, 60 * 60) : 5);
+    };
+    media.preload = 'metadata';
+    media.onloadedmetadata = () => finish(media.duration);
+    media.onerror = () => finish(5);
+    media.src = objectUrl;
+    media.load();
+  });
+}
+
 const toolbarItems = [
   { label: 'Text', Icon: Type },
   { label: 'Audio', Icon: AudioLines },
@@ -1554,6 +1576,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
             projectId,
           );
           if (!projectFileId) throw new Error(file.name + ' uploaded without a Project file record.');
+          const projectDuration = await readUploadedMediaDuration(normalizedFile, kind);
           const projectClip: TimelineClip = {
             id: crypto.randomUUID(),
             name: file.name,
@@ -1561,9 +1584,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
             start: kind === 'audio'
               ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)
               : 0,
-            duration: 5,
+            duration: projectDuration,
             sourceIn: 0,
-            sourceOut: 5,
+            sourceOut: projectDuration,
             projectFileId,
             assetMimeType: normalizedFile.type || (kind + '/octet-stream'),
             waveform: [],
