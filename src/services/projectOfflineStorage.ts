@@ -538,6 +538,16 @@ export async function queueProjectOfflineFileMutation(input: {
   return updated;
 }
 
+
+export async function completeProjectOfflineFileMutation(projectFileId: string, kind: 'rename' | 'move'): Promise<void> {
+  await deleteValue(SYNC_STORE, kind + ':' + projectFileId);
+  const record = await getProjectOfflineFile(projectFileId);
+  if (record && !record.deletedAt) {
+    const now = new Date().toISOString();
+    await storeValue(FILE_STORE, { ...record, cloudState: 'synced', updatedAt: now });
+  }
+}
+
 export async function completeProjectOfflineFileDeletion(projectFileId: string): Promise<void> {
   const record = await getProjectOfflineFile(projectFileId);
   if (!record?.deletedAt) return;
