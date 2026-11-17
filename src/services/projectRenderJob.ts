@@ -165,6 +165,10 @@ export function createProjectRenderJob(input: {
   if (input.manifest.projectId !== input.compositionPlan.projectId) {
     throw new Error('The render manifest and composition plan must belong to the same Project.');
   }
+  const expectedPlan = buildProjectRenderCompositionPlan(input.manifest);
+  if (canonicalRenderInput(expectedPlan) !== canonicalRenderInput(input.compositionPlan)) {
+    throw new Error('The composition plan does not match the pinned Project render manifest.');
+  }
   const job: ProjectRenderJob = {
     schema: 'vyra.project-render-job',
     version: 1,
