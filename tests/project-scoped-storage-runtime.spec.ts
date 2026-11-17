@@ -39,6 +39,6 @@ test('project file deletion queues only owner-prefixed standalone binaries atomi
 test('Project Storage UI no longer creates a Vyral or Universe record', () => {
   assert.match(projectStorageTab, /projectId=\{storyboardId\}/);
   assert.match(projectStoragePage, /projectId\?: string/);
-  assert.match(projectStoragePage, /projectId\}\s*\)/);
+  assert.match(projectStoragePage, /createMediaLibraryFolder\(folderName, activeFolderId, universeId, projectId\)/);
   assert.doesNotMatch(projectStorageTab, /from\('vyrals'\)|\.insert\(/);
 });
