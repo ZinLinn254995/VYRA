@@ -153,6 +153,20 @@ export function createProjectRenderJob(input: {
   return freeze(job);
 }
 
+
+/** Build a render job only after deriving its digest from the exact pinned inputs. */
+export async function createProjectRenderJobFromInputs(input: {
+  id: string;
+  ownerId: string;
+  idempotencyKey: string;
+  manifest: ProjectRenderManifest;
+  compositionPlan: ProjectRenderCompositionPlan;
+  at: string;
+}): Promise<ProjectRenderJob> {
+  const inputDigest = await createProjectRenderInputDigest(input.manifest, input.compositionPlan);
+  return createProjectRenderJob({ ...input, inputDigest });
+}
+
 /** Apply one monotonic, validated lifecycle event to an immutable render job snapshot. */
 export function transitionProjectRenderJob(job: ProjectRenderJob, event: ProjectRenderJobEvent): ProjectRenderJob {
   assertTimestamp(event.at);
