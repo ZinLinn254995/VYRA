@@ -30,8 +30,47 @@ Deno.serve(async (request: Request) => {
   }
 
   const { data: job, error: jobError } = await context.supabaseAdmin.from('generation_jobs')
-    .select('target_vyral_id').eq('id', body.jobId).eq('user_id', userId).maybeSingle();
-  if (jobError || !job?.target_vyral_id) return json({ error: 'The Project generation destination could not be verified.' }, 404);
+    .select('target_project_id,target_vyral_id').eq('id', body.jobId).eq('user_id', userId).maybeSingle();
+  if (jobError || !job) return json({ error: 'The generation destination could not be verified.' }, 404);
+
+  // Project-native outputs are already indexed as canonical media-library files.
+  // The client supplies no Asset IDs; the output row determines the Project File ID.
+  if (job.target_project_id) {
+    const { data: output, error: outputError } = await context.supabaseAdmin.from('media_generation_job_outputs')
+      .select('id,transfer_status,storage_path,sha256,mime_type,size_bytes,project_file_id')
+      .eq('job_id', body.jobId).eq('output_index', body.outputIndex).maybeSingle();
+    if (outputError || !output || !['stored', 'ingesting', 'ingested'].includes(output.transfer_status)) {
+      return json({ error: 'The Project File output is not ready for completion.' }, 409);
+    }
+    const projectFileId = output.project_file_id ?? output.id;
+    const { data: item, error: itemError } = await context.supabaseAdmin.from('media_library_items')
+      .select('id,user_id,project_id,universe_id,source_asset_id,bucket_id,storage_path,mime_type,size_bytes,metadata')
+      .eq('id', projectFileId).eq('user_id', userId).eq('project_id', job.target_project_id)
+      .is('universe_id', null).maybeSingle();
+    if (itemError || !item || item.id !== projectFileId || item.source_asset_id !== null ||
+        item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
+        item.mime_type !== output.mime_type || Number(item.size_bytes) !== Number(output.size_bytes) ||
+        item.metadata?.generation_job_id !== body.jobId ||
+        Number(item.metadata?.output_index) !== Number(body.outputIndex) ||
+        item.metadata?.sha256 !== output.sha256) {
+      return json({ error: 'The canonical Project File failed its ownership or integrity checks.' }, 409);
+    }
+    const { data: recorded, error: recordError } = await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
+      p_user_id: userId, p_job_id: body.jobId, p_output_index: body.outputIndex,
+      p_status: 'ingested', p_storage_path: output.storage_path,
+      p_project_file_id: projectFileId, p_sha256: output.sha256,
+      p_mime_type: output.mime_type, p_size_bytes: output.size_bytes,
+    });
+    if (recordError || !isRecord(recorded) || recorded.recorded !== true) {
+      return json({ error: 'The Project File is saved, but completion needs a safe retry.' }, 503);
+    }
+    return json({
+      jobId: body.jobId, outputIndex: body.outputIndex, status: 'ingested',
+      projectFileId, sha256: output.sha256,
+      message: 'The canonical Project File passed ownership and integrity checks and is ready.',
+    });
+  }
+  if (!job.target_vyral_id) return json({ error: 'The legacy Asset destination could not be verified.' }, 404);
 
   const { data: output, error: outputError } = await context.supabaseAdmin.from('media_generation_job_outputs')
     .select('transfer_status,storage_path,staging_storage_path,sha256,mime_type,size_bytes')
