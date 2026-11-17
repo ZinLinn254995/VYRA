@@ -45,6 +45,7 @@ test('already-ingested Project output recovery revalidates the immutable output 
   assert.ok(transfer.includes('item.metadata?.generation_job_id !== body.jobId'));
   assert.ok(transfer.includes('item.metadata?.sha256 !== output.sha256'));
   assert.ok(transfer.includes('item.bucket_id !== BUCKET'));
+  assert.ok(transfer.includes("item.source_kind !== 'generated'"));
 });
 
 test('Project-native client generation restores outputs into Offline Storage with stable IDs', () => {
