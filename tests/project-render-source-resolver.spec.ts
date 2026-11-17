@@ -36,7 +36,7 @@ test('restores missing local Project File bytes from Cloud under the same ID', a
   let installedId = '';
   const result = await resolveProjectRenderSourceBlob({ projectId: 'project-1', source: { kind: 'project-file', projectFileId: 'file-1', mimeType: 'video/mp4' }, expectedKind: 'video' }, ports({
     getOfflineRecord: async () => null,
-    getOfflineBlob: async () => new Blob(['cloud']),
+    getOfflineBlob: async () => new Blob(['data']),
     installCloudReplica: async (input: { projectFileId: string }) => { installedId = input.projectFileId; return record(); },
   }) as never);
   assert.equal(installedId, 'file-1');
