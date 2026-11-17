@@ -646,8 +646,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         });
         attachedProjectFileId = imported.file.id;
         if (/^(text\/|application\/(json|xml))/.test(attachedFile.type) || /\.(txt|md|csv|json|xml|yaml|yml)$/i.test(attachedFile.name)) {
-          if (attachedFile.size > 1024 * 1024) throw new Error('Text attachments larger than 1 MB are saved to Project Storage but are not expanded into the chat prompt.');
-          extractedAttachmentText = await attachedFile.text();
+          if (attachedFile.size <= 1024 * 1024) extractedAttachmentText = await attachedFile.text();
         }
       } catch (error) {
         setIsSending(false);
@@ -657,8 +656,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       setIsSending(false);
     }
     const attachmentText = attachedFile
-      ? `\n\nAttached file: ${attachedFile.name} (${attachedFile.type || 'application/octet-stream'}, ${attachedFile.size.toLocaleString()} bytes)${attachedProjectFileId ? '\\nProject File ID: ' + attachedProjectFileId : ''}${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
-        + (extractedAttachmentText ? '\\n\\nAttached text content:\\n' + extractedAttachmentText : '')
+      ? `\n\nAttached file: ${attachedFile.name} (${attachedFile.type || 'application/octet-stream'}, ${attachedFile.size.toLocaleString()} bytes)${attachedProjectFileId ? '\nProject File ID: ' + attachedProjectFileId : ''}${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
+        + (extractedAttachmentText ? '\n\nAttached text content:\n' + extractedAttachmentText : '')
       : '';
     const userMessage: ChatMessage = retryUserIndex >= 0
       ? messages[retryUserIndex]
@@ -705,6 +704,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (attachedFile && attachedProjectFileId && attachedFile.type.startsWith('image/')) {
         const preview = await createVisionImagePreview(attachedFile);
         visionImages.push({ ...preview, assetId: attachedProjectFileId, assetName: attachedFile.name });
+      } else if (attachedFile && attachedProjectFileId && attachedFile.type.startsWith('video/')) {
+        const frames = await extractSelectedVideoFrames(attachedFile, attachedProjectFileId, attachedFile.name, 4);
+        visionImages.push(...frames);
       }
       const navigationTarget = extractGlobalChatNavigationTarget(text);
       if (navigationTarget && !selectedFile) {
