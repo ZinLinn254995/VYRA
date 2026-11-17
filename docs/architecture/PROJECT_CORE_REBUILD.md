@@ -494,3 +494,53 @@ References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/l
 - When an expired lease is reclaimed, the new generation/token invalidates the previous worker even if that old process later resumes. The database adapter must check this fence and perform the revision compare-and-swap atomically in the same transaction as the write; checking in application memory before a separate update is unsafe.
 - Added regression coverage for the former worker attempting a write after recovery, wrong generation/token, stale revision, expired lease, and malformed lease metadata.
 - The guard is a contract helper only. It does not create a lock or provide atomicity without the future database transaction. Tests remain unexecuted in this GitHub-only environment.
+
+## 18. Development migration reconciliation audit — November 17, 2026
+
+This is a read-only audit of the Development migration ledger and the active branch migration directory. It does not modify either Supabase project.
+
+### Ledger and source-control findings
+
+- Development's applied migration ledger contains 92 entries and currently ends at `20261115134317` (`storyboard_universe_media_library`). The active branch contains 102 SQL migration files.
+- Only 33 entries match the active branch by both exact version and migration name. This is not evidence that the other 59 ledger entries are unapplied: many have a different recorded version while their migration name still maps to a current SQL file.
+- Four historical ledger rows store the intended SQL filename timestamp as the migration *name* rather than as the ledger version:
+  - ledger `20261108050623 / 20261108120000` maps by name to `20261108120000_vyral_optional_master_dna_context.sql`;
+  - `20261108050627 / 20261108130000` maps to `20261108130000_vyral_collection_identity_stale_fields.sql`;
+  - `20261108050631 / 20261108140000` maps to `20261108140000_vyral_snapshot_identity_validation.sql`;
+  - `20261108050740 / 20261108150000` maps to `20261108150000_vyral_public_resolver_permission_staleness.sql`.
+- The ledger also contains repeated names for `platform_admin_registry`, `vault_gemini_secret_accessors`, and `media_generation_quotes`, while the active branch has one current file for each name. These require historical SQL/schema reconciliation; filename matching alone cannot establish whether the second application was a duplicate, a follow-up revision, or a prior source file that was later removed.
+- The ledger contains `vyra_runway_api_key_vault`, but no current branch migration file with that name was found. Treat it as a history-only item until its original SQL and current object state are identified.
+- Therefore, neither a blind replay of files missing by timestamp nor a blanket migration repair is safe. A matching migration name is a lead for reconciliation, not proof that the current SQL bytes equal the SQL originally applied.
+
+### Project-core schema prerequisites
+
+The read-only Development schema inspection found:
+
+- `media_library_items` and `media_library_folders` currently have `universe_id`, but not `project_id`.
+- `generation_jobs` has the historical `project_id` field, but not the canonical `target_project_id` required by the new Workspace Project destination. The old field must not be treated as equivalent.
+- `media_generation_job_outputs` does not have `project_file_id`.
+- The existing `vyral_storyboards`, `generation_jobs`, Media Library, and generation-output tables are present, but the Project-specific relationships described below are not yet represented in Development.
+
+### Required dependency order for the active Project/Runway migrations
+
+The following order is derived from the SQL object references and must be preserved in a future clean local migration test:
+
+1. `20261116100000_runway_media_submission_claim.sql` — adds the durable Runway submission claim boundary to existing `generation_jobs`, quotes, provider attempts, and job events.
+2. `20261116110000_runway_media_task_polling.sql` — creates `media_generation_job_outputs` and polling RPCs; depends on the existing generation-job/event/provider schema and the preceding submission fields.
+3. `20261116130000_runway_project_asset_destination.sql` — adds the legacy Vyral destination and owner-scoped Project Assets RPC wrapper.
+4. `20261116140000_runway_output_ingestion_state.sql` — extends the output-transfer lifecycle and depends on the output table from step 2 and destination fields from step 3.
+5. `20261116160000_vyral_asset_relationship_graph.sql` — semantic relationship graph; its prerequisite relationship table/index lineage must be checked against the existing `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` before replay.
+6. `20261117010000_project_scoped_media_library.sql` — adds Project scope to Media Library folders/items and owner/scope integrity. It depends on the existing Media Library and `vyral_storyboards` foundations.
+7. `20261117020000_project_scoped_media_library_cleanup.sql` — adds Project-scoped deletion/cleanup behavior and depends on step 6 plus the existing Storage cleanup queue.
+8. `20261117030000_project_native_generation_jobs.sql` — adds canonical `generation_jobs.target_project_id` and the Project-native reservation wrapper; depends on `vyral_storyboards`, the generation-job schema, and step 6's Project storage foundation.
+9. `20261117040000_project_media_generation_output.sql` — adds `media_generation_job_outputs.project_file_id` and Project output transfer RPCs; depends on steps 2, 6, and 8.
+
+The exact SQL must still be tested as a complete ordered chain on a disposable local database. This dependency list is not authorization to apply any migration to hosted Development or Production.
+
+### Safety decision and next gate
+
+- Do not run hosted `db push`, migration repair, manual DDL, or selective replay.
+- Recover or explain the original SQL for the history-only Runway vault entry and the duplicate-name ledger rows.
+- Compare the current SQL against the historical versions in Git history wherever the source file was renamed or replaced. Confirm actual database objects, policies, constraints, functions, and indexes before classifying a migration as already represented.
+- Then run a clean local Supabase reset/migration test against the exact active branch and verify all SQL tests. This workspace has GitHub/Supabase read access but no local Docker/CLI execution environment, so that test has not been run here.
+- No Development or Production schema was changed during this audit.
