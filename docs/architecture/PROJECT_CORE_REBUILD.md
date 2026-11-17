@@ -361,3 +361,24 @@ The immutable manifest now feeds a pure composition-planning layer. It does not 
 The plan is detached and deeply frozen. It contains no signed URLs, object URLs, Blob bytes, or runtime handles. Project File bytes remain the responsibility of the Project-scoped source resolver. The composition plan is a deterministic input contract for a future renderer, not a claim that video encoding/export is implemented.
 
 A dedicated contract suite covers Scene ordering, image/video/audio/text layering, overlapping audio, source trims, scene-boundary clipping, transition preservation, source deduplication, legacy identity continuity, and immutability.
+
+
+## 14. Render execution runtime decision
+
+The repository's current production-shaped runtime is Cloudflare Workers: `wrangler.jsonc` points to `worker/index.ts`, which hosts the Express API through Cloudflare's Node HTTP bridge. `server.ts` remains the local Node/Vite development server. A successful Worker build does not establish that the Worker can perform a full media encode.
+
+The connected Cloudflare account was checked read-only. Its Containers usage endpoint returned an authorization response explicitly stating that deploying Containers requires the Workers Paid plan. The connected OAuth identity cannot read account subscription details, so the exact billing plan and price cannot be independently confirmed here. No account configuration was changed.
+
+Runtime constraints relevant to rendering:
+- Workers memory is 128 MiB per isolate. Workers Free has 10 ms CPU per invocation; Workers Paid defaults to 30 seconds and can be configured up to 5 minutes. HTTP wall time can be unlimited while the client remains connected, but that does not remove CPU or memory limits.
+- Cloudflare Workflows can durably coordinate long-running, retryable steps, but each step still runs under Worker CPU limits; non-stream step results are limited to 1 MiB. Workflows are orchestration, not a substitute for an FFmpeg-capable compute runtime.
+- Cloudflare Containers provide larger CPU, memory, and disk instance types suitable for Linux media tools, but the currently connected account cannot deploy them without Workers Paid access.
+
+Decision:
+1. Keep the current Worker as the authenticated API/control plane; do not put FFmpeg or a full timeline encoder inside its request handler.
+2. Keep the immutable Manifest, source resolver, and renderer-neutral Composition Plan as the stable render input contract.
+3. Next implement a durable Project Render Job contract (immutable manifest/plan reference, idempotency key, status, progress checkpoints, cancellation, retry, and output Project File identity) without binding it to an unavailable runtime.
+4. Before implementing an encoder or showing an Export action, choose and validate either (a) a client-side WebCodecs renderer with explicit browser/device capability and memory gates, or (b) a separately priced external/container rendering provider. A paid Cloudflare Containers deployment is not assumed.
+5. Do not add rendering dependencies, change Cloudflare billing/runtime configuration, deploy, or alter production resources as part of this architecture-only gate.
+
+References: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [Workflows limits](https://developers.cloudflare.com/workflows/reference/limits/), [Containers overview](https://developers.cloudflare.com/containers/), and [Containers instance limits](https://developers.cloudflare.com/containers/platform/limits/).
