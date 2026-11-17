@@ -71,3 +71,36 @@ test('keeps Project File identity keys distinct from legacy immutable Asset vers
   assert.equal(getProjectRenderSourceKey({ kind: 'project-file', projectFileId: 'same-id' }), 'project-file:same-id');
   assert.equal(getProjectRenderSourceKey({ kind: 'legacy-asset', assetId: 'asset', assetVersionId: 'v1' }), 'legacy-asset:asset:v1');
 });
+
+
+test('rejects malformed clip metadata and track controls', () => {
+  const invalidKind = baseInput();
+  (invalidKind.timeline.videoTracks![0].clips[0] as any).mediaKind = 'document';
+  assert.throws(() => createProjectRenderManifest(invalidKind), /invalid-track/);
+
+  const invalidText = baseInput();
+  (invalidText.timeline.textTracks![0].clips[0] as any).content = 42;
+  assert.throws(() => createProjectRenderManifest(invalidText), /invalid-track/);
+
+  const invalidVolume = baseInput();
+  invalidVolume.timeline.audioTracks![0].volume = 1.5;
+  assert.throws(() => createProjectRenderManifest(invalidVolume), /invalid-track/);
+
+  const invalidMute = baseInput();
+  (invalidMute.timeline.audioTracks![0] as any).muted = 'false';
+  assert.throws(() => createProjectRenderManifest(invalidMute), /invalid-track/);
+});
+
+test('rejects invalid scene titles and scene-instance video trims', () => {
+  const invalidTitle = baseInput();
+  (invalidTitle.scenes[0] as any).title = null;
+  assert.throws(() => createProjectRenderManifest(invalidTitle), /invalid-scene/);
+
+  const invalidVideoTrim = baseInput();
+  invalidVideoTrim.timeline.sceneInstances![0].videoSourceOut = -1;
+  assert.throws(() => createProjectRenderManifest(invalidVideoTrim), /invalid-scene/);
+
+  const invalidSceneId = baseInput();
+  (invalidSceneId.timeline.sceneInstances![0] as any).sceneId = '   ';
+  assert.throws(() => createProjectRenderManifest(invalidSceneId), /invalid-scene/);
+});
