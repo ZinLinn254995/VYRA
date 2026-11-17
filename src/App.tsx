@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AppHeader } from './components/common/AppHeader';
 import { ProfilePage } from './components/profile/ProfilePage';
-import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
+import type { WorkspaceAiContext } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MyProjectsHome } from './components/project/MyProjectsHome';
@@ -36,8 +36,6 @@ function VyraApp() {
     if (profileOpen && user) setHasVisitedProfile(true);
   }, [profileOpen, user]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
-  const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
-  useEffect(() => { setPendingSceneStateProposal(null); }, [user?.id]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('workspace');
   const [profileInitialPage, setProfileInitialPage] = useState<'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -197,9 +195,6 @@ function VyraApp() {
               isAuthenticated={hasPermanentAccount} isActive={projectWorkspaceOpen} createProjectRequest={createProjectRequest} openProjectRequest={openProjectRequest} onEditorExit={() => setProjectWorkspaceOpen(false)} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } if (page === 'my-projects') { setProfileOpen(false); setProjectWorkspaceOpen(false); setProfileInitialPage(null); setActiveSection('workspace'); return; } setWorkspaceAiContext({ page: 'my-media-library', pageLabel: 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage('my-media-library'); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
-              pendingSceneStateProposal={pendingSceneStateProposal}
-              onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
-              onSceneStateProposal={setPendingSceneStateProposal}
               
             />
           </ErrorBoundary>
