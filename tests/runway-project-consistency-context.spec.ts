@@ -21,7 +21,7 @@ test('only bounded retrieved Asset DNA evidence is added to the generation promp
   assert.ok(service.includes('maxAssets: 12'));
   assert.ok(service.includes('collectEvidence(record.payload)'));
   assert.ok(service.includes('Unconfirmed observations are reference evidence only'));
-  assert.ok(service.includes(".eq('review_status', 'creator_approved')"));
+  assert.ok(service.includes(".eq('from_kind', 'asset').eq('to_kind', 'asset')"));
   assert.ok(service.includes('Do not invent missing facts'));
   assert.ok(service.includes('.slice(0, 14_000)'));
   assert.ok(workflow.includes('buildRunwayProjectConsistencyContext'));
@@ -57,8 +57,8 @@ test('Project context contains matching nested DNA evidence and excludes other P
       { user_id: 'user-1', vyral_id: 'project-assets-1', asset_id: 'asset-red-fox', scope: 'asset', verification_status: 'creator_confirmed', payload: { knowledge: { appearance: 'Amber eyes are a defining trait' } } },
     ],
     vyral_asset_relationships: [
-      { id: 'edge-1', user_id: 'user-1', vyral_id: 'project-assets-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.', review_status: 'creator_approved' },
-      { id: 'edge-2', user_id: 'user-1', vyral_id: 'project-assets-1', from_asset_id: 'asset-red-fox', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.', review_status: 'proposed' },
+      { id: 'edge-1', user_id: 'user-1', vyral_id: 'project-assets-1', from_kind: 'asset', from_asset_id: 'asset-red-fox', to_kind: 'asset', to_asset_id: 'asset-blue-boat', relationship_type: 'travels_on', rationale: 'Creator confirmed the fox uses this boat.' },
+      { id: 'edge-2', user_id: 'user-1', vyral_id: 'project-assets-1', from_kind: 'asset', from_asset_id: 'asset-red-fox', to_kind: 'asset', to_asset_id: 'asset-blue-boat', relationship_type: 'maybe_uses', rationale: 'AI guess only.' },
     ],
   };
   const signedRequests: Array<{ bucket: string; path: string; expiresIn: number }> = [];
@@ -113,7 +113,8 @@ test('Project consistency retrieval matches the canonical Asset relationship gra
   assert.ok(migration.includes('rationale text not null'));
   assert.ok(service.includes(".select('id,from_kind,from_asset_id,to_kind,to_asset_id,relationship_type,rationale')"));
   assert.ok(service.includes(".eq('from_kind', 'asset').eq('to_kind', 'asset')"));
-  assert.ok(!service.includes('review_status'));
+  const relationshipQuery = service.slice(service.indexOf("from('vyral_asset_relationships'"));
+  assert.ok(!relationshipQuery.slice(0, 400).includes('review_status'));
   assert.ok(!migration.includes('review_status'));
 });
 test('direct media generation receives the exact creator-approved active Scene entry state', () => {
