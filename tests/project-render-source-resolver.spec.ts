@@ -113,3 +113,28 @@ test('resolves historical immutable Asset versions without converting them into 
   assert.equal(result.sourceKey, 'legacy-asset:asset-1:version-3');
   assert.equal(result.replica, 'legacy-cache-or-cloud');
 });
+
+
+test('rejects legacy Asset bytes whose downloaded MIME identity differs from the pinned manifest', async () => {
+  const input = {
+    projectId: 'project-1',
+    source: { kind: 'legacy-asset' as const, assetId: 'asset-1', assetVersionId: 'version-3', mimeType: 'video/mp4' },
+    expectedKind: 'video' as const,
+  };
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      fetchBlob: async () => new Blob(['audio'], { type: 'audio/mpeg' }),
+    }) as never),
+    /differs from its immutable render manifest/,
+  );
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob({ ...input, source: { ...input.source, mimeType: undefined } }, ports({
+      fetchBlob: async () => new Blob(['audio'], { type: 'audio/mpeg' }),
+    }) as never),
+    /expected video media type/,
+  );
+  const valid = await resolveProjectRenderSourceBlob(input, ports({
+    fetchBlob: async () => new Blob(['video'], { type: 'video/mp4; codecs=avc1' }),
+  }) as never);
+  assert.equal(valid.mimeType, 'video/mp4');
+});
