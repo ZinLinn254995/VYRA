@@ -130,7 +130,7 @@ test('Project Editor autosaves every confirmed edit and restores the saved Proje
   assert.ok(workspace.includes('void persistStoryboard(saved, ownerStorageKey)'));
   assert.ok(workspace.includes('expectedOwnerStorageKey = storyboardStorageKeyRef.current'));
   assert.ok(workspace.includes('setActiveStoryboard(item)'));
-  assert.ok(workspace.includes('const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId)'));
+  assert.ok(workspace.includes('const item = storyboards.find((storyboard) => storyboard.id === openProjectRequest.storyboardId)'));
   assert.ok(sync.includes('storyboards: Array.from(merged.values())'));
 });
 
