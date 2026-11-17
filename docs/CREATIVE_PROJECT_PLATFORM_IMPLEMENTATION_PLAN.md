@@ -273,3 +273,10 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Kept the old Project media-generation/recovery and preview references isolated behind the now-unwired optional `activeVyralId` prop. These still depend on Vyral Assets/Versions and are **not** considered migrated; Workspace currently does not supply that destination, so Project media generation/recovery is blocked until the generic Project-file generation path is completed.
 - Chat attachment selection currently exposes only file metadata; full file-content ingestion is not implemented. The old Vyral upload tool is no longer used. Generic Project Storage access and content-reading tools are still required before attachments can be treated as fully supported.
 - Replaced the old Vyral action tests with Project Chat boundary coverage and removed obsolete Marketplace/Universe E2E expectations. No tests/build/typecheck/browser/SQL checks have been executed.
+
+
+## Cleanup progress — 2026-11-17 (retire Vyral AI details engine)
+
+- Replaced the Workspace's dependency on `vyralAiDetails.ts` with a small generic `projectDetailSuggestions.ts` parser. It keeps only safe, bounded structured-value parsing for optional Project detail suggestions.
+- Deleted the old Vyral AI details engine, including Asset-scoped suggestion/merge/staleness helpers, and removed its Vyral-specific test suite. Added focused tests for generic Project detail parsing and unsafe-key rejection.
+- This does not change the Project details UI or storage schema. No test/build/typecheck execution has been performed.
