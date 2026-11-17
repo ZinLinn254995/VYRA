@@ -122,11 +122,13 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'The Project output could not be claimed for secure transfer.' }, 503);
   }
   if (claim.claimed !== true) {
+    const projectTarget = typeof claim.target_project_id === 'string' ? claim.target_project_id : null;
     return json({
-      jobId: body.jobId, outputIndex, targetVyralId: claim.target_vyral_id ?? null,
+      jobId: body.jobId, outputIndex,
+      ...(projectTarget ? { targetProjectId: projectTarget, projectFileId: claim.project_file_id ?? claim.output_id ?? null } : { targetVyralId: claim.target_vyral_id ?? null }),
       status: claim.status ?? 'pending',
-      assetId: claim.asset_id ?? null, assetVersionId: claim.asset_version_id ?? null,
-      message: claim.status === 'ingested' ? 'This output is already a ready Project Asset.'
+      ...(projectTarget ? {} : { assetId: claim.asset_id ?? null, assetVersionId: claim.asset_version_id ?? null }),
+      message: claim.status === 'ingested' ? 'This output is already a ready Project File.'
         : claim.status === 'downloading' || claim.status === 'ingesting' ? 'This output is already being processed.'
         : claim.status === 'failed' ? 'This output needs recovery before it can be used.'
         : 'This output is not currently eligible for transfer.',
