@@ -265,6 +265,9 @@ test('Project import atomically commits availability and Cloud upload queue with
   assert.ok(storage.includes("{ storeName: FILE_STORE, value: readyRecord }"));
   assert.ok(storage.includes("{ storeName: SYNC_STORE, value: syncOperation }"));
   assert.ok(storage.includes('const existingIdentity = await getProjectOfflineFile(projectFileId)'));
+  assert.ok(storage.includes('async function addValue<T>(storeName: string, value: T)'));
+  assert.ok(storage.includes('transaction.objectStore(storeName).add(value)'));
+  assert.ok(storage.includes('await addValue(FILE_STORE, initialRecord)'));
   assert.ok(storage.includes('already in use and cannot be overwritten by a new import'));
 });
 
