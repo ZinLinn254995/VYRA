@@ -422,6 +422,46 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
   });
 }
 
+/** Resolve a private Project file for Editor playback without inventing an Asset or Version identity. */
+export async function getProjectMediaLibraryItemPlaybackSource(
+  itemId: string,
+  projectId: string,
+  expectedKind: 'video' | 'image' | 'audio',
+): Promise<{ projectFileId: string; signedUrl: string; mimeType: string; fileName: string; sizeBytes: number }> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (!itemId || !projectId || !['video', 'image', 'audio'].includes(expectedKind)) {
+    throw new Error('A valid Project file and media type are required.');
+  }
+  await assertStoryboardProject(db, userId, projectId);
+  const { data, error } = await db.from('media_library_items')
+    .select('id,project_id,universe_id,bucket_id,storage_path,file_name,mime_type,size_bytes')
+    .eq('id', itemId)
+    .eq('user_id', userId)
+    .eq('project_id', projectId)
+    .is('universe_id', null)
+    .maybeSingle();
+  if (error || !data) throw new Error('This media file is unavailable in the selected Project.');
+  const mimeType = typeof data.mime_type === 'string' ? data.mime_type.toLowerCase() : '';
+  const matchesKind = expectedKind === 'video' ? mimeType.startsWith('video/')
+    : expectedKind === 'image' ? mimeType.startsWith('image/')
+    : mimeType.startsWith('audio/');
+  if (!matchesKind || data.bucket_id !== 'vyral-assets' ||
+      !isSafeOwnerStoragePath(data.storage_path, userId, ['media-library'])) {
+    throw new Error('The selected Project file is not a valid private ' + expectedKind + ' source.');
+  }
+  const { data: signed, error: signError } = await db.storage
+    .from(data.bucket_id).createSignedUrl(data.storage_path, 60 * 60);
+  if (signError || !signed?.signedUrl) throw new Error('Could not create a secure Project media playback link.');
+  return {
+    projectFileId: data.id,
+    signedUrl: signed.signedUrl,
+    mimeType,
+    fileName: data.file_name,
+    sizeBytes: Number(data.size_bytes),
+  };
+}
+
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
 export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null, projectId?: string | null): Promise<string> {
   const db = getDb();
