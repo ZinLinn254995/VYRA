@@ -14,7 +14,7 @@ type AssetDnaRow = {
   asset_id: string; payload?: JsonRecord | null; dna_status?: string | null;
   verification_status?: string | null; scope?: string | null; source_kind?: string | null;
 };
-type RelationshipRow = { id: string; from_asset_id: string; to_asset_id: string; relationship_type: string; rationale?: string | null; review_status: string; };
+type RelationshipRow = { id: string; from_kind: 'asset' | 'vyral'; from_asset_id: string | null; to_kind: 'asset' | 'vyral'; to_asset_id: string | null; relationship_type: string; rationale?: string | null; };
 
 const isRecord = (value: unknown): value is JsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -85,14 +85,16 @@ export async function buildRunwayProjectConsistencyContext(
   }
 
   const { data: relationshipRows, error: relationshipError } = await db.from('vyral_asset_relationships')
-    .select('id,from_asset_id,to_asset_id,relationship_type,rationale,review_status')
+    .select('id,from_kind,from_asset_id,to_kind,to_asset_id,relationship_type,rationale')
     .eq('user_id', input.userId).eq('vyral_id', input.targetVyralId)
-    .eq('review_status', 'creator_approved').limit(240);
+    .eq('from_kind', 'asset').eq('to_kind', 'asset').limit(240);
   const relationshipSchemaUnavailable = relationshipError?.code === '42P01' || relationshipError?.code === 'PGRST205';
   if (relationshipError && !relationshipSchemaUnavailable) {
     throw new Error('Creator-approved Project relationships could not be loaded: ' + relationshipError.message);
   }
-  // Older environments can continue using Asset DNA until the additive graph migration is applied.
+  // The canonical graph has no review_status column: relationship writes are
+  // creator-authored or pass the explicit approval workflow before persistence.
+  // Restrict consistency retrieval to Asset-to-Asset edges in this exact Vyral.
   const relationships = (Array.isArray(relationshipRows) ? relationshipRows : []) as RelationshipRow[];
 
   const retrievalAssets: UniverseRetrievalAsset[] = assets.map((asset) => {
