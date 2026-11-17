@@ -121,7 +121,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
     const passBudget = estimate.quotaBytes === null || estimate.usageBytes === null
       ? UNKNOWN_QUOTA_RESTORE_BUDGET
       : Math.min(MAX_RESTORE_BYTES_PER_PROJECT, Math.max(0, estimate.quotaBytes - estimate.usageBytes - Math.max(32 * 1024 * 1024, Math.floor(estimate.quotaBytes * 0.08))));
-    if (fileSize <= 0 || restoredBytes + fileSize > passBudget) break;
+    if (fileSize <= 0 || restoredBytes + fileSize > passBudget) continue;
     const { data: downloaded, error: downloadError } = await db.storage.from(BUCKET).download(row.storage_path);
     if (downloadError || !downloaded) continue;
     const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
