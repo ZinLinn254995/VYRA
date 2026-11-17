@@ -19,7 +19,7 @@ export type WorkspaceAiContext = {
     ledger: unknown;
     initialEntryState?: Record<string, unknown> | null;
   } | null;
-  page: 'storyboards' | 'storyboard-editor' | 'scene-editor' | 'my-vyrals' | 'my-media-library';
+  page: 'storyboards' | 'storyboard-editor' | 'scene-editor' | 'my-vyrals';
   pageLabel: string;
   activeStoryboard?: {
     id: string;
