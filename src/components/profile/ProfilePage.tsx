@@ -18,7 +18,6 @@ type ProfilePageProps = {
   onBack: () => void;
   backLabel: string;
   onSignOut: () => void;
-  onLoginRequired: () => void;
   isActive?: boolean;
 };
 
@@ -47,7 +46,7 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, isActive = true,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, isActive = true,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>('home');
   React.useLayoutEffect(() => {
