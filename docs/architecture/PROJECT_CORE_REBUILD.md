@@ -466,3 +466,18 @@ References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/l
 - A malformed or mismatched hash, wrong-Project record, altered identity, or incomplete restore fails closed before the source can enter a render plan.
 - Regression tests cover invalid Cloud digest, wrong-Project installed metadata, and a valid Cloud-to-Offline restore.
 - The source integrity boundary now checks both local-first and Cloud-restored replicas. It still does not provide hashing for records whose metadata has no SHA-256, and it does not implement final encoding/render execution.
+
+## 17. YouTube discovery and faithful subtitle-only workflow — November 17, 2026
+
+The accepted product requirement is documented in [YouTube Video Discovery and Faithful Subtitle Requirements](../product/YOUTUBE_VIDEO_AND_FAITHFUL_SUBTITLE_REQUIREMENTS.md).
+
+Architecture boundaries:
+- YouTube discovery must include all matching license categories; never hard-code Creative Commons-only search. Use the broad `videoLicense=any` behavior and do not require existing captions.
+- Search is ranked and paginated, not exhaustive. Preserve YouTube attribution and source URLs.
+- Search visibility is not reuse permission. Public videos should use official YouTube playback unless the user owns the source or has permission for ingestion/transformation. Never bypass access controls or download restrictions.
+- Subtitle generation is ASR/transcription from the actual source audio. The default output follows the language actually spoken; translation is separate and only by explicit request.
+- Original audio remains unchanged. No Thai TTS, dubbing, voice cloning, narration, or audio replacement in the subtitle-only workflow.
+- Every subtitle must be grounded in an audio interval. Unclear/low-confidence speech is flagged for review rather than hallucinated or filled from visual context, title, or description.
+- YouTube caption download is not a public-caption scraping mechanism: the Data API requires the caller to have permission to edit the video.
+
+This is an accepted product/architecture requirement, not a claim that YouTube search, ASR, or subtitle export has been implemented or verified in this commit.
