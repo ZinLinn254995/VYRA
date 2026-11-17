@@ -114,3 +114,27 @@ test('Master Timeline transport continues to the full timeline end after audio c
   assert.match(source, /if \(currentTime >= totalDuration\) \{\s*stopMasterTimelinePlayback\(\)/);
   assert.doesNotMatch(source, /handle\.finished\.then\(\(\) => \{\s*if \(masterPlaybackHandleRef\.current === handle\) stopMasterTimelinePlayback\(\);/);
 });
+
+ 
+test('resolves Project File audio by stable ID without legacy Asset lookup', async () => {
+  const mock = createRuntime();
+  const resolved: string[] = [];
+  mock.runtime.resolveProjectFileUrl = async (projectFileId: string) => {
+    resolved.push(projectFileId);
+    return 'blob:project-audio';
+  };
+  const handle = startMasterTimelineAudioPlayback([{
+    trackId: 'track',
+    clipId: 'project-audio',
+    projectFileId: 'project-file-audio-1',
+    delaySeconds: 1,
+    sourceOffsetSeconds: 2,
+    durationSeconds: 5,
+    gain: 0.8,
+  }], mock.runtime);
+  await handle.ready;
+  assert.deepEqual(resolved, ['project-file-audio-1']);
+  assert.deepEqual(mock.urls, []);
+  assert.deepEqual(mock.starts, [{ when: 51.05, offset: 2, duration: 5 }]);
+  handle.stop();
+});
