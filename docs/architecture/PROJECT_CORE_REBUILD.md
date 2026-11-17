@@ -685,3 +685,17 @@ The migration chain now contains ten ordered Project/Runway migrations, includin
 - Static review of the pending Project-scoped Media Library migration found that its recursive descendant check prevented ordinary folder cycles but did not serialize concurrent moves. Two transactions could each validate against a snapshot that did not yet include the other move and jointly create a cycle.
 - The folder-owner trigger now takes a transaction-scoped advisory lock keyed by owner before validating folder parent/scope changes. This serializes tree mutations for one owner while allowing different owners to proceed independently.
 - This is a source-level concurrency safeguard. It has not been exercised with concurrent PostgreSQL transactions; local migration reset and race tests remain required before any hosted rollout.
+
+
+## 23. Project output transfer destination and lease fencing — November 18, 2026
+
+A cross-migration review of the Project-native output path found two correctness gaps that static table preflight alone could not detect:
+
+- The original claim_runway_output_transfer function from the legacy Asset-ingestion migration still required target_vyral_id. New Project-native jobs intentionally set target_project_id and leave target_vyral_id null, so the first output-transfer claim would reject every new Project-native job before download.
+- Transfer leases had only an expiry timestamp, not an ownership token. After a slow worker's lease expired and another worker reclaimed the output, the old worker could still record a late success/failure and overwrite the newer attempt's state.
+
+**Source correction added:** 20261117060000_project_output_transfer_lease_fencing.sql replaces the claim function so it accepts either a valid legacy Vyral destination or the canonical Project destination. It returns the canonical output identity and rotates a UUID lease token for each new claim. The Project transfer recorder now requires the current, unexpired token for stored and failed transitions, clears the token when the attempt is recorded, and allows completion only after the output is durably stored. A stale worker therefore cannot change the durable transfer state after a newer claim.
+
+The Project transfer Edge Function now passes the claim token when recording success/failure. Its interrupted-upload recovery path revalidates the existing canonical Media Library row and re-records the stored state under the newly claimed token before returning it. The legacy Asset transfer recorder remains unchanged.
+
+**Verification boundary:** GitHub source was re-read after edits and the changed call sites were inspected. No PostgreSQL migration execution, concurrent-worker test, Edge Function typecheck, or integration test was run in this workspace. The new migration is pending and must be included in the full ordered local Supabase reset test before hosted rollout. No Development/Production database, migration ledger, deployment, or billing/runtime setting was changed.
