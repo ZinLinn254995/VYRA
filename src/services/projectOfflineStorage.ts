@@ -77,6 +77,17 @@ type StorageWithOpfs = StorageManager & {
   persist?: () => Promise<boolean>;
 };
 
+type ProjectFileLockManager = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
+
+async function withProjectFileLock<T>(projectFileId: string, operation: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined'
+    ? (navigator as Navigator & { locks?: ProjectFileLockManager }).locks
+    : undefined;
+  return locks
+    ? locks.request('vyra-project-offline-file:' + projectFileId, operation)
+    : operation();
+}
+
 let databasePromise: Promise<IDBDatabase> | null = null;
 let opfsDirectoryPromise: Promise<OpfsDirectoryHandle | null> | null = null;
 
@@ -438,6 +449,10 @@ export async function importProjectFileToOfflineStorage(input: {
  * The Project File ID is preserved; this creates a local replica, never a new
  * logical Project file and never an upload queue entry.
  */
+export function removeProjectOfflineFile(projectFileId: string): Promise<void> {
+  return withProjectFileLock(projectFileId, () => performRemoveProjectOfflineFile(projectFileId));
+}
+
 export async function installProjectCloudFileToOfflineStorage(input: {
   projectId: string;
   projectFileId: string;
@@ -808,7 +823,7 @@ export async function completeProjectOfflineFileDeletion(projectFileId: string):
   });
 }
 
-export async function removeProjectOfflineFile(projectFileId: string): Promise<void> {
+async function performRemoveProjectOfflineFile(projectFileId: string): Promise<void> {
   const record = await getProjectOfflineFile(projectFileId);
   if (!record) return;
   if (record.cloudState !== 'synced') {
