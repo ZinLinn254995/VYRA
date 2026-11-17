@@ -9,6 +9,7 @@ export type MasterTimelineAudioPlaybackTrack = {
     sourceIn?: number;
     assetId?: string;
     assetVersionId?: string;
+    projectFileId?: string;
   }>;
 };
 
@@ -19,8 +20,9 @@ export type MasterTimelineAudioPlaybackInput = {
 export type MasterTimelineAudioPlaybackItem = {
   trackId: string;
   clipId: string;
-  assetId: string;
-  assetVersionId: string;
+  assetId?: string;
+  assetVersionId?: string;
+  projectFileId?: string;
   delaySeconds: number;
   sourceOffsetSeconds: number;
   durationSeconds: number;
@@ -52,8 +54,8 @@ export function buildMasterTimelineAudioPlaybackPlan(
 
     for (const clip of track.clips) {
       if (!clip || typeof clip.id !== 'string' || !clip.id ||
-          typeof clip.assetId !== 'string' || !clip.assetId ||
-          typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
+          !(typeof clip.projectFileId === 'string' && clip.projectFileId) &&
+          !(typeof clip.assetId === 'string' && clip.assetId && typeof clip.assetVersionId === 'string' && clip.assetVersionId) ||
           !Number.isFinite(clip.start) || clip.start < 0 ||
           !Number.isFinite(clip.duration) || clip.duration <= 0) continue;
 
@@ -66,8 +68,7 @@ export function buildMasterTimelineAudioPlaybackPlan(
       plan.push({
         trackId: track.id,
         clipId: clip.id,
-        assetId: clip.assetId,
-        assetVersionId: clip.assetVersionId,
+        ...(clip.projectFileId ? { projectFileId: clip.projectFileId } : { assetId: clip.assetId!, assetVersionId: clip.assetVersionId! }),
         delaySeconds: Math.max(0, clip.start - playheadTime),
         sourceOffsetSeconds: sourceIn + elapsed,
         durationSeconds: end - Math.max(playheadTime, clip.start),
