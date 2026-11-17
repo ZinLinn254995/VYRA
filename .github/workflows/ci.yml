@@ -75,8 +75,8 @@ jobs:
         run: npm run test:vyral-asset-ingestion
       - name: Cloud Media Library security and UI contract tests
         run: npm run test:media-library-cloud
-      - name: Project-scoped Storage migration safety tests
-        run: npm run test:project-storage-migration
+      - name: Project-scoped Storage runtime and migration safety tests
+        run: npm run test:project-storage-runtime
       - name: Vyral Asset upload action validation tests
         run: npm run test:vyral-asset-upload-action
       - name: AI Chat Vyral and Asset handoff contract tests
