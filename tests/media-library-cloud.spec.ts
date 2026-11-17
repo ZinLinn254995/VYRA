@@ -501,7 +501,7 @@ test('AI Chat clears previous-owner conversation and attachment state immediatel
   assert.ok(chat.includes('onAuthStateChange((_event, session) =>'), 'Auth listener must inspect the next authenticated identity.');
   assert.ok(chat.includes('const nextOwnerId = session?.user?.id ?? null'), 'Identity changes must include sign-out.');
   assert.ok(chat.includes('if (currentOwnerId && currentOwnerId !== nextOwnerId)'), 'Only a validated owner change should trigger private-state clearing.');
-  for (const state of ['setMessages([])', 'setSessions([])', 'setActiveSessionId(null)', 'setSelectedFile(null)', 'setSelectedVyralContext(null)', 'setSelectedVyralImages([])']) {
+  for (const state of ['setMessages([])', 'setSessions([])', 'setActiveSessionId(null)', 'setSelectedFile(null)', 'setSelectedAssets([])']) {
     assert.ok(chat.includes(state), 'Auth identity change must clear ' + state + '.');
   }
   assert.ok(chat.includes('cancelActiveRequest()'), 'An in-flight chat request must be aborted when its owner changes.');
