@@ -212,9 +212,26 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
       fromId: current.sceneId, toId: next.sceneId,
     });
   }
-  const orderedVideoClips = manifest.videoTracks
-    .flatMap((track) => track.visible === false ? [] : track.clips.map((clip) => ({ clip, trackId: track.id })))
-    .sort((a, b) => a.clip.start - b.clip.start || a.clip.duration - b.clip.duration);
+  // The Editor's shared Scenes row combines Director scene-instance clips
+  // with every uploaded visual clip. Build the same adjacency sequence here so
+  // clip-to-clip transitions remain resolvable when either side is Director media.
+  const directorTransitionClips = manifest.scenes.flatMap((scene) => {
+    const instance = instanceByScene.get(scene.id);
+    if (!instance) return [];
+    const mime = instance.assetMimeType?.toLowerCase() ?? '';
+    if (!(mime.startsWith('video/') || mime.startsWith('image/'))) return [];
+    const sourceIn = instance.videoSourceIn ?? 0;
+    const sourceOut = instance.videoSourceOut ?? scene.duration;
+    return [{
+      id: instance.id,
+      start: scenes.find((item) => item.sceneId === scene.id)?.startSeconds ?? 0,
+      duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
+    }];
+  });
+  const orderedVideoClips = [
+    ...directorTransitionClips,
+    ...manifest.videoTracks.flatMap((track) => track.clips.map((clip) => clip)),
+  ].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
   for (let index = 0; index < orderedVideoClips.length - 1; index += 1) {
     const current = orderedVideoClips[index].clip;
     const next = orderedVideoClips[index + 1].clip;
