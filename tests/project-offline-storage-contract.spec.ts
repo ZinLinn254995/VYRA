@@ -257,3 +257,20 @@ test('Offline restore cannot reassign a Project File ID across Projects', () => 
   assert.ok(storage.includes('already belongs to a different Project and cannot be reassigned'));
 });
 
+
+test('Project import atomically commits availability and Cloud upload queue without reusing an existing ID', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  assert.ok(storage.includes('async function storeValuesAtomically(entries: Array<{ storeName: string; value: unknown }>)'));
+  assert.ok(storage.includes("db.transaction(storeNames, 'readwrite')"));
+  assert.ok(storage.includes("{ storeName: FILE_STORE, value: readyRecord }"));
+  assert.ok(storage.includes("{ storeName: SYNC_STORE, value: syncOperation }"));
+  assert.ok(storage.includes('const existingIdentity = await getProjectOfflineFile(projectFileId)'));
+  assert.ok(storage.includes('already in use and cannot be overwritten by a new import'));
+});
+
+test('IndexedDB blocked-open errors clear the cached database promise so recovery can retry', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const blocked = storage.slice(storage.indexOf('request.onblocked'), storage.indexOf('};', storage.indexOf('request.onblocked')) + 2);
+  assert.ok(blocked.includes('databasePromise = null'));
+  assert.ok(blocked.includes('VYRA Offline Storage is busy in another app tab.'));
+});
