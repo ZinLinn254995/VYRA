@@ -124,16 +124,34 @@ Deno.serve(async (request: Request) => {
   if (claim.claimed !== true) {
     const projectTarget = typeof claim.target_project_id === 'string' ? claim.target_project_id : null;
     if (projectTarget && claim.status === 'ingested' && typeof claim.project_file_id === 'string') {
+      const { data: output, error: outputError } = await context.supabaseAdmin.from('media_generation_job_outputs')
+        .select('id,transfer_status,storage_path,sha256,mime_type,size_bytes,project_file_id')
+        .eq('job_id', body.jobId).eq('output_index', outputIndex).maybeSingle();
+      if (outputError || !output || output.transfer_status !== 'ingested' ||
+          output.project_file_id !== claim.project_file_id || typeof output.storage_path !== 'string' ||
+          typeof output.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(output.sha256) ||
+          typeof output.mime_type !== 'string' || !Number.isSafeInteger(output.size_bytes) ||
+          Number(output.size_bytes) <= 0) {
+        return json({ error: 'The completed Project output record could not be verified.' }, 503);
+      }
       const { data: item, error: itemError } = await context.supabaseAdmin.from('media_library_items')
-        .select('id,storage_path,file_name,mime_type,size_bytes,metadata')
+        .select('id,user_id,project_id,universe_id,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata')
         .eq('id', claim.project_file_id).eq('user_id', userId).eq('project_id', projectTarget)
         .is('universe_id', null).maybeSingle();
-      if (itemError || !item) return json({ error: 'The completed Project File could not be recovered.' }, 503);
+      if (itemError || !item || item.id !== output.project_file_id || item.user_id !== userId ||
+          item.project_id !== projectTarget || item.universe_id !== null || item.source_asset_id !== null ||
+          item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
+          item.mime_type !== output.mime_type || Number(item.size_bytes) !== Number(output.size_bytes) ||
+          item.metadata?.generation_job_id !== body.jobId ||
+          Number(item.metadata?.output_index) !== Number(outputIndex) ||
+          item.metadata?.sha256 !== output.sha256) {
+        return json({ error: 'The completed Project File could not be recovered safely.' }, 503);
+      }
       return json({
         jobId: body.jobId, outputIndex, targetProjectId: projectTarget,
-        projectFileId: item.id, status: 'stored', storagePath: item.storage_path,
-        fileName: item.file_name, mimeType: item.mime_type, sizeBytes: item.size_bytes,
-        sha256: item.metadata?.sha256,
+        projectFileId: item.id, status: 'stored', storagePath: output.storage_path,
+        fileName: item.file_name, mimeType: output.mime_type, sizeBytes: output.size_bytes,
+        sha256: output.sha256,
         message: 'Recovered the already completed canonical Project File.',
       });
     }
