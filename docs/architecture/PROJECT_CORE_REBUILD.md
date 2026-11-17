@@ -62,9 +62,10 @@ On login from a new device:
 3. Reconcile local and cloud manifests using stable Project File IDs, versions, and content hashes.
 4. Download metadata and small/high-priority files first.
 5. Download remaining files in the background according to available quota, network conditions, and local availability policy.
-6. Files become offline-available as soon as each local download is complete and verified.
-7. Files not downloaded due to quota or network constraints remain visible as cloud-backed items and can be explicitly fetched when needed.
-8. Cloud downloads are installed under the existing `projectFileId` with `installProjectCloudFileToOfflineStorage`; they must never create a second Project file record. The local replica is marked available only after its write and integrity checks complete.
+6. `VyraApp` starts the account's Cloud sync and Offline recovery after permanent-account login; reconnecting to the network retries pending uploads and resumes account recovery.
+7. Files become offline-available as soon as each local download is complete and verified.
+8. Files not downloaded due to quota or network constraints remain visible as cloud-backed items and can be explicitly fetched when needed.
+9. Cloud downloads are installed under the existing `projectFileId` with `installProjectCloudFileToOfflineStorage`; they must never create a second Project file record. The local replica is marked available only after its write and integrity checks complete. `projectOfflineCloudSync.ts` uploads queued local replicas using the same ID and restores Cloud manifests on account login/reconnect.
 
 Do not claim that every file is offline-ready before it has actually been downloaded and verified. A new device cannot use an unavailable cloud file offline until its local replica exists.
 
