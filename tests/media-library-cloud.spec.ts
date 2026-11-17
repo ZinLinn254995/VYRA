@@ -141,7 +141,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
 });
 
 test('Project Storage UI includes required organization, filtering, views and multi-select', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const service = read('src/services/mediaLibraryCloud.ts');
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
   for (const snippet of [
@@ -151,7 +151,7 @@ test('Project Storage UI includes required organization, filtering, views and mu
     'deleteMediaLibraryItems', 'createMediaLibraryFolder',
     'renameMediaLibraryFolder', 'renameMediaLibraryItem',
     '<video', '<audio', 'previewItem.mime_type === \'application/pdf\'', 'PDF preview:', 'entry.item!.thumbnail_url', 'loading="lazy"', 'Stop after current file', 'requestUploadStop', 'Stopping…',
-    'backfillMediaLibraryThumbnails(4, universeId)', 'refresh(true)',
+    'backfillMediaLibraryThumbnails(4, null, projectId)', 'refresh(true)',
 
     'const breadcrumbs = useMemo(', 'aria-label="Folder path"',
     'const [hasMoreItems, setHasMoreItems] = useState(false)',
@@ -202,7 +202,7 @@ test('Project Storage UI includes required organization, filtering, views and mu
   const openStart = page.indexOf('const openEntry = async (entry: Entry)');
   const openEnd = page.indexOf('const selectedFiles =', openStart);
   const openFlow = page.slice(openStart, openEnd);
-  assert.ok(openFlow.includes('await getMediaLibraryItemSignedUrl(entry.item.id, universeId)'), 'Original file URLs must be fetched only when a file is opened.');
+  assert.ok(openFlow.includes('await getMediaLibraryItemSignedUrl(entry.item.id, null, projectId)'), 'Original file URLs must be fetched only when a file is opened.');
   assert.ok(openFlow.includes('setPreviewItem({ ...entry.item, signed_url: signedUrl })'), 'The preview must receive its freshly authorized URL.');
   assert.ok(openFlow.includes('setError(cause instanceof Error ? cause.message'), 'Secure URL failures must be visible to the user.');
   assert.ok(page.includes('else if (entry.item) void openEntry(entry)'), 'Touch preview must use the same on-demand secure URL flow.');
@@ -225,14 +225,15 @@ test('Project Storage UI includes required organization, filtering, views and mu
   assert.ok(!page.includes("'Folder created.'"), 'Folder creation should not show a success toast.');
 });
 
-test('Project Storage uploads use a project-scoped object namespace while retaining legacy personal files', () => {
+test('Project Storage uploads require a Project and use a project-scoped object namespace', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
   const start = service.indexOf('export async function uploadMediaLibraryFiles');
   const end = service.indexOf('export async function registerVyralAssetInMediaLibrary', start);
   const upload = service.slice(start, end);
+  assert.ok(upload.includes("if (!scope && !projectId) throw new Error('Choose a Project before uploading files.')"), 'New standalone uploads must not create Personal Storage files.');
   assert.ok(upload.includes("userId + '/media-library/' + (projectId ? projectId + '/' : '') + id"), 'Project files must be stored under their own project namespace.');
   assert.ok(upload.includes('project_id: projectId ?? null'), 'The file index must retain its canonical Project owner.');
-  assert.ok(upload.includes("projectId ? projectId + '/' : ''"), 'Legacy personal files keep their existing object paths; no new UI flow creates them.');
+  assert.ok(upload.includes("project_id: projectId ?? null"), 'The file index must retain its canonical Project owner.');
 });
 
 test('Vyral Asset indexing verifies the signed-in owner and canonical storage path before uploading a thumbnail', () => {
@@ -273,7 +274,7 @@ test('Failed Vyral Asset indexing queues cleanup for its thumbnail without touch
 
 test('Media Library failure handling keeps retries scoped and protects canonical files', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
 
   const uploadStart = service.indexOf('export async function uploadMediaLibraryFiles');
   const uploadEnd = service.indexOf('export async function registerVyralAssetInMediaLibrary', uploadStart);
@@ -359,7 +360,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
 
 
 test('Media Library clears stale file rows after a failed context refresh', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const refreshStart = page.indexOf('const refresh = useCallback');
   const refreshEnd = page.indexOf('  }, [activeFolderId, filter, ownerId, serverQuery, universeId]);', refreshStart);
   const refresh = page.slice(refreshStart, refreshEnd);
@@ -369,7 +370,7 @@ test('Media Library clears stale file rows after a failed context refresh', () =
 });
 
 test('Deleting multiple selected folders processes descendants before parents', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const selectionStart = page.indexOf('const selectedFiles =');
   const selectionEnd = page.indexOf('const blockedFolderIds', selectionStart);
   const selection = page.slice(selectionStart, selectionEnd);
@@ -379,7 +380,7 @@ test('Deleting multiple selected folders processes descendants before parents', 
 
 
 test('Media Library invalidates and unlocks stale pagination when the folder or query changes', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const refreshStart = page.indexOf('const refresh = useCallback');
   const refreshEnd = page.indexOf('  }, [activeFolderId, filter, serverQuery]);', refreshStart);
   const refresh = page.slice(refreshStart, refreshEnd);
@@ -396,7 +397,7 @@ test('Media Library invalidates and unlocks stale pagination when the folder or 
 
 
 test('Media Library exposes selection state to assistive technology in both views', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const entryRenderers = page.split('data-testid={\x60media-library-entry-\x24{entry.id}\x60}');
   assert.equal(entryRenderers.length - 1, 2, 'Both list and grid entries must remain independently testable.');
   assert.equal((page.match(/aria-pressed={selectedIds.includes\(entry.id\)}/g) ?? []).length, 2, 'Both file-manager views must expose whether each entry is selected.');
@@ -404,7 +405,7 @@ test('Media Library exposes selection state to assistive technology in both view
 
 
 test('Project Storage restores cached views and reconciles mutations without full reloads', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const service = read('src/services/mediaLibraryCloud.ts');
   assert.ok(page.includes('libraryCacheRef.current.get(cacheKey)'), 'A previously visited folder view must be available immediately.');
   assert.ok(page.includes('setLoading(false)'), 'Cached folder views must not keep the blocking loader visible.');
@@ -450,7 +451,7 @@ test('Workspace clears owner-bound editor state and resets sync freshness when t
 
 
 test('Media Library cache is isolated and cleared when the authenticated owner changes', () => {
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
+  const page = read('src/components/workspace/ProjectStoragePage.tsx');
   assert.ok(page.includes("const { user } = useAuth()"), 'The cache scope must use the authenticated Supabase user ID.');
   assert.ok(page.includes('JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])'), 'Every cached view must include its owner and full folder/search/filter context.');
   assert.ok(page.includes('if (cacheOwnerRef.current === ownerId) return;'), 'The current owner should not lose their own warm cache.');
