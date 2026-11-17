@@ -170,7 +170,7 @@ Still pending:
 
 - Project Chat attachment persistence and image/video/text inspection are partially integrated; generation jobs and generic retrieval by Project File ID still need the Project-native backend path.
 - Editor timeline trim/edit operations and final render/export paths still need end-to-end verification against Project File IDs; the old Asset/version resolver remains intentionally available for historical timelines.
-- Offline rename/move/delete operations need durable local mutation records and Cloud reconciliation.
+- Offline rename/move/delete now update the local Project File record immediately and persist durable mutation operations. Cloud reconciliation reuses the authenticated Project-scoped Media Library operations; delete remains a local tombstone until Cloud deletion succeeds, and account recovery skips tombstoned IDs to prevent resurrection. Remaining verification: concurrent upload/delete races, cross-device tombstone propagation, folder deletion interactions, and retry behavior.
 - Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
 - Full typecheck, build, runtime, browser, RLS, and multi-device tests have not yet been run.
 
@@ -201,3 +201,13 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 - Existing direct device-file import remains local-first and creates one canonical Project File before background Cloud sync.
 - Historical Asset-backed timeline records remain readable during the migration window; they are not rewritten or deleted by this picker.
 - Remaining verification: compile/typecheck, runtime selection and playback for each media kind, multi-track placement, trim/edit/render/export, and offline playback after app reload.
+
+
+## Offline Storage metadata mutations (Nov 17, 2026)
+
+- Project Storage Rename and Move first update the device's canonical Offline metadata and enqueue a durable `rename:` / `move:` operation; Cloud mutation runs in the background through the existing owner- and Project-scoped Media Library service.
+- Delete writes a local tombstone and queues `delete:` before the UI hides the item. The local binary is retained until Cloud confirms deletion; only then is the tombstone, binary, and related queue state removed.
+- An offline-only file can be tombstoned without requiring a Cloud row. The sync worker checks for an existing owner/Project-scoped manifest row before calling the strict Cloud delete operation.
+- Device recovery skips tombstoned Project File IDs, and explicit Cloud-to-device installation refuses to overwrite a pending tombstone.
+- The IndexedDB schema version is advanced without recreating stores, preserving existing metadata, blobs, and upload queue rows. The existing upload operation remains readable as the first member of the expanded mutation queue.
+- Remaining verification: compile/typecheck, runtime Offline rename/move/delete, multi-tab races, upload-vs-delete concurrency, remote-device tombstone propagation, and storage cleanup after interrupted deletion.
