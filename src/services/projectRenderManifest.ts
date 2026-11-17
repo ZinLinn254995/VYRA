@@ -10,6 +10,10 @@ export type ProjectRenderClip = {
   sourceIn?: number;
   sourceOut?: number;
   source?: ProjectRenderSource;
+  projectFileId?: string;
+  assetId?: string;
+  assetVersionId?: string;
+  assetMimeType?: string;
   content?: string;
   mediaKind?: 'video' | 'image' | 'audio';
   isPlaceholder?: boolean;
