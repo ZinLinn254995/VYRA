@@ -471,3 +471,20 @@ test('Offline eviction uses a stable per-Project-File Web Lock across tabs', () 
   assert.ok(storage.includes('return withProjectFileLock(projectFileId, () => performRemoveProjectOfflineFile(projectFileId))'));
   assert.ok(storage.includes('current.replicaRevision !== record.replicaRevision'));
 });
+
+
+test('Interrupted local evictions recover only under per-file Web Locks before Cloud reconciliation', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('export async function recoverInterruptedProjectOfflineEvictions');
+  const end = storage.indexOf('export async function listProjectOfflineFiles', start);
+  const recovery = storage.slice(start, end);
+  assert.ok(recovery.includes('if (!locks || !projectId) return 0'));
+  assert.ok(recovery.includes("record.localState === 'deleting'"));
+  assert.ok(recovery.includes("record.cloudState === 'synced'"));
+  assert.ok(recovery.includes('!record.deletedAt'));
+  assert.ok(recovery.includes('await removeProjectOfflineFile(record.id)'));
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(sync.includes('await recoverInterruptedProjectOfflineEvictions(projectId)'));
+  assert.ok(sync.indexOf('await recoverInterruptedProjectOfflineEvictions(projectId)') <
+    sync.indexOf("const { data: rows, error } = await db.from('media_library_items')"));
+});
