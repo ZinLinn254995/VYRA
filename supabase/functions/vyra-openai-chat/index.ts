@@ -2972,7 +2972,7 @@ async function resolvePendingStoryboardApproval(
   const supportedWriteCapabilities = [
     'storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate',
     'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip',
-    'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video',
+    'timeline.add_clip', 'timeline.add_text',
     'timeline.add_transition', 'timeline.remove_clip',
   ];
   if (!supportedWriteCapabilities.includes(String(pending.capability_id)) ||
@@ -3056,66 +3056,32 @@ const READ_CAPABILITY_TOOLS = {
   'storyboard.list': 'list_my_storyboards',
   'storyboard.read': 'get_my_storyboard_details',
   'timeline.read': 'get_master_timeline_state',
-  'vyral.list': 'list_my_vyrals',
-  'vyral.read': 'get_vyral_master_dna_summary',
-  'asset.list': 'search_vyral_assets',
-  'asset.read': 'get_vyral_asset_details',
-  'asset.relationships.read': 'list_vyral_asset_relationships',
-  'folder.list': 'list_vyral_folders',
 } as const;
 
 type ReadCapabilityId = keyof typeof READ_CAPABILITY_TOOLS;
-
-const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 for (const capabilityId of Object.keys(READ_CAPABILITY_TOOLS) as ReadCapabilityId[]) {
   registerAiCapabilityAdapter({
     capabilityId,
     validate: (input) => {
-      if (capabilityId === 'storyboard.list' || capabilityId === 'vyral.list') {
+      if (capabilityId === 'storyboard.list') {
         return (input.query === undefined || (typeof input.query === 'string' && input.query.length <= 100)) &&
           (input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 30));
       }
       if (capabilityId === 'storyboard.read') {
         return typeof input.title === 'string' && input.title.trim().length > 0 && input.title.length <= 180;
       }
-      if (capabilityId === 'timeline.read') {
-        return typeof input.storyboard_id === 'string' &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
-      }
-      if (capabilityId === 'vyral.read') return Object.keys(input).length === 0;
-      if (capabilityId === 'folder.list') return input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 100);
-      if (capabilityId === 'asset.list') {
-        return (input.query === undefined || (typeof input.query === 'string' && input.query.length <= 100)) &&
-          (input.limit === undefined || (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 20)) &&
-          (input.asset_type === undefined || ['image', 'video', 'audio', 'model_3d', 'archive', 'document', 'other'].includes(String(input.asset_type)));
-      }
-      if (capabilityId === 'asset.read') {
-        const validId = typeof input.asset_id === 'string' &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.asset_id);
-        const validName = typeof input.asset_name === 'string' && input.asset_name.trim().length > 0 && input.asset_name.length <= 180;
-        return validId || validName;
-      }
-      return input.limit === undefined ||
-        (Number.isInteger(input.limit) && Number(input.limit) >= 1 && Number(input.limit) <= 30);
+      return typeof input.storyboard_id === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.storyboard_id);
     },
     execute: async (input, execution) => {
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       const admin = runtime.admin;
       if (!admin) throw new Error('Authenticated Supabase admin context is unavailable.');
-      const toolName = READ_CAPABILITY_TOOLS[capabilityId];
-      if (capabilityId === 'folder.list' || capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
-          capabilityId === 'asset.relationships.read' || capabilityId === 'vyral.read') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
-        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
-        return await executeVyralReadTool(admin, execution.userId, activeVyralId, toolName, JSON.stringify(input));
-      }
-      return await executeGlobalReadTool(admin, execution.userId, toolName, JSON.stringify(input));
+      return await executeGlobalReadTool(admin, execution.userId, READ_CAPABILITY_TOOLS[capabilityId], JSON.stringify(input));
     },
   });
 }
-
 
 const PROPOSAL_CAPABILITY_TOOLS = {
   'storyboard.propose_update': 'propose_storyboard_update',
@@ -3125,19 +3091,6 @@ const PROPOSAL_CAPABILITY_TOOLS = {
   'scene.propose_reorder': 'propose_scene_reorder',
   'timeline.propose_edit': 'propose_master_timeline_edit',
   'timeline.propose_transition': 'propose_master_timeline_transition',
-  'vyral.propose_create': 'propose_vyral_create',
-  'asset.propose_upload': 'propose_vyral_asset_upload',
-  'asset.propose_rename': 'propose_vyral_asset_rename',
-  'asset.propose_metadata': 'propose_vyral_asset_metadata',
-  'asset.propose_relationship_add': 'propose_vyral_asset_relationship_add',
-  'asset.propose_relationship_remove': 'propose_vyral_asset_relationship_remove',
-  'asset.propose_archive': 'propose_vyral_asset_archive',
-  'asset.propose_restore': 'propose_vyral_asset_restore',
-  'folder.propose_create': 'propose_vyral_folder_create',
-  'folder.propose_rename': 'propose_vyral_folder_rename',
-  'folder.propose_move': 'propose_vyral_folder_move',
-  'folder.propose_delete': 'propose_vyral_folder_delete',
-  'asset.propose_move_folder': 'propose_vyral_asset_move_folder',
 } as const;
 
 type ProposalCapabilityId = keyof typeof PROPOSAL_CAPABILITY_TOOLS;
@@ -3148,78 +3101,14 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
     validate: (input, execution) => {
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       if (!runtime.admin || typeof runtime.sessionId !== 'string' || !runtime.sessionId ||
-          typeof runtime.toolCallId !== 'string' || !runtime.toolCallId) return false;
-      if (capabilityId === 'asset.propose_upload') {
-        return Object.keys(input).every((key) => ['vyral_id', 'asset_name'].includes(key)) &&
-          isUuid(input.vyral_id) && typeof input.asset_name === 'string' &&
-          input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180;
-      }
-      if (capabilityId === 'asset.propose_relationship_add') {
-        return Object.keys(input).sort().join(',') === 'evidence_ref,from_asset_id,from_kind,rationale,relationship_type,to_asset_id,to_kind' &&
-          typeof input.relationship_type === 'string' && /^[a-z][a-z0-9_]{1,63}$/.test(input.relationship_type) &&
-          ['asset','vyral'].includes(String(input.from_kind)) && ['asset','vyral'].includes(String(input.to_kind)) &&
-          (input.from_kind === 'asset' ? isUuid(input.from_asset_id) : input.from_asset_id === null) &&
-          (input.to_kind === 'asset' ? isUuid(input.to_asset_id) : input.to_asset_id === null) &&
-          !(input.from_kind === 'vyral' && input.to_kind === 'vyral') &&
-          !(input.from_kind === 'asset' && input.to_kind === 'asset' && input.from_asset_id === input.to_asset_id) &&
-          typeof input.rationale === 'string' && input.rationale.trim().length > 0 && input.rationale.length <= 2000 &&
-          (input.evidence_ref === null || (typeof input.evidence_ref === 'string' && input.evidence_ref.length <= 512));
-      }
-      if (capabilityId === 'asset.propose_relationship_remove') {
-        return Object.keys(input).length === 1 && isUuid(input.relationship_id);
-      }
-      if (capabilityId === 'asset.propose_archive') {
-        return Object.keys(input).length === 1 && isUuid(input.asset_id);
-      }
-      if (capabilityId === 'asset.propose_restore') {
-        return Object.keys(input).length === 1 && isUuid(input.asset_id);
-      }
-      if (capabilityId === 'asset.propose_metadata') {
-        const allowed = ['asset_id', 'title', 'description', 'category', 'tags', 'keywords', 'alt_text'];
-        return Object.keys(input).every((key) => allowed.includes(key)) && isUuid(input.asset_id) &&
-          Object.keys(input).some((key) => key !== 'asset_id');
-      }
-      if (capabilityId === 'asset.propose_rename') {
-        return Object.keys(input).every((key) => ['asset_id', 'asset_name'].includes(key)) &&
-          isUuid(input.asset_id) && typeof input.asset_name === 'string' &&
-          input.asset_name.trim().length > 0 && input.asset_name.trim().length <= 180 &&
-          !/[\\/\u0000-\u001f\u007f]/.test(input.asset_name);
-      }
-      if (capabilityId === 'vyral.propose_create') {
-        return Object.keys(input).every((key) => ['name', 'description'].includes(key)) &&
-          typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
-          (input.description === undefined || (typeof input.description === 'string' && input.description.length <= 1000));
-      }
-      if (capabilityId === 'folder.propose_create') {
-        return Object.keys(input).every((key) => ['name','parent_folder_id'].includes(key)) &&
-          typeof input.name === 'string' && input.name.trim().length > 0 && input.name.trim().length <= 100 &&
-          !/[\\/\u0000-\u001f\u007f]/.test(input.name) &&
-          (input.parent_folder_id === null || isUuid(input.parent_folder_id));
-      }
-      if (capabilityId === 'folder.propose_rename') {
-        return Object.keys(input).every((key) => ['folder_id','name'].includes(key)) &&
-          isUuid(input.folder_id) && typeof input.name === 'string' && input.name.trim().length > 0 &&
-          input.name.trim().length <= 100 && !/[\\/\u0000-\u001f\u007f]/.test(input.name);
-      }
-      if (capabilityId === 'folder.propose_delete') {
-        return Object.keys(input).length === 1 && isUuid(input.folder_id);
-      }
-      if (capabilityId === 'folder.propose_move') {
-        return Object.keys(input).every((key) => ['folder_id','parent_folder_id'].includes(key)) &&
-          isUuid(input.folder_id) && (input.parent_folder_id === null || isUuid(input.parent_folder_id));
-      }
-      if (capabilityId === 'asset.propose_move_folder') {
-        return Object.keys(input).every((key) => ['asset_id','folder_id'].includes(key)) &&
-          isUuid(input.asset_id) && (input.folder_id === null || isUuid(input.folder_id));
-      }
-      if (!isUuid(input.storyboard_id)) return false;
+          typeof runtime.toolCallId !== 'string' || !runtime.toolCallId || !isUuid(input.storyboard_id)) return false;
       if (capabilityId === 'storyboard.propose_update') {
         return Object.keys(input).every((key) => ['storyboard_id', 'field', 'value'].includes(key)) &&
           ['title', 'topic'].includes(String(input.field)) && typeof input.value === 'string';
       }
       if (capabilityId === 'scene.propose_batch_create') {
         return Object.keys(input).every((key) => ['storyboard_id', 'production_plan'].includes(key)) &&
-          isUuid(input.storyboard_id) && isPlainRecord(input.production_plan);
+          isPlainRecord(input.production_plan);
       }
       if (capabilityId === 'scene.propose_update') {
         return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'field', 'value'].includes(key)) &&
@@ -3236,8 +3125,8 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
           input.scene_ids.every(isUuid);
       }
       if (capabilityId === 'timeline.propose_edit') {
-        return Object.keys(input).every((key) => ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration','asset_id','scene_id'].includes(key)) &&
-          ['add_text','add_audio','attach_video','move','trim','split','clone','update_text','delete'].includes(String(input.operation));
+        return Object.keys(input).every((key) => ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration'].includes(key)) &&
+          ['add_text','move','trim','split','clone','update_text','delete'].includes(String(input.operation));
       }
       return Object.keys(input).every((key) => ['storyboard_id', 'transition_key', 'effect'].includes(key)) &&
         typeof input.transition_key === 'string' &&
@@ -3248,61 +3137,11 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
       const admin = runtime.admin;
       const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
       const toolCallId = typeof runtime.toolCallId === 'string' ? runtime.toolCallId : '';
-      const rawArguments = JSON.stringify(input);
       if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
-      if (capabilityId === 'asset.propose_upload') {
-        const attachment = isPlainRecord(runtime.uploadAttachment) ? runtime.uploadAttachment : null;
-        return await createVyralAssetUploadProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, attachment as { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null);
-      }
-      if (capabilityId === 'asset.propose_rename') {
-        return await createVyralAssetRenameProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'asset.propose_metadata') {
-        return await createVyralAssetMetadataProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'asset.propose_archive') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createVyralAssetArchiveProposal(admin, execution.userId, sessionId, activeVyralId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'asset.propose_restore') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createVyralAssetRestoreProposal(admin, execution.userId, sessionId, activeVyralId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createVyralAssetRelationshipProposal(admin, execution.userId, sessionId, activeVyralId,
-          rawArguments, toolCallId, capabilityId === 'asset.propose_relationship_add' ? 'add' : 'remove');
-      }
-      if (capabilityId === 'folder.propose_create' || capabilityId === 'folder.propose_rename' ||
-          capabilityId === 'folder.propose_move' || capabilityId === 'folder.propose_delete' || capabilityId === 'asset.propose_move_folder') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : '';
-        if (!activeVyralId) throw new Error('An owner-verified active Vyral is required.');
-        return await createVyralFolderActionProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId, capabilityId);
-      }
-      if (capabilityId === 'vyral.propose_create') {
-        return await createVyralCreateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'storyboard.propose_update') {
-        return await createStoryboardUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'scene.propose_batch_create') {
-        return await createSceneBatchProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'scene.propose_update') {
-        return await createSceneUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'scene.propose_mutation') {
-        const operation = input.operation === 'delete' ? 'delete' : input.operation === 'create' ? 'create' : 'duplicate';
-        return await createSceneMutationProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, operation);
-      }
-      if (capabilityId === 'scene.propose_reorder') {
-        return await createSceneReorderProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
-      }
-      if (capabilityId === 'timeline.propose_edit') {
-        const activeVyralId = typeof runtime.activeVyralId === 'string' ? runtime.activeVyralId : null;
-        return await createMasterTimelineEditProposal(admin, execution.userId, activeVyralId, sessionId, rawArguments, toolCallId);
-      }
-      return await createMasterTimelineTransitionProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      return await executeSharedProposalCapability(
+        admin, execution.userId, sessionId, capabilityId, JSON.stringify(input), toolCallId,
+        null, null, false,
+      );
     },
   });
 }
