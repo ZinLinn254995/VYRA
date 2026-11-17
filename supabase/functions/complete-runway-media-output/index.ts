@@ -42,11 +42,11 @@ Deno.serve(async (request: Request) => {
     }
     const projectFileId = output.project_file_id ?? output.id;
     const { data: item, error: itemError } = await context.supabaseAdmin.from('media_library_items')
-      .select('id,user_id,project_id,universe_id,source_asset_id,bucket_id,storage_path,mime_type,size_bytes,metadata')
+      .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')
       .eq('id', projectFileId).eq('user_id', userId).eq('project_id', job.target_project_id)
       .is('universe_id', null).maybeSingle();
     if (itemError || !item || item.id !== projectFileId || item.source_asset_id !== null ||
-        item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
+        item.source_kind !== 'generated' || item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
         item.mime_type !== output.mime_type || Number(item.size_bytes) !== Number(output.size_bytes) ||
         item.metadata?.generation_job_id !== body.jobId ||
         Number(item.metadata?.output_index) !== Number(body.outputIndex) ||
