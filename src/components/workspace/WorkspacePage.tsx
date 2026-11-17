@@ -110,8 +110,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   );
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<WorkspaceAiContext['selectedTimelineItem']>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editingStoryboardId, setEditingStoryboardId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<Storyboard | null>(null);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [category, setCategory] = useState('');
@@ -770,8 +768,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       setActiveStoryboardConfirmed(false);
       setStoryboardToDelete(null);
       setIsDeletingStoryboard(false);
-      setEditingStoryboardId(null);
-      setEditDraft(null);
       setCreateOpen(false);
       setTitle('');
       setTopic('');
@@ -1064,16 +1060,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   useLayoutEffect(() => {
     if (createProjectRequest > 0 && isActive) createDefaultStoryboardRef.current();
   }, [createProjectRequest, isActive]);
-
-  const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editDraft || !editingStoryboardId) return;
-    const now = new Date().toISOString();
-    const updated: Storyboard = { ...editDraft, title: editDraft.title.trim() || editDraft.topic.trim().slice(0, 100) || 'Untitled Storyboard', topic: editDraft.topic.trim(), updatedAt: now, details: { ...editDraft.details, tags: (editDraft.details?.tags || []).map((tag) => tag.trim()).filter(Boolean) } };
-    setStoryboards((current) => current.map((item) => item.id === editingStoryboardId ? updated : item));
-    void persistStoryboard(updated);
-    setEditingStoryboardId(null); setEditDraft(null);
-  };
 
   const createStoryboard = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
