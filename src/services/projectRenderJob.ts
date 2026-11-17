@@ -73,7 +73,7 @@ function canonicalRenderInput(value: unknown, ancestors = new Set<object>()): st
   if (Array.isArray(value)) {
     if (ancestors.has(value)) throw new Error('Render input must not contain circular references.');
     if (Reflect.ownKeys(value).some((key) => typeof key === 'symbol' ||
-        (key !== 'length' && (typeof key !== 'string' || !/^(0|[1-9]\\d*)$/.test(key) || Number(key) >= value.length)))) {
+        (key !== 'length' && (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length)))) {
       throw new Error('Render arrays must not contain symbol or custom properties.');
     }
     ancestors.add(value);
