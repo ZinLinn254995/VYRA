@@ -41,7 +41,7 @@ function VyraApp() {
   const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
   useEffect(() => { setPendingSceneStateProposal(null); }, [user?.id]);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('workspace');
-  const [profileInitialPage, setProfileInitialPage] = useState<'my-vyrals' | 'my-media-library' | null>(null);
+  const [profileInitialPage, setProfileInitialPage] = useState<'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -130,10 +130,16 @@ function VyraApp() {
         setProfileOpen(false);
         setProfileInitialPage(null);
         setActiveSection(target);
-      } else if (target === 'my-vyrals' || target === 'my-media-library') {
+      } else if (target === 'my-projects') {
+        resetMainHeaderVisibility();
+        setProfileOpen(false);
+        setProfileInitialPage(null);
+        setProjectWorkspaceOpen(false);
+        setActiveSection('workspace');
+      } else if (target === 'my-media-library') {
         resetMainHeaderVisibility();
         setProfileReturnSection('workspace');
-        setProfileInitialPage(target);
+        setProfileInitialPage('my-media-library');
         setProfileOpen(true);
       }
     };
@@ -182,7 +188,6 @@ function VyraApp() {
                 backLabel="Back to Workspace"
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
                 onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
-                onSendAssetsToChat={(assets) => { setPendingChatAssets(assets); setProfileOpen(false); setActiveSection('workspace'); }}
               />
             </ErrorBoundary>
           </div>
@@ -192,7 +197,7 @@ function VyraApp() {
             <WorkspacePage
               storageKey={workspaceStorageKey}
               isAuthenticated={hasPermanentAccount} isActive={projectWorkspaceOpen} createProjectRequest={createProjectRequest} openProjectRequest={openProjectRequest} onEditorExit={() => setProjectWorkspaceOpen(false)} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Projects / Assets' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
+              onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } if (page === 'my-projects') { setProfileOpen(false); setProjectWorkspaceOpen(false); setProfileInitialPage(null); setActiveSection('workspace'); return; } setWorkspaceAiContext({ page: 'my-media-library', pageLabel: 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage('my-media-library'); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
               pendingSceneStateProposal={pendingSceneStateProposal}
               onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
