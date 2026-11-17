@@ -15,6 +15,7 @@ import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGener
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
 import { buildSceneVisualInspectionPrompt, buildSceneVisualRepairPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
+import { generateRunwayProjectFiles } from '../../services/runwayProjectFileGeneration';
 import { importProjectFileToOfflineStorage } from '../../services/projectOfflineStorage';
 
 type PendingShotRepair = {
@@ -33,7 +34,8 @@ type PendingShotRepair = {
   storyboardId: string;
 };
 type ProjectMediaPreview = { assetId: string; name: string; mimeType: string; url?: string };
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[] };
+type ProjectFilePreview = { projectFileId: string; name: string; mimeType: string; url?: string };
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'success' | 'preview' | 'error' | 'cancelled'; providerLabel?: string; action?: GlobalChatAction; mediaAssets?: ProjectMediaPreview[]; projectFiles?: ProjectFilePreview[] };
 type ChatSession = {
   id: string;
   title: string;
@@ -418,7 +420,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
-            ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
+            ...(Array.isArray(message.projectFiles) ? { projectFiles: message.projectFiles.flatMap((entry: unknown) => {\n              if (!entry || typeof entry !== 'object') return [];\n              const file = entry as Record<string, unknown>;\n              return typeof file.projectFileId === 'string' && typeof file.name === 'string' && typeof file.mimeType === 'string'\n                ? [{ projectFileId: file.projectFileId, name: file.name, mimeType: file.mimeType }] : [];\n            }) } : {}),\n            ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
               if (!entry || typeof entry !== 'object') return [];
               const asset = entry as Record<string, unknown>;
               return typeof asset.assetId === 'string' && typeof asset.name === 'string' && typeof asset.mimeType === 'string'
@@ -438,6 +440,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         } as ChatSession;
       }).filter((session) => session.messages.length > 0);
       if (storyboardId && supabaseClient) {
+        const projectFileIds = [...new Set(loaded.flatMap((session) => session.messages.flatMap((message) => message.projectFiles?.map((file) => file.projectFileId) ?? [])))];
+        if (projectFileIds.length) {
+          const { data: fileRows, error: fileError } = await supabaseClient.from('media_library_items')
+            .select('id,file_name,mime_type,storage_path')
+            .eq('user_id', ownerId).eq('project_id', storyboardId).is('universe_id', null).in('id', projectFileIds);
+          if (!fileError && Array.isArray(fileRows)) {
+            const urls = new Map<string, string>();
+            for (const file of fileRows) {
+              if (typeof file.id !== 'string' || typeof file.storage_path !== 'string') continue;
+              const { data: signed } = await supabaseClient.storage.from('vyral-assets').createSignedUrl(file.storage_path, 3600);
+              if (signed?.signedUrl) urls.set(file.id, signed.signedUrl);
+            }
+            for (const session of loaded) session.messages = session.messages.map((message) => ({
+              ...message,
+              ...(message.projectFiles ? { projectFiles: message.projectFiles.flatMap((file) => {
+                const url = urls.get(file.projectFileId);
+                return url ? [{ ...file, url }] : [];
+              }) } : {}),
+            }));
+          }
+        }
         const previewIds = [...new Set(loaded.flatMap((session) => session.messages.flatMap((message) => message.mediaAssets?.map((asset) => asset.assetId) ?? [])))];
         if (previewIds.length) {
           const { data: previewRows, error: previewError } = await supabaseClient.from('vyral_assets')
@@ -520,7 +543,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         content: message.content,
         ...(message.status ? { status: message.status } : {}),
         ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
-        ...(message.mediaAssets?.length ? { mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType })) } : {}),
+        ...(message.mediaAssets?.length ? { mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType })) } : {}),\n        ...(message.projectFiles?.length ? { projectFiles: message.projectFiles.map(({ projectFileId, name, mimeType }) => ({ projectFileId, name, mimeType })) } : {}),
         ...(message.action ? { action: message.action } : {}),
       }));
       const { error } = await client.from('vyra_ai_chat_conversations').upsert({
@@ -1281,7 +1304,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       setMediaGenerationStatus('This repair belongs to a different Project. Reinspect the active Scene before repairing.');
       return;
     }
-    if (!storyboardId || !storyboardUniverseId || !supabase) {
+    if (!storyboardId || !supabase) {
       setMediaGenerationStatus('Open a Project before creating media.');
       return;
     }
@@ -1480,6 +1503,51 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           'Maximum approved cost: ' + approvedMax, '', 'Credits are reserved only after approval.'].join('\\n');
         return window.confirm(details) ? { confirmed: true as const, maxCostUsd: maxApprovedCostUsd } : { confirmed: false as const };
       };
+      // Non-Scene Project generation writes canonical Project Files directly.
+      // Scene shot sequences remain on the verified legacy continuity workflow.
+      if (!activeDirectorScenePlan && !repairRequest) {
+        const nativeResult = await generateRunwayProjectFiles(projectSupabase, {
+          projectId: storyboardId, task: effectiveMediaTask, quality: mediaQuality,
+          maxCostUsd: budget, input: { promptText: prompt }, signal: controller.signal,
+          onProgress: (progress) => {
+            if (progress.stage === 'quote') setMediaGenerationStatus('Quote received. Waiting for your approval…');
+            else if (progress.stage === 'reserved') setMediaGenerationStatus('Credits reserved. Preparing provider submission…');
+            else if (progress.stage === 'submitted') setMediaGenerationStatus('Provider accepted the job. Generating media…');
+            else if (progress.stage === 'polling') setMediaGenerationStatus('Generation status: ' + progress.status + '…');
+            else if (progress.stage === 'ingesting') setMediaGenerationStatus('Saving output ' + (progress.outputIndex + 1) + ' of ' + progress.outputCount + ' into Project Storage…');
+            else if (progress.stage === 'ready') setMediaGenerationStatus('Generated Project Files are saved and available offline.');
+          },
+          requestApproval: (quote) => approveQuote(quote),
+        });
+        assertMediaRequestCurrent();
+        if (nativeResult.status === 'ready') {
+          const projectFiles: ProjectFilePreview[] = [];
+          for (const file of nativeResult.files) {
+            const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
+              projectSupabase.storage.from('vyral-assets').createSignedUrl(file.storagePath, 3600),
+            );
+            projectFiles.push({ projectFileId: file.projectFileId, name: file.fileName, mimeType: file.mimeType,
+              ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
+          }
+          const summary = nativeResult.files.map((file, index) =>
+            (index + 1) + '. ' + file.fileName + ' · ' + file.projectFileId + ' · ' + file.mimeType).join('\\n');
+          setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', projectFiles,
+            content: 'Media generation completed. ' + nativeResult.files.length +
+              ' file(s) were saved directly to Project Storage and installed in this device’s Offline Storage.\\n\\n' + summary }]);
+          setDraft('');
+          setMediaGenerationStatus('Completed. Your generated files are available in Project Storage and Editor.');
+        } else if (nativeResult.status === 'approval_declined') {
+          setMediaGenerationStatus('Cancelled. No generation job was created and no credits were reserved.');
+        } else if (nativeResult.status === 'submitted_pending' || nativeResult.status === 'ingestion_pending') {
+          setMediaGenerationStatus('Generation is still processing or saving. Job ID: ' + nativeResult.jobId + '. Do not submit it again.');
+        } else if (nativeResult.status === 'reconciliation_required') {
+          setMediaGenerationStatus('Provider outcome needs reconciliation. Job ID: ' + nativeResult.jobId + '. VYRA will not submit it again automatically.');
+        } else {
+          setMediaGenerationStatus('Generation ' + nativeResult.status + ': ' + ('error' in nativeResult ? nativeResult.error : 'Please check the generation job.'));
+        }
+        return;
+      }
+      if (!storyboardUniverseId) throw new Error('This Scene still requires its existing Assets destination for visual continuity verification. Project-native Scene handoff is not enabled yet.');
       const result = effectiveMediaTask === 'video' && activeDirectorScenePlan
         ? await generateRunwayProjectShotSequence(projectSupabase, {
           targetVyralId: storyboardUniverseId,
@@ -2025,6 +2093,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`min-w-0 break-words rounded-2xl px-4 py-3 text-sm leading-6 [overflow-wrap:anywhere] ${message.role === 'user' ? 'max-w-[88%]' : 'w-full max-w-full sm:max-w-[94%]'} ${message.role === 'user' ? 'bg-[var(--vyra-bg-hover)] text-[var(--vyra-text-primary)]' : 'border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-text-secondary)]'}`}>
                   <AIChatMessageContent content={message.content} />
+                  {message.role === 'assistant' && message.projectFiles?.length ? (
+                    <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+                      {message.projectFiles.map((file) => (
+                        <div key={file.projectFileId} className="min-w-0 overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg)]">
+                          {file.url && file.mimeType.startsWith('image/') ? <img src={file.url} alt={file.name} loading="lazy" className="max-h-[420px] w-full object-contain" />
+                            : file.url && file.mimeType.startsWith('video/') ? <video src={file.url} controls playsInline preload="metadata" className="max-h-[420px] w-full bg-black" />
+                              : file.url && file.mimeType.startsWith('audio/') ? <div className="p-3"><p className="mb-2 truncate text-xs text-[var(--vyra-text-primary)]">{file.name}</p><audio src={file.url} controls preload="metadata" className="w-full" /></div>
+                                : <div className="p-3 text-xs text-[var(--vyra-text-muted)]">Preview unavailable · File remains saved in Project Storage</div>}
+                          <p className="truncate px-3 py-2 text-[10px] text-[var(--vyra-text-muted)]">{file.name} · Project File</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {message.role === 'assistant' && message.mediaAssets?.length ? (
                     <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                       {message.mediaAssets.map((asset) => (
