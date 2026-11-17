@@ -62,7 +62,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(service.includes('const applyMetadataSnapshot ='), 'Metadata writes must compare the complete original JSON snapshot to avoid clobbering concurrent metadata changes.');
   assert.ok(service.includes("query.eq('metadata', metadata)"), 'Non-null metadata snapshots must use an equality guard.');
   assert.ok(service.includes("query.is('metadata', null)"), 'Null metadata snapshots must remain eligible for compare-and-set updates.');
-  assert.ok(backfill.includes('const attachmentQuery = applyUniverseScope(') && backfill.includes('applyMetadataSnapshot(db.from(\'media_library_items\')'), 'Thumbnail attachment must apply metadata compare-and-set and universe scope before executing the query.');
+  assert.ok(backfill.includes('const attachmentQuery = applyMediaLibraryScope(') && backfill.includes('applyMetadataSnapshot(db.from(\'media_library_items\')'), 'Thumbnail attachment must apply metadata compare-and-set and universe scope before executing the query.');
   const thumbnailFailure = backfill.slice(backfill.indexOf('if (!thumbnailBlob)'), backfill.indexOf('const thumbnailType'));
   assert.ok(thumbnailFailure.includes('await scheduleRetry(row)'), 'Thumbnail decode failures must use bounded retry rather than being permanently skipped after one attempt.');
   assert.ok(!thumbnailFailure.includes('thumbnail_backfill_attempted_at: new Date().toISOString()'), 'A single decode timeout must not permanently suppress thumbnail retries.');
@@ -127,7 +127,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
     'deleteMediaLibraryItems',
     'registerVyralAssetInMediaLibrary',
     "onConflict: input.universeId ? 'user_id,universe_id,source_asset_id' : 'user_id,source_asset_id'",
-    "db.rpc('delete_media_library_items_and_queue_storage_cleanup'",
+    "db.rpc('delete_project_media_library_items_and_queue_storage_cleanup'",
   ]) assert.ok(service.includes(snippet), 'Missing Media Library contract: ' + snippet);
   assert.ok(service.includes('onProgress?.(uploaded, files.length, file.name);\n    try {'), 'Upload progress should identify each file before its transfer begins.');
   assert.ok(service.includes(String.raw`replace(/\s+/g, ' ')`), 'Folder names should collapse repeated whitespace.');
@@ -274,7 +274,7 @@ test('Failed Vyral Asset indexing queues cleanup for its thumbnail without touch
   assert.ok(register.includes('storage_paths: [thumbnailPath]'), 'Cleanup must target only the generated thumbnail.');
   assert.ok(register.includes("db.storage.from('vyral-assets').remove([thumbnailPath])"), 'If queue persistence fails, remove only the generated thumbnail.');
   assert.ok(register.includes('processMediaLibraryStorageCleanup(1)'), 'A successfully queued thumbnail cleanup should be attempted immediately.');
-  assert.ok(register.includes('throw new Error(\'Could not add this Asset to My Media Library: \' + error.message)'), 'The original indexing failure must still be surfaced.');
+  assert.ok(register.includes('throw new Error(\'Could not add this legacy Asset to its Storage index: \' + error.message)'), 'The original indexing failure must still be surfaced.');
   assert.ok(!register.includes('remove([input.storagePath])'), 'The canonical Vyral Asset must never be removed by Library-index cleanup.');
 });
 
@@ -419,14 +419,14 @@ test('Project Storage restores cached views and reconciles mutations without ful
   assert.ok(page.includes('Date.now() - cached.cachedAt >= 30_000'), 'Stale cached views should refresh quietly after the freshness window.');
   assert.ok(page.includes('if (Date.now() - cached.cachedAt < 30_000) return;'), 'Returning to a fresh folder must skip the network request entirely.');
   assert.ok(page.includes('if (!isActive) return;'), 'The Library must not initialize or backfill while another profile page is active.');
-  assert.ok(page.includes('libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() })'), 'An upload should patch the matching cached folder instead of reloading it.');
+  assert.ok(page.includes('libraryCacheRef.current.set(key, { ...cached, items: merge(cached.items), cachedAt: Date.now() })'), 'An upload should patch the matching cached folder instead of reloading it.');
   assert.ok(page.includes('await task(); if (refreshAfter) await refresh(true)'), 'Mutation handlers must be able to opt out of a full folder refresh.');
   assert.ok(page.includes('}, undefined, false);'), 'Incremental mutations should explicitly avoid the redundant reload path.');
-  assert.ok(service.includes('export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?: string | null)'), 'Uploads should fetch only their new rows.');
-  const incrementalLoad = service.slice(service.indexOf('export async function loadMediaLibraryItemsByIds'), service.indexOf('export async function getMediaLibraryItemSignedUrl'));
-  assert.ok(incrementalLoad.includes(".eq('user_id', ownerId)"), 'Incremental file lookup must remain owner-scoped.');
-  assert.ok(incrementalLoad.includes("itemQuery.eq('id', itemIds[0])"), 'A single upload should query exactly one item ID.');
-  assert.ok(incrementalLoad.includes('thumbnailSignedUrlCache.get(cacheKey)'), 'Incremental preview loading should reuse unexpired signed thumbnail URLs.');
+  assert.ok(service.includes('importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file })'), 'Uploads should fetch only their new rows.');
+  const incrementalLoad = page.slice(page.indexOf('const runUploadBatch ='), page.indexOf('const requestUploadStop ='));
+  assert.ok(incrementalLoad.includes('cachedOwner !== ownerId || cachedProject !== projectId'), 'Cached uploads must remain owner- and Project-scoped.');
+  assert.ok(incrementalLoad.includes('folderId !== localItem.folder_id'), 'A local upload should patch only cached views for its folder.');
+  assert.ok(incrementalLoad.includes("cachedFilter !== 'all' && kindOf(localItem.mime_type) !== cachedFilter"), 'Cached uploads must respect each view’s media filter.');
   assert.ok(page.includes('if (!isActive || document.visibilityState !== \'visible\') return;'), 'Focus and online refreshes must run only while the Library is visible.');
 });
 
@@ -447,8 +447,8 @@ test('Workspace clears owner-bound editor state and resets sync freshness when t
   assert.ok(workspace.includes('const storageOwnerChanged = storyboardStorageKeyRef.current !== storageKey'), 'An account change must be detected independently of ordinary page navigation.');
   assert.ok(workspace.includes('lastStoryboardSyncAtRef.current = 0'), 'A newly signed-in account must not inherit the previous account’s fresh-sync timestamp.');
   assert.ok(workspace.includes('setActiveStoryboard(null)'), 'The previous account’s open Storyboard must be closed before the next account is shown.');
-  assert.ok(workspace.includes('setEditDraft(null)'), 'The previous account’s edit draft must not survive an account switch.');
-  assert.ok(workspace.includes("setTitle('')") && workspace.includes("setTopic('')"), 'Unsubmitted Storyboard form data must be cleared for the next account.');
+  assert.ok(workspace.includes('setSelectedTimelineItem(null)'), 'The previous account’s selected timeline item must not survive an account switch.');
+  assert.ok(workspace.includes("setSceneVideoPreviewUrl('')") && workspace.includes('setSceneVideoPreviewSourceOut(null)'), 'Previous-account preview and trim state must be cleared.');
   assert.ok(workspace.includes('setSelectedSceneIds([])') && workspace.includes('setActiveSceneId(null)'), 'Scene selections must not leak across account boundaries.');
   assert.ok(workspace.includes("setSceneVideoPreviewUrl('')"), 'A previous account’s signed video preview must be discarded.');
   assert.ok(workspace.includes('setIsDeletingStoryboard(false)'), 'A previous account’s pending delete state must not lock the next account’s Workspace.');
@@ -460,7 +460,7 @@ test('Workspace clears owner-bound editor state and resets sync freshness when t
 test('Media Library cache is isolated and cleared when the authenticated owner changes', () => {
   const page = read('src/components/workspace/ProjectStoragePage.tsx');
   assert.ok(page.includes("const { user } = useAuth()"), 'The cache scope must use the authenticated Supabase user ID.');
-  assert.ok(page.includes('JSON.stringify([ownerId, projectId, activeFolderId, serverQuery, filter])'), 'Every cached view must include its owner and full folder/search/filter context.');
+  assert.ok(page.includes('JSON.stringify([ownerId, projectId ?? null, activeFolderId, serverQuery, filter])'), 'Every cached view must include its owner, Project, folder, search and filter context.');
   assert.ok(page.includes('if (cacheOwnerRef.current === ownerId) return;'), 'The current owner should not lose their own warm cache.');
   assert.ok(page.includes('libraryCacheRef.current.clear()'), 'A sign-out or account switch must clear private rows and signed URLs from memory.');
   assert.ok(page.includes('setPreviewItem(null)'), 'A private preview from the previous owner must close on account switch.');
@@ -471,13 +471,11 @@ test('Media Library cache is isolated and cleared when the authenticated owner c
 });
 
 
-test('Workspace ignores stale AI suggestion responses after account changes or newer requests', () => {
+test('Workspace prevents delayed autosaves from writing into a different account after an identity change', () => {
   const workspace = read('src/components/workspace/WorkspacePage.tsx');
-  assert.ok(workspace.includes('const suggestionRequestIdRef = useRef(0)'), 'Suggestion requests need a monotonic identity.');
-  assert.ok(workspace.includes('const requestId = ++suggestionRequestIdRef.current'), 'Each suggestion request must supersede the previous request.');
-  assert.ok(workspace.includes('requestStorageKey !== storyboardStorageKeyRef.current'), 'A response from a previous account must not update the active workspace.');
-  assert.ok(workspace.includes('suggestionRequestIdRef.current += 1'), 'Changing accounts must invalidate outstanding suggestion requests.');
-  assert.ok(workspace.includes('if (requestId === suggestionRequestIdRef.current && requestStorageKey === storyboardStorageKeyRef.current) setIsSuggesting(false)'), 'A stale request must not clear the loading state of a newer request.');
+  assert.ok(workspace.includes('const ownerStorageKey = storageKey'), 'Autosave must capture the account that owns its pending write.');
+  assert.ok(workspace.includes('if (storyboardStorageKeyRef.current !== ownerStorageKey) return;'), 'A delayed save from the previous account must not write into the next account.');
+  assert.ok(workspace.includes('storyboardStorageKeyRef.current === ownerStorageKey'), 'State updates must re-check the active account before applying the save.');
 });
 
 test('AI Chat clears previous-owner conversation and attachment state immediately on auth identity change', () => {
@@ -518,7 +516,7 @@ test('Master Timeline accepts Project file references for image, video and audio
   const audioEngine = read('src/server/masterTimelineAudioPlaybackEngine.ts');
   const workspace = read('src/components/workspace/WorkspacePage.tsx');
   assert.ok(editor.includes('projectFileId?: string'), 'Timeline clips must store a first-class Project file reference.');
-  assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(activeImageClip.projectFileId'), 'Image preview must resolve Project files directly.');
+  assert.ok(editor.includes("resolveProjectFilePlaybackUrl(activeImageClip.projectFileId, 'image')"), 'Image preview must resolve Project files directly.');
   assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(clip.projectFileId, projectId || \'\', \'audio\')'), 'Audio preview must resolve Project files directly.');
   assert.ok(editor.includes('uploadMediaLibraryFiles('), 'New Editor uploads must be stored in Project Storage.');
   assert.ok(videoPlan.includes('projectFileId?: string') && videoPlan.includes('projectFileId: clip.projectFileId'), 'Video scheduling must preserve Project file identity.');
