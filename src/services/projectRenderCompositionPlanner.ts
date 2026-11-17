@@ -233,26 +233,31 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     // top-level source in the shared Scenes row; do not count both.
     const instanceClips = (instance.videoClips ?? []).filter(isRenderableVisualClip);
     if (instanceClips.length) {
-      return instanceClips.map((clip) => ({
-        id: clip.id,
-        start: sceneStart + clip.start,
-        duration: clip.duration,
-      }));
+      return instanceClips.flatMap((clip) => {
+        const range = sourceRange(clip);
+        const duration = Math.min(range.durationSeconds, scene.duration - clip.start);
+        return duration > 0 ? [{
+          id: clip.id,
+          start: sceneStart + clip.start,
+          duration,
+        }] : [];
+      });
     }
     const mime = instance.assetMimeType?.toLowerCase() ?? '';
     if (!(instance.projectFileId || (instance.assetId && instance.assetVersionId)) ||
         !(mime.startsWith('video/') || mime.startsWith('image/'))) return [];
     const sourceIn = instance.videoSourceIn ?? 0;
-    const sourceOut = instance.videoSourceOut ?? scene.duration;
-    return [{
-      id: instance.id,
-      start: sceneStart,
-      duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
-    }];
+    const sourceOut = instance.videoSourceOut ?? sourceIn + scene.duration;
+    const duration = Math.min(scene.duration, sourceOut - sourceIn);
+    return duration > 0 ? [{ id: instance.id, start: sceneStart, duration }] : [];
   });
   const orderedVideoClips = [
     ...directorTransitionClips,
-    ...manifest.videoTracks.flatMap((track) => track.clips.filter(isRenderableVisualClip)),
+    ...manifest.videoTracks.flatMap((track) =>
+      track.visible === false ? [] : track.clips.filter(isRenderableVisualClip).flatMap((clip) => {
+        const duration = sourceRange(clip).durationSeconds;
+        return duration > 0 ? [{ id: clip.id, start: clip.start, duration }] : [];
+      })),
   ]
     // Match mergeTimelineVideoRows, then the Editor's stable start/duration sort.
     .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
