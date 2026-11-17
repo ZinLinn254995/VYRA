@@ -7,10 +7,11 @@ import {
 import {
   backfillMediaLibraryThumbnails, createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
   getMediaLibraryItemSignedUrl, loadMediaLibrary, loadMediaLibraryItemsByIds, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
-  renameMediaLibraryItem, uploadMediaLibraryFiles,
+  renameMediaLibraryItem,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
 import { useAuth } from '../../context/AuthContext';
+import { getProjectOfflineFileBlob, importProjectFileToOfflineStorage, listProjectOfflineFiles } from '../../services/projectOfflineStorage';
 
 type FilterKind = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
 type ViewMode = 'list' | 'grid';
@@ -113,6 +114,8 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
   const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
+  useEffect(() => () => { if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current); previewObjectUrlRef.current = null; }, [previewItem]);
   useEffect(() => {
     if (!previewItem && !renameTarget) return;
     const handleModalKeyDown = (event: KeyboardEvent) => {
@@ -217,11 +220,22 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     try {
       const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: 0, limit: 100, projectId });
       if (requestId !== libraryRequestRef.current) return;
-      setFolders(result.folders);
-      setItems(result.items);
-      setHasMoreItems(result.hasMore);
-      libraryCacheRef.current.set(cacheKey, { ...result, cachedAt: Date.now() });
-      setSelectedIds((previous) => previous.filter((id) => result.items.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
+      const localRecords = await listProjectOfflineFiles(projectId);
+      if (requestId !== libraryRequestRef.current) return;
+      const cloudIds = new Set(result.items.map((item) => item.id));
+      const localItems: MediaLibraryItem[] = localRecords.filter((record) => !cloudIds.has(record.id)).map((record) => ({
+        id: record.id, user_id: ownerId!, universe_id: null, project_id: projectId,
+        folder_id: record.folderId ?? null, source_kind: 'upload', source_asset_id: null,
+        bucket_id: 'vyral-assets', storage_path: '', file_name: record.fileName,
+        mime_type: record.mimeType, size_bytes: record.sizeBytes,
+        metadata: { offline_only: true, cloud_state: record.cloudState },
+        created_at: record.createdAt, updated_at: record.updatedAt, signed_url: null, thumbnail_url: null,
+      }));
+      const mergedItems = [...result.items, ...localItems];
+      const mergedResult = { ...result, items: mergedItems };
+      setFolders(result.folders); setItems(mergedItems); setHasMoreItems(result.hasMore);
+      libraryCacheRef.current.set(cacheKey, { ...mergedResult, cachedAt: Date.now() });
+      setSelectedIds((previous) => previous.filter((id) => mergedItems.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
       if (requestId === libraryRequestRef.current) {
         // Never leave the previous folder/search results visible after a failed
@@ -251,12 +265,15 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
       }
       if (isActive) void refresh(true);
     };
+    const handleOfflineFileReady = () => { if (isActive) void refresh(true); };
     window.addEventListener('vyra:media-library-changed', handleLibraryChanged);
+    window.addEventListener('vyra:project-offline-file-ready', handleOfflineFileReady);
     window.addEventListener('focus', refreshIfStale);
     window.addEventListener('online', refreshIfStale);
     document.addEventListener('visibilitychange', refreshIfStale);
     return () => {
       window.removeEventListener('vyra:media-library-changed', handleLibraryChanged);
+      window.removeEventListener('vyra:project-offline-file-ready', handleOfflineFileReady);
       window.removeEventListener('focus', refreshIfStale);
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
@@ -380,74 +397,51 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
   const runUploadBatch = async (files: File[]) => {
     if (!files.length || busy) return;
     const failures: Array<{ file: File; message: string }> = [];
-    
     const controller = new AbortController();
     uploadAbortControllerRef.current = controller;
-    setStopRequested(false);
-    setUploadingCount(files.length);
+    setStopRequested(false); setUploadingCount(files.length);
     setUploadProgress({ completed: 0, total: files.length, fileName: files[0]?.name ?? '' });
+    let completed = 0;
     try {
       await withBusy(async () => {
-        const count = await uploadMediaLibraryFiles(
-          files,
-          activeFolderId,
-          (completed, total, fileName) => {
-            setUploadProgress({ completed, total, fileName });
-            setUploadingCount(total - completed);
-          },
-          (file, cause) => failures.push({ file, message: cause.message }),
-          controller.signal,
-          (itemId) => {
-            // Fetch just the inserted row and patch the visible folder/cache;
-            // do not reload the complete folder after each successful upload.
-            void loadMediaLibraryItemsByIds([itemId], null, projectId).then((updatedItems) => {
-              const item = updatedItems[0];
-              if (!item || cacheOwnerRef.current !== ownerId) return;
-              const mergeItem = (current: MediaLibraryItem[]) => [
-                ...current.filter((entry) => entry.id !== item.id), item,
-              ].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 100);
-              // Patch every already-visited folder view that matches this file,
-              // even if the user navigated elsewhere while the upload completed.
-              for (const [cacheKey, cached] of libraryCacheRef.current) {
-                try {
-                  const [cacheOwnerId, cacheProjectId, folderId, searchText, cachedFilter] = JSON.parse(cacheKey) as [string | null, string | null, string | null, string, string];
-                  if (cacheOwnerId !== ownerId || cacheProjectId !== (projectId ?? null) || folderId !== item.folder_id) continue;
-                  if (cachedFilter !== 'all' && kindOf(item.mime_type) !== cachedFilter) continue;
-                  if (searchText && !item.file_name.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())) continue;
-                  libraryCacheRef.current.set(cacheKey, { ...cached, items: mergeItem(cached.items), cachedAt: Date.now() });
-                } catch {
-                  // Ignore an invalidated cache entry; the normal refresh will rebuild it.
-                }
-              }
-              if (item.folder_id === activeFolderId
-                && (filter === 'all' || kindOf(item.mime_type) === filter)
-                && (!serverQuery || item.file_name.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))) {
-                setItems((current) => mergeItem(current));
-              }
-            }).catch(() => {
-              // The upload remains saved; a later background refresh can reconcile its preview row.
-            });
-          },
-          undefined,
-          projectId,
-        );
-        setFailedUploads(failures);
-        if (count > 0) setSelectedIds([]);
-        const stopped = controller.signal.aborted;
-        setNotice(
-          (stopped
-            ? 'Upload stopped after the current file. ' + count + (count === 1 ? ' file uploaded' : ' files uploaded') + '.'
-            : count + (count === 1 ? ' file uploaded' : ' files uploaded') + (failures.length ? ' · ' + failures.length + ' failed' : '') + '.'),
-        );
+        for (const file of files) {
+          if (controller.signal.aborted) break;
+          try {
+            const { file: record } = await importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file });
+            const localItem: MediaLibraryItem = {
+              id: record.id, user_id: ownerId!, universe_id: null, project_id: projectId,
+              folder_id: record.folderId ?? null, source_kind: 'upload', source_asset_id: null,
+              bucket_id: 'vyral-assets', storage_path: '', file_name: record.fileName,
+              mime_type: record.mimeType, size_bytes: record.sizeBytes,
+              metadata: { offline_only: true, cloud_state: record.cloudState },
+              created_at: record.createdAt, updated_at: record.updatedAt, signed_url: null, thumbnail_url: null,
+            };
+            const merge = (rows: MediaLibraryItem[]) => [...rows.filter((row) => row.id !== localItem.id), localItem]
+              .sort((x, y) => x.file_name.localeCompare(y.file_name, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 100);
+            for (const [key, cached] of libraryCacheRef.current) {
+              try {
+                const [cachedOwner, cachedProject, folderId, searchText, cachedFilter] = JSON.parse(key) as [string | null, string | null, string | null, string, string];
+                if (cachedOwner !== ownerId || cachedProject !== projectId || folderId !== localItem.folder_id) continue;
+                if (cachedFilter !== 'all' && kindOf(localItem.mime_type) !== cachedFilter) continue;
+                if (searchText && !localItem.file_name.toLowerCase().includes(searchText.toLowerCase())) continue;
+                libraryCacheRef.current.set(key, { ...cached, items: merge(cached.items), cachedAt: Date.now() });
+              } catch { /* refresh rebuilds invalidated entries */ }
+            }
+            if (localItem.folder_id === activeFolderId && (filter === 'all' || kindOf(localItem.mime_type) === filter)
+              && (!serverQuery || localItem.file_name.toLowerCase().includes(serverQuery.toLowerCase()))) setItems((rows) => merge(rows));
+            completed += 1;
+          } catch (cause) { failures.push({ file, message: cause instanceof Error ? cause.message : 'Could not copy into Offline Storage.' }); }
+          setUploadProgress({ completed, total: files.length, fileName: file.name });
+          setUploadingCount(files.length - completed - failures.length);
+        }
+        setFailedUploads(failures); if (completed) setSelectedIds([]);
+        setNotice((controller.signal.aborted ? 'Stopped after the current file. ' : '')
+          + completed + (completed === 1 ? ' file copied to Offline Storage.' : ' files copied to Offline Storage.')
+          + (failures.length ? ' · ' + failures.length + ' failed' : '') + ' Cloud sync continues in the background.');
       }, undefined, false);
-      if (failures.length) {
-        setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
-      }
+      if (failures.length) setError(failures.map(({ file, message }) => file.name + ': ' + message).join(' · '));
     } finally {
-      uploadAbortControllerRef.current = null;
-      setStopRequested(false);
-      setUploadingCount(0);
-      setUploadProgress(null);
+      uploadAbortControllerRef.current = null; setStopRequested(false); setUploadingCount(0); setUploadProgress(null);
     }
   };
   const requestUploadStop = () => {
@@ -540,7 +534,9 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     if (!entry.item) return;
     setError(null);
     try {
-      const signedUrl = entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id, null, projectId);
+      const localBlob = await getProjectOfflineFileBlob(entry.item.id);
+      const signedUrl = localBlob ? URL.createObjectURL(localBlob) : entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id, null, projectId);
+      if (localBlob) previewObjectUrlRef.current = signedUrl;
       modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPreviewItem({ ...entry.item, signed_url: signedUrl });
     } catch (cause) {
