@@ -54,6 +54,18 @@ test('rejects unsupported or unscoped manifest and composition plan envelopes', 
   }), /supported immutable Project composition plan/);
 });
 
+test('rejects a composition plan that does not match the pinned manifest at job creation', () => {
+  const job = makeJob();
+  const alteredPlan = JSON.parse(JSON.stringify(job.compositionPlan)) as typeof job.compositionPlan;
+  alteredPlan.visuals[0].source = {
+    kind: 'project-file', projectFileId: 'unrelated-source', mimeType: 'video/mp4',
+  };
+  assert.throws(() => createProjectRenderJob({
+    id: 'tampered-plan', ownerId: 'owner-1', idempotencyKey: 'tampered:plan',
+    inputDigest: 'a'.repeat(64), manifest: job.manifest, compositionPlan: alteredPlan, at,
+  }), /does not match the pinned Project render manifest/);
+});
+
 test('advances through preparation, rendering and upload before committing a Project File output', () => {
   let job = makeJob();
   job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 5, at: '2026-11-17T12:00:01.000Z' });
