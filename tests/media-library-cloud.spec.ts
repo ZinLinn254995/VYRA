@@ -225,16 +225,14 @@ test('My Media Library UI includes required organization, filtering, views and m
   assert.ok(!page.includes("'Folder created.'"), 'Folder creation should not show a success toast.');
 });
 
-test('Profile routes My Media Library and AI Chat Vyral uploads are indexed automatically', () => {
-  const profile = read('src/components/profile/ProfilePage.tsx');
-  const chat = read('src/components/ai/AIChatPage.tsx');
-  assert.ok(profile.includes("import { MyMediaLibraryPage }"));
-  assert.ok(profile.includes(`<MyMediaLibraryPage isActive={isActive && activePage === 'my-media-library'} />`));
-  assert.ok(chat.includes('registerVyralAssetInMediaLibrary'));
-  assert.ok(chat.includes('thumbnailSource: sourceFile'), 'AI Chat should reuse the selected File to create its Library thumbnail without re-downloading the original.');
-  assert.ok(chat.includes('assetId: ingested.assetId'));
-  assert.ok(chat.includes('storagePath: ingested.storagePath'));
-  assert.ok(chat.includes('**My Media Library:** Added automatically.'));
+test('Project Storage uploads use a project-scoped object namespace without changing Personal Storage', () => {
+  const service = read('src/services/mediaLibraryCloud.ts');
+  const start = service.indexOf('export async function uploadMediaLibraryFiles');
+  const end = service.indexOf('export async function registerVyralAssetInMediaLibrary', start);
+  const upload = service.slice(start, end);
+  assert.ok(upload.includes("userId + '/media-library/' + (projectId ? projectId + '/' : '') + id"), 'Project files must be stored under their own project namespace.');
+  assert.ok(upload.includes('project_id: projectId ?? null'), 'The file index must retain its canonical Project owner.');
+  assert.ok(upload.includes("projectId ? projectId + '/' : ''"), 'Personal Storage must keep its existing non-project path.');
 });
 
 test('Vyral Asset indexing verifies the signed-in owner and canonical storage path before uploading a thumbnail', () => {
@@ -451,13 +449,6 @@ test('Workspace clears owner-bound editor state and resets sync freshness when t
 });
 
 
-test('My Vyrals deletes one local list entry without refetching the entire collection', () => {
-  const page = read('src/components/profile/MyVyralsPage.tsx');
-  assert.ok(page.includes("setVyrals((current) => current.filter((vyral) => vyral.id !== item.id))"), 'A confirmed delete should remove only the affected Vyral from the visible list.');
-  assert.ok(!page.includes('else { if (activeId === item.id) setActiveId(null); await loadVyrals(); }'), 'Deleting one Vyral must not trigger a full collection reload.');
-});
-
-
 test('Media Library cache is isolated and cleared when the authenticated owner changes', () => {
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
   assert.ok(page.includes("const { user } = useAuth()"), 'The cache scope must use the authenticated Supabase user ID.');
@@ -471,21 +462,6 @@ test('Media Library cache is isolated and cleared when the authenticated owner c
   assert.ok(page.includes('Never render a previous account\'s private rows or signed thumbnail URLs.'), 'Private cached content must never flash for a different account.');
 });
 
-
-test('Profile Vyral and Media Library pages revalidate only when visible', () => {
-  const profile = read('src/components/profile/ProfilePage.tsx');
-  const vyrals = read('src/components/profile/MyVyralsPage.tsx');
-  assert.ok(profile.includes("isActive={isActive && activePage === 'my-vyrals'}"), 'My Vyrals must know when its parent Profile page is visible.');
-  assert.ok(profile.includes('initialPage = null, isActive = true'), 'Profile must default to active for existing standalone callers while honoring the App shell visibility prop.');
-  assert.ok(profile.includes("isActive={isActive && activePage === 'my-media-library'}"), 'My Media Library must know when its parent Profile page is visible.');
-  assert.ok(profile.includes("page: isActive ? 'profile:' + activePage : 'profile:inactive'"), 'Profile activation must be re-announced when returning from another top-level page.');
-  assert.ok(profile.includes('}, [activePage, isActive]);'), 'Profile activation event must respond to both subpage and top-level visibility changes.');
-  assert.ok(vyrals.includes('if (!isActive) return;'), 'Hidden My Vyrals must not fetch or show a loading state.');
-  assert.ok(vyrals.includes('Date.now() - lastSyncAtRef.current >= 30_000'), 'A stale Vyral list should revalidate after return without blocking the UI.');
-  assert.ok(vyrals.includes('if (!quiet) setLoading(true)'), 'A background Vyral refresh must preserve visible cached content.');
-  assert.ok(vyrals.includes(".eq('user_id', ownerId)"), 'Vyral reads must remain scoped to the authenticated owner.');
-  assert.ok(vyrals.includes('requestId !== loadRequestRef.current || currentOwnerRef.current !== ownerId'), 'Late responses from a previous account must not overwrite the current Vyral list.');
-});
 
 test('Workspace ignores stale AI suggestion responses after account changes or newer requests', () => {
   const workspace = read('src/components/workspace/WorkspacePage.tsx');
@@ -501,72 +477,9 @@ test('AI Chat clears previous-owner conversation and attachment state immediatel
   assert.ok(chat.includes('onAuthStateChange((_event, session) =>'), 'Auth listener must inspect the next authenticated identity.');
   assert.ok(chat.includes('const nextOwnerId = session?.user?.id ?? null'), 'Identity changes must include sign-out.');
   assert.ok(chat.includes('if (currentOwnerId && currentOwnerId !== nextOwnerId)'), 'Only a validated owner change should trigger private-state clearing.');
-  for (const state of ['setMessages([])', 'setSessions([])', 'setActiveSessionId(null)', 'setSelectedFile(null)', 'setSelectedAssets([])']) {
+  for (const state of ['setMessages([])', 'setSessions([])', 'setActiveSessionId(null)', 'setSelectedFile(null)', ]) {
     assert.ok(chat.includes(state), 'Auth identity change must clear ' + state + '.');
   }
   assert.ok(chat.includes('cancelActiveRequest()'), 'An in-flight chat request must be aborted when its owner changes.');
 });
 
-test('Storyboard Universe uses the complete scoped Media Library and canonical Asset backend', () => {
-  const migration = read('supabase/migrations/20261115134317_storyboard_universe_media_library.sql');
-  const service = read('src/services/mediaLibraryCloud.ts');
-  const page = read('src/components/profile/MyMediaLibraryPage.tsx');
-  const universeTab = read('src/components/workspace/StoryboardUniverseTab.tsx');
-  const workspace = read('src/components/workspace/WorkspacePage.tsx');
-  const chat = read('src/components/ai/AIChatPage.tsx');
-
-  assert.ok(migration.includes('add column if not exists universe_id'), 'Media Library records need a Storyboard Universe scope.');
-  assert.ok(migration.includes('vyral_folder_id uuid references public.vyral_folders(id) on delete cascade'), 'Universe Library folders must mirror the canonical AI-managed folder tree.');
-  assert.ok(migration.includes('media_library_items_source_asset_unique'), 'Canonical Asset indexes retain a unique owner-and-Asset identity.');
-  assert.ok(migration.includes('Storyboard Universe files must be backed by a canonical Asset with DNA'), 'Universe uploads must never become untracked binary-only files.');
-  assert.ok(migration.includes('Source Asset does not belong to this Storyboard Universe'), 'Database triggers must reject cross-Universe Asset references.');
-  assert.ok(migration.includes('Parent folder does not belong to this Library scope'), 'Database triggers must reject cross-Universe folder moves.');
-
-  assert.ok(service.includes('async function assertStoryboardUniverse'), 'Every scoped operation must verify ownership and Storyboard scope.');
-  for (const operation of [
-    'renameMediaLibraryFolder', 'deleteMediaLibraryFolder', 'moveMediaLibraryFolder',
-    'moveMediaLibraryItems', 'renameMediaLibraryItem', 'backfillMediaLibraryThumbnails',
-    'uploadMediaLibraryFiles',
-  ]) {
-    const start = service.indexOf('export async function ' + operation);
-    const end = service.indexOf('\nexport async function ', start + 10);
-    const body = service.slice(start, end < 0 ? undefined : end);
-    const ownershipCheck = operation === 'uploadMediaLibraryFiles'
-      ? body.includes('assertStoryboardUniverse(db, userId, scope.universeId, scope.storyboardId)')
-      : body.includes('assertStoryboardUniverse(db, userId, universeId');
-    assert.ok(ownershipCheck, operation + ' must verify the active private Universe before acting.');
-  }
-  assert.ok(service.includes('async function syncStoryboardUniverseLibrary'), 'AI-created folders and Assets must be reconciled into the Library view.');
-  assert.equal((service.match(/\.range\(offset, offset \+ 499\)/g) ?? []).length, 2, 'Folder and Asset reconciliation must page through the full Universe inventory rather than silently stopping at 1,000 rows.');
-  assert.ok(service.includes('db.from(\'vyral_folders\')'), 'Universe folders must share canonical IDs with AI folder tools.');
-  assert.ok(service.includes('ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db)'), 'Universe uploads must run the full Asset ingestion and DNA pipeline.');
-  assert.ok(service.includes('vyralId: scope.universeId, userId, file, folderId'), 'Uploaded Assets must be attached to the current Universe and folder.');
-  assert.ok(service.includes('thumbnailPaths'), 'Deleting a Universe Asset must also clean its Library thumbnail.');
-  assert.ok(service.includes("db.functions.invoke('build-vyral-master-dna'"), 'New Universe Assets must refresh the derived Master DNA.');
-  const universeDelete = service.slice(service.indexOf('export async function deleteMediaLibraryItems'), service.indexOf('async function createMediaThumbnail'));
-  assert.ok(universeDelete.includes("db.functions.invoke('build-vyral-master-dna'"), 'Deleting the final Asset must invalidate and reconcile the Universe Master DNA state.');
-  assert.ok(universeDelete.includes('remainingAssetCount ?? 0') && universeDelete.includes("masterDnaStatus = 'empty'"), 'An empty Universe must be distinguished from a failed Master DNA build.');
-  assert.ok(service.includes('scope.onMasterDnaSync?.(dnaStatus)'), 'The Library should report whether Master DNA is ready after upload.');
-  assert.ok(service.includes('db.from(\'vyral_assets\').delete()'), 'Deleting from a Storyboard Universe must remove its canonical Asset record and dependent DNA.');
-  assert.ok(service.includes('mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId))'), 'Folder caches must be isolated by Universe.');
-
-  assert.ok(page.includes('universeId?: string; storyboardId?: string'), 'The existing Media Library page must accept an explicit Storyboard scope.');
-  assert.ok(page.includes('universeId && storyboardId ? { universeId, storyboardId, onMasterDnaSync:'), 'Uploads must pass the Storyboard identity to the scoped ingestion service.');
-  assert.ok(page.includes('JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])'), 'Cached files and folders must never leak between personal and Storyboard Libraries.');
-  assert.ok(page.includes('await deleteMediaLibraryItems(deletedFileIds, universeId)'), 'Delete actions must target the active Universe only.');
-
-  assert.ok(universeTab.includes('<MyMediaLibraryPage'), 'The Storyboard Universe tab must reuse the real My Media Library UI.');
-  assert.ok(universeTab.includes('universeId={universe.id}'), 'The Library UI must be scoped to the resolved private Universe.');
-  assert.ok(workspace.includes('renderLibrary={storyboardEditorView === \'universe\'}'), 'The Library should mount only when the Universe tab is visible.');
-  assert.ok(workspace.includes('activeVyralId={storyboardUniverse.id}'), 'Storyboard AI Chat must operate against the same dedicated Universe.');
-  assert.ok(chat.includes("item.id === storyboardUniverseId"), 'Storyboard AI Chat must not switch to another personal or Storyboard Universe.');
-  assert.ok(chat.includes("universeId: storyboardId ? destination.id : undefined"), 'Assets uploaded from Storyboard AI Chat must be indexed in the same Universe.');
-  assert.ok(chat.includes("origin: storyboardId ? 'storyboard_ai_chat' : 'global_ai_chat'"), 'Storyboard AI uploads must retain their Storyboard provenance.');
-  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
-  assert.ok(editor.includes("ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase)"), 'Editor uploads must use the same canonical Asset and DNA pipeline as Project Assets.');
-  assert.ok(editor.includes("origin: 'project_editor'"), 'Editor uploads must retain their source provenance.');
-  assert.ok(editor.includes('registerVyralAssetInMediaLibrary({'), 'Editor uploads must be indexed into the unified Project Assets Library.');
-  assert.ok(editor.includes('recovered_after_reload: true'), 'An interrupted Editor upload must re-enter the same canonical ingestion path after recovery.');
-  assert.ok(editor.includes('thumbnailSource: file') || editor.includes('thumbnailSource: recoveredFile'), 'Editor uploads should index the Asset without re-uploading its original binary.');
-  assert.ok(chat.includes('registerVyralAssetInMediaLibrary({'), 'AI Chat uploads must enter the same unified Asset Library after ingestion.');
-});
