@@ -16,7 +16,7 @@ import type { CreativeScenePlan } from '../../services/creativeProductionPlannin
 import { buildSceneVisualInspectionPrompt, buildSceneVisualRepairPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
 import { generateRunwayProjectFiles, recoverRunwayProjectFiles } from '../../services/runwayProjectFileGeneration';
-import { importProjectFileToOfflineStorage } from '../../services/projectOfflineStorage';
+import { getProjectOfflineFileBlob, importProjectFileToOfflineStorage, installProjectCloudFileToOfflineStorage } from '../../services/projectOfflineStorage';
 
 type PendingShotRepair = {
   scene: CreativeScenePlan;
@@ -753,6 +753,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           id: makeId(),
           role: 'user',
           content: (text || 'Please inspect this attachment.') + attachmentText,
+          ...(attachedProjectFileId && attachedFile ? { projectFiles: [{ projectFileId: attachedProjectFileId, name: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream' }] } : {}),
         };
     shouldAutoScrollRef.current = true;
     // Retry the original user turn in place; discard the failed assistant turn and anything after it.
@@ -1280,6 +1281,60 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }]);
       }
       const promptWorkspaceContext = workspaceContext ? (({ continuityRuntime: _localRuntime, ...context }) => context)(workspaceContext) : null;
+      // Rehydrate Project attachments referenced by earlier turns. Offline replicas are
+      // preferred; Cloud is a recovery source, and any downloaded copy is installed
+      // under the same Project File ID before Vision receives it.
+      if (storyboardId && supabase) {
+        const attachmentRefs = nextMessages.flatMap((message) => message.projectFiles ?? []);
+        const uniqueRefs = [...new Map(attachmentRefs.map((file) => [file.projectFileId, file])).values()];
+        const currentVisionIds = new Set(visionImages.map((image) => image.assetId));
+        const historicalText = new Map<string, string>();
+        for (const attachment of uniqueRefs) {
+          assertRequestCurrent();
+          let blob = await getProjectOfflineFileBlob(attachment.projectFileId);
+          if (!blob) {
+            const { data: row, error: rowError } = await supabase.from('media_library_items')
+              .select('id,file_name,mime_type,size_bytes,storage_path,folder_id,updated_at,metadata')
+              .eq('id', attachment.projectFileId).eq('user_id', requestOwnerId)
+              .eq('project_id', storyboardId).is('universe_id', null).maybeSingle();
+            if (rowError) throw new Error('A previous Project attachment could not be located.');
+            if (row?.storage_path) {
+              const { data: downloaded, error: downloadError } = await supabase.storage.from('vyral-assets').download(row.storage_path);
+              if (downloadError || !downloaded) throw new Error('A previous Project attachment is not available on this device or Cloud.');
+              const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
+              await installProjectCloudFileToOfflineStorage({
+                projectId: storyboardId, projectFileId: row.id, folderId: row.folder_id ?? null,
+                fileName: row.file_name, mimeType: row.mime_type, lastModified: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+                blob: downloaded, expectedSha256: typeof metadata.sha256 === 'string' ? metadata.sha256 : null,
+              });
+              blob = await getProjectOfflineFileBlob(attachment.projectFileId);
+            }
+          }
+          if (!blob) continue;
+          if (attachment.mimeType.startsWith('image/') && !currentVisionIds.has(attachment.projectFileId)) {
+            const preview = await createVisionImagePreview(blob);
+            visionImages.push({ ...preview, assetId: attachment.projectFileId, assetName: attachment.name });
+            currentVisionIds.add(attachment.projectFileId);
+          } else if (attachment.mimeType.startsWith('video/') && !currentVisionIds.has(attachment.projectFileId)) {
+            const frames = await extractSelectedVideoFrames(blob, attachment.projectFileId, attachment.name, 4);
+            visionImages.push(...frames);
+            currentVisionIds.add(attachment.projectFileId);
+          } else if ((attachment.mimeType.startsWith('text/') || /\\.(txt|md|csv|json|xml|ya?ml)$/i.test(attachment.name)) && blob.size <= 1024 * 1024) {
+            historicalText.set(attachment.projectFileId, await blob.text());
+          }
+        }
+        // Text attachments remain explicitly linked to their originating turn. This
+        // fallback restores their content if an older chat message only stored an ID.
+        for (const message of nextMessages) {
+          if (!message.projectFiles?.length) continue;
+          const missingText = message.projectFiles.filter((file) => historicalText.has(file.projectFileId)
+            && !message.content.includes('Attached text content:'));
+          if (missingText.length) {
+            const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\\n' + historicalText.get(file.projectFileId)).join('\\n\\n');
+            message.content += '\\n\\nRecovered Project attachment text:\\n' + recovered;
+          }
+        }
+      }
       const result = await aiService.generateResponse({
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
