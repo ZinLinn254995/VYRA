@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AudioLines,
+  FolderOpen,
   Image as ImageIcon,
   Video,
   LoaderCircle,
@@ -29,7 +30,7 @@ import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVi
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
 import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
-import { getProjectOfflineFile, getProjectOfflineFileBlob, importProjectFileToOfflineStorage } from '../../services/projectOfflineStorage';
+import { getProjectOfflineFile, getProjectOfflineFileBlob, importProjectFileToOfflineStorage, installProjectCloudFileToOfflineStorage, listProjectOfflineFiles } from '../../services/projectOfflineStorage';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -231,6 +232,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
 
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
+  const [projectStoragePickerOpen, setProjectStoragePickerOpen] = useState(false);
+  const [projectStoragePickerLoading, setProjectStoragePickerLoading] = useState(false);
+  const [projectStoragePickerFiles, setProjectStoragePickerFiles] = useState<Array<{ id: string; fileName: string; mimeType: string; sizeBytes: number; bucketId: string | null; storagePath: string | null; folderId: string | null; local: boolean }>>([]);
 
   const pendingUploadSignature = [...(value?.videoTracks || []), ...(value?.audioTracks || [])]
     .flatMap((track) => track.clips)
@@ -1514,6 +1518,96 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       textTracks: value?.textTracks || [],
     });
   };
+  const loadProjectStoragePicker = async () => {
+    if (!projectId || !supabase) return;
+    setProjectStoragePickerOpen(true);
+    setProjectStoragePickerLoading(true);
+    setMediaUploadError('');
+    try {
+      const [localFiles, cloudResult] = await Promise.all([
+        listProjectOfflineFiles(projectId),
+        supabase.from('media_library_items')
+          .select('id,file_name,mime_type,size_bytes,bucket_id,storage_path,folder_id')
+          .eq('project_id', projectId).is('universe_id', null)
+          .order('created_at', { ascending: false }).limit(200),
+      ]);
+      if (cloudResult.error) throw cloudResult.error;
+      const merged = new Map<string, { id: string; fileName: string; mimeType: string; sizeBytes: number; bucketId: string | null; storagePath: string | null; folderId: string | null; local: boolean }>();
+      for (const row of cloudResult.data ?? []) {
+        if (typeof row.id !== 'string' || typeof row.file_name !== 'string' || typeof row.mime_type !== 'string') continue;
+        const local = localFiles.find((file) => file.id === row.id);
+        merged.set(row.id, { id: row.id, fileName: row.file_name, mimeType: row.mime_type,
+          sizeBytes: Number(row.size_bytes) || local?.sizeBytes || 0,
+          bucketId: typeof row.bucket_id === 'string' ? row.bucket_id : 'vyral-assets',
+          storagePath: typeof row.storage_path === 'string' ? row.storage_path : null,
+          folderId: typeof row.folder_id === 'string' ? row.folder_id : null, local: Boolean(local) });
+      }
+      for (const file of localFiles) if (!merged.has(file.id)) merged.set(file.id, {
+        id: file.id, fileName: file.fileName, mimeType: file.mimeType, sizeBytes: file.sizeBytes,
+        bucketId: null, storagePath: null, folderId: file.folderId, local: true,
+      });
+      setProjectStoragePickerFiles([...merged.values()].filter((file) =>
+        file.mimeType.startsWith('video/') || file.mimeType.startsWith('image/') || file.mimeType.startsWith('audio/')));
+    } catch (error) {
+      setMediaUploadError(error instanceof Error ? error.message : 'Project Storage could not be loaded.');
+    } finally {
+      setProjectStoragePickerLoading(false);
+    }
+  };
+
+  const addProjectStorageFileToTimeline = async (entry: (typeof projectStoragePickerFiles)[number]) => {
+    if (!projectId || !supabase || mediaUploadBusy) return;
+    setMediaUploadBusy(true);
+    setMediaUploadError('');
+    try {
+      let blob = await getProjectOfflineFileBlob(entry.id);
+      if (!blob) {
+        if (!entry.storagePath) throw new Error('This file is not available in Cloud or this device.');
+        const { data, error } = await supabase.storage.from(entry.bucketId || 'vyral-assets').download(entry.storagePath);
+        if (error || !data) throw error ?? new Error('The Project file could not be downloaded.');
+        blob = data;
+        await installProjectCloudFileToOfflineStorage({
+          projectId, projectFileId: entry.id, folderId: entry.folderId,
+          fileName: entry.fileName, mimeType: entry.mimeType, blob,
+        });
+      }
+      const kind: 'video' | 'image' | 'audio' = entry.mimeType.startsWith('video/') ? 'video'
+        : entry.mimeType.startsWith('audio/') ? 'audio' : 'image';
+      const file = new File([blob], entry.fileName, { type: entry.mimeType });
+      const duration = await readUploadedMediaDuration(file, kind);
+      const clip: TimelineClip = {
+        id: crypto.randomUUID(), name: entry.fileName, content: entry.fileName,
+        start: kind === 'audio' ? Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current) : 0,
+        duration, sourceIn: 0, sourceOut: duration, projectFileId: entry.id,
+        assetMimeType: entry.mimeType, waveform: [], mediaKind: kind,
+      };
+      if (kind === 'audio') {
+        const placement = placeTimelineOverlayClip(value?.audioTracks || [], clip, 'Audio', () => crypto.randomUUID());
+        commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances || [],
+          videoTracks: value?.videoTracks || [], transitions: { ...(value?.transitions || {}) },
+          audioTracks: placement.tracks as TimelineTrack[], textTracks: value?.textTracks || [] });
+      } else {
+        const existing = (value?.videoTracks || []).flatMap((track) => track.clips);
+        const insertion = getScenesInsertionIndex(existing, Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current));
+        const ordered = [...existing].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+        ordered.splice(Math.min(insertion, ordered.length), 0, clip);
+        const layout = buildScenesClipTrainLayout(ordered);
+        const clipById = new Map(layout.map((item) => [item.id, item]));
+        const tracks = value?.videoTracks?.length ? value.videoTracks.map((track, index) => ({
+          ...track, clips: index === 0 ? layout.map((item) => clipById.get(item.id) ?? item) : track.clips,
+        })) : [{ id: crypto.randomUUID(), name: 'Video', clips: layout }];
+        commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances || [],
+          videoTracks: tracks, transitions: { ...(value?.transitions || {}) },
+          audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
+      }
+      setProjectStoragePickerOpen(false);
+    } catch (error) {
+      setMediaUploadError(error instanceof Error ? error.message : 'The Project file could not be added to Editor.');
+    } finally {
+      setMediaUploadBusy(false);
+    }
+  };
+
   const handleMediaFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
@@ -2763,6 +2857,29 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
       <input ref={mediaFileInputRef} type="file" accept="video/*,image/*,audio/*" multiple className="hidden" onChange={handleMediaFilesSelected} aria-label="Upload Video, Image or Audio files" />
+      {projectStoragePickerOpen && (
+        <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/55 p-3" role="dialog" aria-modal="true" aria-label="Choose from Project Storage">
+          <div className="flex max-h-[80%] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]">
+            <div className="flex items-center justify-between border-b border-[var(--vyra-border)] px-4 py-3">
+              <div><h3 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Project Storage</h3><p className="text-[10px] text-[var(--vyra-text-muted)]">Choose a file to add to the timeline</p></div>
+              <button type="button" onClick={() => setProjectStoragePickerOpen(false)} className="rounded-lg px-3 py-1.5 text-xs text-[var(--vyra-text-secondary)]">Close</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {projectStoragePickerLoading ? <div className="py-8 text-center text-xs text-[var(--vyra-text-muted)]">Loading Project files…</div>
+                : projectStoragePickerFiles.length ? <div className="space-y-1">
+                  {projectStoragePickerFiles.map((file) => (
+                    <button key={file.id} type="button" disabled={mediaUploadBusy} onClick={() => void addProjectStorageFileToTimeline(file)} className="flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-[var(--vyra-bg-hover)] disabled:opacity-50">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]">{file.mimeType.startsWith('audio/') ? <AudioLines size={17}/> : file.mimeType.startsWith('image/') ? <ImageIcon size={17}/> : <Video size={17}/>}</span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-xs text-[var(--vyra-text-primary)]">{file.fileName}</span><span className="block text-[10px] text-[var(--vyra-text-muted)]">{file.local ? 'Available offline' : 'Cloud · downloads when selected'} · {(file.sizeBytes / (1024 * 1024)).toFixed(1)} MB</span></span>
+                      <Plus size={16} className="shrink-0 text-[var(--vyra-text-muted)]"/>
+                    </button>
+                  ))}
+                </div> : <div className="py-8 text-center text-xs text-[var(--vyra-text-muted)]">No Video, Image or Audio files in this Project yet.</div>}
+            </div>
+            {mediaUploadBusy && <div className="border-t border-[var(--vyra-border)] px-4 py-2 text-[10px] text-[var(--vyra-text-muted)]">Restoring file and adding it to the timeline…</div>}
+          </div>
+        </div>
+      )}
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
 
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
@@ -3082,6 +3199,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         {!isTextEditMode && (
           <div className="pointer-events-none absolute right-4 top-[3.25rem] z-40 flex flex-col items-end gap-2">
             {mediaUploadError && <div role="status" className="max-w-56 rounded-lg border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] px-3 py-2 text-xs text-[var(--vyra-text-primary)] shadow-lg">{mediaUploadError}</div>}
+            {projectId && <button type="button" disabled={mediaUploadBusy} onClick={() => void loadProjectStoragePicker()}
+              title="Add from Project Storage" aria-label="Add from Project Storage"
+              className="pointer-events-auto grid size-10 place-items-center rounded-md border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)] shadow-sm hover:bg-[var(--vyra-bg-hover)] disabled:opacity-60">
+              <FolderOpen size={19} strokeWidth={1.8}/>
+            </button>}
             <button type="button" disabled={mediaUploadBusy || (!projectId && !vyralId)} onClick={() => mediaFileInputRef.current?.click()}
               title="Upload Video, Image or Audio" aria-label="Upload Video, Image or Audio"
               className="pointer-events-auto grid size-10 place-items-center rounded-md border border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)] text-white shadow-sm transition-colors hover:brightness-105 disabled:cursor-wait disabled:opacity-60">
