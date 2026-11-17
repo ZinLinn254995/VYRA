@@ -576,4 +576,5 @@ export async function removeProjectOfflineFile(projectFileId: string): Promise<v
   }
   await deleteValue(FILE_STORE, projectFileId);
   await deleteValue(SYNC_STORE, 'upload:' + projectFileId);
+  emitOfflineStorageChanged(projectFileId);
 }
