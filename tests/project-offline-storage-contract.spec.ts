@@ -182,6 +182,14 @@ test('Project Storage queues Offline rename, move, and tombstoned delete mutatio
 });
 
 
+test('Project Chat preserves offline-only attachment references when no Cloud URL exists', () => {
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(chat.includes('Keep the canonical Project File reference even when Cloud has no row yet.'));
+  assert.ok(chat.includes('return url ? { ...file, url } : file;'));
+  assert.ok(!chat.includes('message.projectFiles.flatMap((file)'));
+  assert.ok(chat.includes('getProjectOfflineFileBlob(attachment.projectFileId)'));
+});
+
 test('Project Chat keeps attachment IDs in message history and rehydrates prior-turn context', () => {
   const chat = read('src/components/ai/AIChatPage.tsx');
   assert.ok(chat.includes("projectFiles: [{ projectFileId: attachedProjectFileId"));
