@@ -23,10 +23,8 @@ Deno.serve(async (request: Request) => {
     body = parsed;
   } catch { return json({ error: 'Request body must be valid JSON.' }, 400); }
   if (typeof body.jobId !== 'string' || !UUID.test(body.jobId) ||
-      !Number.isInteger(body.outputIndex) || Number(body.outputIndex) < 0 || Number(body.outputIndex) > 15 ||
-      typeof body.assetId !== 'string' || !UUID.test(body.assetId) ||
-      typeof body.assetVersionId !== 'string' || !UUID.test(body.assetVersionId)) {
-    return json({ error: 'A valid job, output, Asset and Asset Version are required.' }, 400);
+      !Number.isInteger(body.outputIndex) || Number(body.outputIndex) < 0 || Number(body.outputIndex) > 15) {
+    return json({ error: 'A valid generation job and output are required.' }, 400);
   }
 
   const { data: job, error: jobError } = await context.supabaseAdmin.from('generation_jobs')
@@ -71,6 +69,10 @@ Deno.serve(async (request: Request) => {
     });
   }
   if (!job.target_vyral_id) return json({ error: 'The legacy Asset destination could not be verified.' }, 404);
+  if (typeof body.assetId !== 'string' || !UUID.test(body.assetId) ||
+      typeof body.assetVersionId !== 'string' || !UUID.test(body.assetVersionId)) {
+    return json({ error: 'A valid historical Asset and Asset Version are required.' }, 400);
+  }
 
   const { data: output, error: outputError } = await context.supabaseAdmin.from('media_generation_job_outputs')
     .select('transfer_status,storage_path,staging_storage_path,sha256,mime_type,size_bytes')
