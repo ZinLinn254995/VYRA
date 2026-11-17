@@ -656,7 +656,7 @@ The migration sequence currently has two destination columns on generation_jobs:
 
 The newer create_runway_media_job_for_project wrapper rejects an idempotency key already bound to a legacy Vyral destination. However, the earlier create_runway_media_job_for_project_asset wrapper is not replaced after target_project_id is introduced and does not check that column. As written, an idempotency replay through the older wrapper could attempt to attach a Vyral destination to a job already bound to a Project. The newer wrapper prevents the reverse direction, but the database does not yet enforce mutual exclusion between the two destination columns.
 
-**Required source correction before migration-chain approval:** add an idempotent database CHECK constraint to generation_jobs requiring target_vyral_id IS NULL OR target_project_id IS NULL (both NULL remains valid for historical jobs). Confirm there are no conflicting rows in the disposable local chain, then validate the constraint. This central database invariant is safer than relying only on the two wrapper implementations. Do not patch a hosted database or rewrite an already-applied migration.
+**Source correction added:** `20261117050000_generation_job_destination_mutual_exclusion.sql` adds an idempotent CHECK constraint requiring target_vyral_id IS NULL OR target_project_id IS NULL; both NULL remains valid for historical jobs. The constraint is enforced by PostgreSQL rather than relying only on wrapper checks. The Development database does not yet have either destination column because these migrations have not been applied, so the live Development catalog cannot validate this constraint. The clean local migration chain must still prove it installs and accepts the expected historical rows.
 
 ### Remaining static-review boundaries
 
@@ -668,4 +668,4 @@ The newer create_runway_media_job_for_project wrapper rejects an idempotency key
 
 ### Gate decision
 
-The nine-file chain is **not yet approved for execution** because the mutual-exclusion invariant above needs a source correction and then a clean local reset test. Keep the hosted Development and Production schemas and migration ledgers unchanged. Do not merge, deploy, db push, repair migration history, or selectively replay migrations as part of this audit.
+The migration chain now contains ten ordered Project/Runway migrations, including the destination mutual-exclusion constraint. It remains **not approved for execution** until a clean local reset test validates the complete chain and SQL/application tests. Keep the hosted Development and Production schemas and migration ledgers unchanged. Do not merge, deploy, db push, repair migration history, or selectively replay migrations as part of this audit.
