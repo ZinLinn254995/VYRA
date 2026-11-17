@@ -321,3 +321,15 @@ Do not add a rendering dependency or an Export control yet. The current reposito
 6. Only then expose the existing approved export entry point in the UI; do not redesign the Editor.
 
 This audit is a deliberate architecture hold, not an export implementation claim.
+
+
+## Immutable Project render manifest foundation — November 17, 2026
+
+- Added `src/services/projectRenderManifest.ts` as a renderer-neutral, versioned snapshot contract (`vyra.project-render-manifest`, version 1).
+- The manifest captures the Project ID, creation timestamp, ordered Scene list, Scene ranges/instances, Video/Audio/Text tracks, clip placement and trims, track visibility/mute/volume, text content, transitions, and immutable source identities.
+- New Project Files are represented by stable Project File IDs. Historical sources remain represented by exact Asset ID + immutable Version ID pairs; these identity types are explicitly namespaced and cannot collide.
+- The snapshot is detached from the live timeline and deeply frozen. It deliberately excludes signed URLs, temporary object URLs, waveform preview data, and other transient Editor state.
+- Manifest creation fails closed for missing media identity, malformed clip timing/source trims, invalid Scene ranges, malformed tracks, and invalid transitions. Text overlay clips are correctly treated as source-free content rather than media files.
+- Added `tests/project-render-manifest.spec.ts` and registered `npm run test:project-render-manifest` for source-level coverage of stable identity, immutability, transient URL exclusion, and validation failures.
+- This is a serializable input contract only. It does not resolve media bytes, choose codecs, render frames, encode audio, create jobs, or claim export is available. The renderer/runtime decision remains gated on production platform and device capability verification.
+- Test execution, typecheck, build, Worker runtime, and browser verification have not been run in this environment.
