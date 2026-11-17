@@ -54,6 +54,22 @@ test('rejects unsupported or unscoped manifest and composition plan envelopes', 
   }), /supported immutable Project composition plan/);
 });
 
+test('pins detached manifest and plan snapshots without freezing caller-owned inputs', () => {
+  const manifest = JSON.parse(JSON.stringify(createProjectRenderManifest(manifestInput()))) as ReturnType<typeof createProjectRenderManifest>;
+  const plan = JSON.parse(JSON.stringify(buildProjectRenderCompositionPlan(manifest))) as ReturnType<typeof buildProjectRenderCompositionPlan>;
+  const originalTitle = manifest.scenes[0].title;
+  const job = createProjectRenderJob({
+    id: 'detached-snapshot', ownerId: 'owner-1', idempotencyKey: 'detached:1',
+    inputDigest: 'b'.repeat(64), manifest, compositionPlan: plan, at,
+  });
+  assert.equal(Object.isFrozen(manifest), false);
+  assert.equal(Object.isFrozen(plan), false);
+  manifest.scenes[0].title = 'Changed after job creation';
+  assert.equal(job.manifest.scenes[0].title, originalTitle);
+  assert.equal(Object.isFrozen(job.manifest), true);
+  assert.equal(Object.isFrozen(job.compositionPlan), true);
+});
+
 test('rejects a composition plan that does not match the pinned manifest at job creation', () => {
   const job = makeJob();
   const alteredPlan = JSON.parse(JSON.stringify(job.compositionPlan)) as typeof job.compositionPlan;
