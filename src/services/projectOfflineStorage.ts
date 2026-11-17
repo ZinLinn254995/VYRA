@@ -318,6 +318,96 @@ export async function importProjectFileToOfflineStorage(input: {
   }
 }
 
+/**
+ * Install a verified Cloud replica into this device's dedicated Offline Storage.
+ * The Project File ID is preserved; this creates a local replica, never a new
+ * logical Project file and never an upload queue entry.
+ */
+export async function installProjectCloudFileToOfflineStorage(input: {
+  projectId: string;
+  projectFileId: string;
+  fileName: string;
+  mimeType: string;
+  lastModified?: number;
+  blob: Blob;
+  expectedSha256?: string | null;
+}): Promise<ProjectOfflineFileRecord> {
+  if (!input.projectId || !input.projectFileId) throw new Error('A Project and Project File ID are required.');
+  if (!input.blob || input.blob.size <= 0) throw new Error('The Cloud file is empty.');
+  const existing = await getProjectOfflineFile(input.projectFileId);
+  if (existing?.localState === 'available' && existing.projectId === input.projectId) return existing;
+
+  const storageKey = input.projectFileId + '.blob';
+  const directory = await getOpfsDirectory();
+  let storageBackend: 'opfs' | 'indexeddb' = directory ? 'opfs' : 'indexeddb';
+  const now = new Date().toISOString();
+  const base: ProjectOfflineFileRecord = {
+    id: input.projectFileId,
+    projectId: input.projectId,
+    fileName: input.fileName,
+    mimeType: input.mimeType || 'application/octet-stream',
+    sizeBytes: input.blob.size,
+    lastModified: input.lastModified || Date.now(),
+    localState: 'copying',
+    cloudState: 'synced',
+    storageBackend,
+    storageKey,
+    contentHash: input.expectedSha256 ?? null,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  await storeValue(FILE_STORE, base);
+  try {
+    if (directory) {
+      try {
+        const handle = await directory.getFileHandle(storageKey, { create: true });
+        const writable = await handle.createWritable({ keepExistingData: false });
+        try {
+          for (let offset = 0; offset < input.blob.size; offset += COPY_CHUNK_BYTES) {
+            const chunk = await input.blob.slice(offset, Math.min(input.blob.size, offset + COPY_CHUNK_BYTES)).arrayBuffer();
+            await writable.write(chunk);
+          }
+          await writable.close();
+        } catch (error) {
+          try { await writable.abort?.(); } catch { /* best effort */ }
+          try { await directory.removeEntry(storageKey); } catch { /* best effort */ }
+          throw error;
+        }
+      } catch {
+        storageBackend = 'indexeddb';
+        await storeValue(BLOB_STORE, { key: storageKey, blob: input.blob, projectFileId: input.projectFileId });
+      }
+    } else {
+      await storeValue(BLOB_STORE, { key: storageKey, blob: input.blob, projectFileId: input.projectFileId });
+    }
+
+    let contentHash = input.expectedSha256 ?? null;
+    if (input.blob.size <= HASH_MAX_BYTES && typeof crypto !== 'undefined' && crypto.subtle) {
+      const digest = await crypto.subtle.digest('SHA-256', await input.blob.arrayBuffer());
+      const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      if (input.expectedSha256 && actual.toLowerCase() !== input.expectedSha256.toLowerCase()) {
+        throw new Error('The downloaded Cloud file failed its SHA-256 integrity check.');
+      }
+      contentHash = actual;
+    }
+    const ready: ProjectOfflineFileRecord = {
+      ...base,
+      storageBackend,
+      localState: 'available',
+      cloudState: 'synced',
+      contentHash,
+      updatedAt: new Date().toISOString(),
+    };
+    await storeValue(FILE_STORE, ready);
+    emitOfflineStorageChanged(input.projectFileId);
+    return ready;
+  } catch (error) {
+    const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
+    try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
+    throw error instanceof Error ? error : new Error('Could not restore the Cloud file into Offline Storage.');
+  }
+}
+
 export async function getProjectOfflineFile(projectFileId: string): Promise<ProjectOfflineFileRecord | null> {
   return getValue<ProjectOfflineFileRecord>(FILE_STORE, projectFileId);
 }
