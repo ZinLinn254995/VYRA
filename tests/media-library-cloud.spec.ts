@@ -136,7 +136,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(service.includes('if (insertError)'));
   assert.ok(service.includes('thumbnailPath ? [thumbnailPath] : []'), 'Deleting standalone uploads should also remove their thumbnail objects.');
   assert.ok(service.includes('Thumbnail generation is best-effort'), 'Thumbnail failures must not invalidate original uploads.');
-  assert.ok(service.includes('Vyral-backed canonical binaries are never queued.'), 'Removing a Library shortcut must never delete that canonical object.');
+  assert.ok(service.includes('row.source_asset_id !== null') && service.includes('delete_project_media_library_items_and_queue_storage_cleanup'), 'Only standalone Project files may enter cleanup; canonical Vyral-backed Asset binaries are excluded.');
   assert.ok(read('supabase/migrations/20261114155727_media_library_storage_cleanup_queue.sql').includes('and item.source_asset_id is null'), 'The atomic cleanup RPC must exclude canonical Vyral assets.');
 });
 
@@ -518,7 +518,7 @@ test('Master Timeline accepts Project file references for image, video and audio
   assert.ok(editor.includes('projectFileId?: string'), 'Timeline clips must store a first-class Project file reference.');
   assert.ok(editor.includes("resolveProjectFilePlaybackUrl(activeImageClip.projectFileId, 'image')"), 'Image preview must resolve Project files directly.');
   assert.ok(editor.includes("resolveProjectFilePlaybackUrl(projectFileId, 'audio')"), 'Audio playback must resolve Project files through the shared local-first Project resolver.');
-  assert.ok(editor.includes('uploadMediaLibraryFiles('), 'New Editor uploads must be stored in Project Storage.');
+  assert.ok(editor.includes('importProjectFileToOfflineStorage(') && editor.includes('projectId'), 'New Editor imports must be copied into Project Offline Storage first.');
   assert.ok(videoPlan.includes('projectFileId?: string') && videoPlan.includes('projectFileId: clip.projectFileId'), 'Video scheduling must preserve Project file identity.');
   assert.ok(audioPlan.includes('projectFileId?: string') && audioPlan.includes('projectFileId: clip.projectFileId'), 'Audio scheduling must preserve Project file identity.');
   assert.ok(videoEngine.includes('resolveProjectFileUrl'), 'Video playback must resolve Project file sources without Asset IDs.');
