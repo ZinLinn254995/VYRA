@@ -18,6 +18,8 @@ const BUCKET = 'vyral-assets';
 const MAX_BATCH = 20;
 const MAX_RESTORE_BYTES_PER_PROJECT = 256 * 1024 * 1024;
 const UNKNOWN_QUOTA_RESTORE_BUDGET = 64 * 1024 * 1024;
+let projectCloudSyncPromise: Promise<number> | null = null;
+type ProjectSyncLockManager = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
 
 function getDb() {
   if (!supabase) throw new Error('Cloud synchronization is not configured.');
@@ -39,7 +41,7 @@ async function getOwnerId(): Promise<string> {
  * Uploads durable Offline replicas to Cloud. It is intentionally callable from
  * app startup, online events, and foreground activity; no UI progress is emitted.
  */
-export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number> {
+async function performPendingProjectFileSync(limit: number): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
   const operations = await listPendingProjectOfflineSyncOperations(Math.min(MAX_BATCH, Math.max(1, limit)));
@@ -121,7 +123,25 @@ export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number>
 }
 
 /**
- * Reconciles a Project's Cloud manifest with this device. Existing logical file
+ * Serialize sync across callers and, where supported, across browser tabs.
+ * This prevents overlapping upload/mutation workers from racing each other.
+ */
+export function syncPendingProjectFilesToCloud(limit = 5): Promise<number> {
+  if (projectCloudSyncPromise) return projectCloudSyncPromise;
+  const run = async () => {
+    const lockManager = typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { locks?: ProjectSyncLockManager }).locks
+      : undefined;
+    return lockManager
+      ? lockManager.request('vyra-project-offline-cloud-sync', () => performPendingProjectFileSync(limit))
+      : performPendingProjectFileSync(limit);
+  };
+  projectCloudSyncPromise = run().finally(() => { projectCloudSyncPromise = null; });
+  return projectCloudSyncPromise;
+}
+
+/**
+ * Reconciles a Project's Cloud manifest with this device. Existing logical file Existing logical file
  * IDs are retained; only missing local replicas are downloaded and installed.
  */
 export async function restoreProjectOfflineFilesFromCloud(projectId: string, limit = 100): Promise<number> {
