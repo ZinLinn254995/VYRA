@@ -89,178 +89,6 @@ const GLOBAL_READ_TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'list_my_vyrals',
-      description: "List the signed-in user's Vyrals. Read-only; use actual account records.",
-      parameters: {
-        type: 'object',
-        properties: { query: { type: 'string', description: 'Optional Vyral name or description keyword.' }, limit: { type: 'integer', minimum: 1, maximum: 30 } },
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_create',
-      description: 'Prepare a private Vyral identity creation preview with its initial identity DNA. This does not create anything until the user approves in this same chat.',
-      parameters: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'The creator-chosen Vyral name, 1–100 characters.' },
-          description: { type: 'string', description: 'The Vyral purpose or description, up to 1000 characters.' },
-        },
-        required: ['name'],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_upload',
-      description: "Prepare an owner-scoped Asset upload preview for the exact file currently attached to this AI Chat turn. The creator chooses or approves the Asset display name. The original source filename is preserved separately. No bytes are transferred and no Asset is created until the user approves.",
-      parameters: {
-        type: 'object',
-        properties: {
-          vyral_id: { type: 'string', description: 'Exact Vyral UUID from an owner-scoped Vyral read or verified active Vyral context.' },
-          asset_name: { type: 'string', description: 'Creator-approved Asset display name, 1–180 characters.' },
-        },
-        required: ['vyral_id', 'asset_name'],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_rename',
-      description: "Prepare an approval preview to rename an existing Asset in an owner-owned Vyral. Preserve the original filename and immutable bytes; only the Asset display name changes. Never rename without explicit approval.",
-      parameters: {
-        type: 'object',
-        properties: {
-          asset_id: { type: 'string', description: 'Exact Asset UUID from an owner-scoped Asset search or detail result.' },
-          asset_name: { type: 'string', description: 'New display name, 1–180 characters.' },
-        },
-        required: ['asset_id', 'asset_name'],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_relationship_add',
-      description: 'Prepare an approval preview to add a typed semantic relationship between two Assets or between an Asset and this Vyral root. Never create before approval.',
-      parameters: { type: 'object', properties: {
-        relationship_type: { type: 'string', description: 'Lowercase snake_case relation type, 2–64 characters.' },
-        from_kind: { type: 'string', enum: ['asset','vyral'] },
-        from_asset_id: { type: ['string','null'] },
-        to_kind: { type: 'string', enum: ['asset','vyral'] },
-        to_asset_id: { type: ['string','null'] },
-        rationale: { type: 'string', description: 'Why this directed relationship is meaningful.' },
-        evidence_ref: { type: ['string','null'], description: 'Optional evidence reference.' },
-      }, required: ['relationship_type','from_kind','from_asset_id','to_kind','to_asset_id','rationale','evidence_ref'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_relationship_remove',
-      description: 'Prepare an approval preview to remove one exact semantic relationship by its ID from the current Vyral.',
-      parameters: { type: 'object', properties: { relationship_id: { type: 'string' } }, required: ['relationship_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_archive',
-      description: 'Prepare a safe archive preview for one exact ready Asset. This is not permanent deletion; it preserves file bytes, versions, DNA and Fingerprints. Requires the exact ARCHIVE ASSET code phrase.',
-      parameters: { type: 'object', properties: { asset_id: { type: 'string' } }, required: ['asset_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_restore',
-      description: 'Prepare an exact-confirmation preview to restore one archived Asset in the current Vyral. Preserves bytes, versions, DNA and Fingerprints.',
-      parameters: { type: 'object', properties: { asset_id: { type: 'string' } }, required: ['asset_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_metadata',
-      description: "Prepare an approval preview to update one owner-owned Asset's title, description, semantic category, tags, keywords and alt text. Technical MIME/file type is derived from the actual file and cannot be changed. Preserve unrelated metadata and immutable file data.",
-      parameters: {
-        type: 'object',
-        properties: {
-          asset_id: { type: 'string' },
-          title: { type: 'string', description: 'New display title/name, up to 180 characters.' },
-          description: { type: 'string', description: 'Descriptive details, up to 2000 characters.' },
-          category: { type: 'string', description: 'Semantic category, not technical file type.' },
-          tags: { type: 'array', items: { type: 'string' } },
-          keywords: { type: 'array', items: { type: 'string' } },
-          alt_text: { type: 'string', description: 'Accessibility description, up to 500 characters.' },
-        },
-        required: ['asset_id'],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_folder_create',
-      description: 'Prepare a same-chat approval preview to create a folder in the current owner-owned Vyral. Supports an optional parent folder. No folder is created before approval.',
-      parameters: { type: 'object', properties: {
-        name: { type: 'string', description: 'Folder name, 1–100 characters.' },
-        parent_folder_id: { type: ['string','null'], description: 'Exact parent folder UUID, or null for Vyral root.' },
-      }, required: ['name','parent_folder_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_folder_rename',
-      description: 'Prepare a same-chat approval preview to rename one exact folder in the current owner-owned Vyral.',
-      parameters: { type: 'object', properties: {
-        folder_id: { type: 'string' }, name: { type: 'string', description: 'New folder name, 1–100 characters.' },
-      }, required: ['folder_id','name'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_folder_move',
-      description: 'Prepare a same-chat approval preview to move one exact folder and its subtree to another parent folder or the Vyral root. Cannot move a folder into itself or its descendants.',
-      parameters: { type: 'object', properties: {
-        folder_id: { type: 'string' },
-        parent_folder_id: { type: ['string','null'], description: 'Destination parent folder UUID, or null for root.' },
-      }, required: ['folder_id','parent_folder_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_folder_delete',
-      description: 'Prepare an exact-confirmation preview to delete one empty folder only. Reject folders containing any Assets or child folders. Never delete recursively.',
-      parameters: { type: 'object', properties: { folder_id: { type: 'string' } }, required: ['folder_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'propose_vyral_asset_move_folder',
-      description: 'Prepare a same-chat approval preview to move one exact Asset into a folder or back to the Vyral root. Does not move it to another Vyral.',
-      parameters: { type: 'object', properties: {
-        asset_id: { type: 'string' },
-        folder_id: { type: ['string','null'], description: 'Destination folder UUID, or null for Vyral root.' },
-      }, required: ['asset_id','folder_id'], additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'propose_storyboard_update',
       description: "Prepare a reversible update to a Storyboard owned by the signed-in user. This only creates a pending preview; never claim the change is saved until the user explicitly approves it in this same chat.",
       parameters: {
@@ -279,12 +107,12 @@ const GLOBAL_READ_TOOLS = [
     type: 'function',
     function: {
       name: 'propose_master_timeline_edit',
-      description: "Prepare a reversible edit to the owner's Master Timeline. Supports adding a new Text overlay (add_text), attaching a real ready Audio Asset version as a new Audio clip (add_audio), attaching a verified Video Asset version to an existing Scene (attach_video), moving, trimming, splitting, cloning, editing or deleting existing Audio/Text clips. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
+      description: "Prepare a reversible edit to the owner's Master Timeline. Supports adding a Text overlay, moving, trimming, splitting, cloning, editing or deleting existing clips. Deletion is destructive and requires a separate exact confirmation phrase. This only creates a preview; do not claim anything changed until explicitly approved in this same chat.",
       parameters: {
         type: 'object',
         properties: {
           storyboard_id: { type: 'string' },
-          operation: { type: 'string', enum: ['add_text', 'add_audio', 'attach_video', 'move', 'trim', 'split', 'clone', 'update_text', 'delete'] },
+          operation: { type: 'string', enum: ['add_text', 'move', 'trim', 'split', 'clone', 'update_text', 'delete'] },
           kind: { type: 'string', enum: ['audio', 'text'] },
           clip_id: { type: 'string' },
           source_track_id: { type: 'string' },
@@ -295,9 +123,7 @@ const GLOBAL_READ_TOOLS = [
           field: { type: 'string', enum: ['name', 'content'] },
           value: { type: 'string' },
           name: { type: 'string', description: 'Text clip display name, required for add_text.' },
-          asset_id: { type: 'string', description: 'Exact ready Audio or Video Asset UUID from the active Vyral inventory.' },
-          scene_id: { type: 'string', description: 'Exact Scene UUID from the selected Storyboard, required for attach_video.' }, 
-          duration: { type: 'number', description: 'Optional duration for add_text (defaults to 3 seconds); add_audio always uses the verified immutable Asset Version duration.' },
+          duration: { type: 'number', description: 'Optional duration for add_text (defaults to 3 seconds).' },
         },
         required: ['storyboard_id', 'operation'], 
         additionalProperties: false,
@@ -420,88 +246,6 @@ const GLOBAL_READ_TOOLS = [
         additionalProperties: false,
       },
     },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_my_vyral_details',
-      description: 'Read a Vyral by exact or partial name, including its current Master DNA status and asset counts. If ambiguous, ask the user to choose.',
-      parameters: {
-        type: 'object',
-        properties: { name: { type: 'string', description: 'Vyral name or distinctive phrase.' } },
-        required: ['name'],
-        additionalProperties: false,
-      },
-    },
-  }
-] as const;
-
-const VYRAL_READ_TOOLS = [
-  {
-    type: 'function',
-    function: {
-      name: 'list_vyral_folders',
-      description: 'List the real folder hierarchy and Asset counts in the active owner-owned Vyral. Read-only.',
-      parameters: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'search_vyral_assets',
-      description: 'Search the current Vyral owner-scoped Asset inventory by Asset name and optional type. Read-only.',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: { type: 'string', description: 'A short Asset name or keyword.' },
-          asset_type: { type: 'string', enum: ['image', 'video', 'audio', 'model_3d', 'archive', 'document', 'other'] },
-          limit: { type: 'integer', minimum: 1, maximum: 20 },
-        },
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_vyral_asset_details',
-      description: 'Read one Asset record, its latest version metadata and latest DNA verification status. Do not return file bytes or storage paths.',
-      parameters: {
-        type: 'object',
-        properties: {
-          asset_id: { type: 'string', description: 'Optional Asset UUID.' },
-          asset_name: { type: 'string', description: 'Optional exact Asset name.' },
-        },
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_vyral_asset_relationships',
-      description: 'Read semantic Asset-to-Asset/Vyral relationships separately from generation and derivation lineage in the current Vyral. Read-only.',
-      parameters: {
-        type: 'object',
-        properties: { limit: { type: 'integer', minimum: 1, maximum: 30 } },
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_vyral_master_dna_summary',
-      description: 'Read the latest canonical Master DNA snapshot for the current Vyral, including purpose, Asset roles, relationships, reconstruction claims, provenance and integrity. Read-only.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
-      },
-    },
-  },
-] as const;
-
 
 const buildWorkspaceContextInstruction = (raw: unknown): string => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
@@ -4224,7 +3968,7 @@ Deno.serve(async (request: Request) => {
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
           messages: baseMessages,
-          tools: [...GLOBAL_READ_TOOLS, ...(activeVyralId ? VYRAL_READ_TOOLS : [])],
+          tools: GLOBAL_READ_TOOLS,
           tool_choice: 'auto',
           parallel_tool_calls: false,
           temperature: 0.1,
