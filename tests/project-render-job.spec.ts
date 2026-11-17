@@ -153,6 +153,36 @@ test('rejects malformed persisted snapshots and unknown lifecycle events', () =>
   }), /event type is unsupported/);
 });
 
+
+
+test('rejects malformed error payloads and lifecycle timestamps after the persisted update', () => {
+  const job = makeJob();
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, error: { code: 'SHOULD_NOT_EXIST', message: 'Unexpected error' },
+  } as never, { type: 'request_cancel', at: '2026-11-17T12:00:01.000Z' }), /inconsistent lifecycle fields/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'failed', error: { code: ' ', message: 'missing code' },
+  } as never, { type: 'retry', at: '2026-11-17T12:00:01.000Z' }), /inconsistent lifecycle fields/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'cancel_requested', cancelRequestedAt: '2026-11-17T12:00:02.000Z',
+  } as never, { type: 'cancelled', at: '2026-11-17T12:00:01.000Z' }), /cancellation timestamp cannot follow/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'completed', progress: 100, outputProjectFileId: 'output',
+    completedAt: '2026-11-17T12:00:02.000Z', updatedAt: '2026-11-17T12:00:01.000Z',
+  } as never, { type: 'request_cancel', at: '2026-11-17T12:00:03.000Z' }), /completion timestamp cannot follow/);
+});
+
+test('normalizes the canonical output Project File ID when committing completion', () => {
+  let job = makeJob();
+  job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 10, at });
+  job = transitionProjectRenderJob(job, { type: 'advance', status: 'rendering', progress: 70, at });
+  job = transitionProjectRenderJob(job, { type: 'advance', status: 'uploading', progress: 95, at });
+  job = transitionProjectRenderJob(job, {
+    type: 'complete', outputProjectFileId: '  canonical-file-id  ', at,
+  });
+  assert.equal(job.outputProjectFileId, 'canonical-file-id');
+});
+
 test('failed jobs retry with the same input identity and an incremented attempt', () => {
   let job = makeJob();
   job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 10, at });
