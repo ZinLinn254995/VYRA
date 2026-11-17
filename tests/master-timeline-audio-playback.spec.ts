@@ -66,3 +66,28 @@ test('excludes expired, placeholder, and malformed clips and rejects invalid pla
   assert.deepEqual(plan, []);
   assert.deepEqual(buildMasterTimelineAudioPlaybackPlan({ audioTracks: [] }, -1), []);
 });
+
+ 
+test('plans Project File audio clips without legacy Asset identifiers', () => {
+  const plan = buildMasterTimelineAudioPlaybackPlan({
+    audioTracks: [{
+      id: 'project-audio',
+      clips: [{
+        id: 'music-file',
+        start: 2,
+        duration: 8,
+        sourceIn: 3,
+        projectFileId: 'project-file-audio-1',
+      }],
+    }],
+  }, 5);
+  assert.deepEqual(plan, [{
+    trackId: 'project-audio',
+    clipId: 'music-file',
+    projectFileId: 'project-file-audio-1',
+    delaySeconds: 0,
+    sourceOffsetSeconds: 6,
+    durationSeconds: 5,
+    gain: 1,
+  }]);
+});
