@@ -166,10 +166,14 @@ test('Project Storage queues Offline rename, move, and tombstoned delete mutatio
   assert.ok(storage.includes("kind === 'delete' ? { deletedAt: now }"));
   assert.ok(storage.includes('completeProjectOfflineFileDeletion'));
   assert.ok(storage.includes('includeDeleted = false'));
+  assert.ok(storage.includes('reconcileProjectOfflineFileMetadata'));
   assert.ok(sync.includes('renameMediaLibraryItem'));
   assert.ok(sync.includes('moveMediaLibraryItems'));
   assert.ok(sync.includes('deleteMediaLibraryItems'));
   assert.ok(sync.includes('if (local?.deletedAt && local.projectId === projectId) continue'));
+  assert.ok(sync.includes('cloudManifestIds'));
+  assert.ok(sync.includes('removeProjectOfflineFile(local.id)'));
+  assert.ok(sync.includes('reconcileProjectOfflineFileMetadata'));
   assert.ok(sync.includes('if (existingRow) await deleteMediaLibraryItems'));
   assert.ok(page.includes("kind: 'rename', fileName: nextName"));
   assert.ok(page.includes("kind: 'move', folderId: destination"));
