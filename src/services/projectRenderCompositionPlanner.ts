@@ -75,6 +75,10 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   const requiredSources = new Map<string, ProjectRenderSource>();
   const registerSource = (source: ProjectRenderSource) => requiredSources.set(getProjectRenderSourceKey(source), source);
   const instanceByScene = new Map<string, ProjectRenderManifest['sceneInstances'][number]>();
+  // Scene media forms the base composition. Explicit video tracks are overlays and
+  // must always stack above every scene-local video clip, regardless of track IDs.
+  const sceneLayerCount = Math.max(1, ...manifest.sceneInstances.map((instance) =>
+    Array.isArray(instance.videoClips) ? instance.videoClips.length : 1));
   for (const instance of manifest.sceneInstances) {
     if (!instanceByScene.has(instance.sceneId)) instanceByScene.set(instance.sceneId, instance);
   }
@@ -125,7 +129,8 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     }
   }
 
-  manifest.videoTracks.forEach((track, layer) => {
+  manifest.videoTracks.forEach((track, trackIndex) => {
+    const layer = sceneLayerCount + trackIndex;
     if (track.visible === false) return;
     track.clips.forEach((clip) => {
       const source = clipSource(clip);
@@ -168,9 +173,12 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     });
   });
 
-  visuals.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer || a.trackId.localeCompare(b.trackId));
-  audio.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer || a.trackId.localeCompare(b.trackId));
-  text.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer || a.trackId.localeCompare(b.trackId));
+  // Modern JS sort is stable: equal-time/equal-layer clips retain manifest insertion
+  // order, which is the user's explicit track order. Sorting by track ID would
+  // silently change visual/audio/text stacking when IDs are renamed.
+  visuals.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
+  audio.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
+  text.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
   const transitions = Object.entries(manifest.transitions).map(([key, value]) => ({
     key, effect: value.effect, durationSeconds: value.duration,
   })).sort((a, b) => a.key.localeCompare(b.key));
