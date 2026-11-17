@@ -165,12 +165,12 @@ test('resolves visual clip transitions to their timeline boundary', () => {
 test('resolves transitions between Director scene media and uploaded visual clips', () => {
   const value = input();
   value.timeline.sceneInstances = [
-    { id: 'director-clip', sceneId: 'scene-a', sourceIn: 0, sourceOut: 8,
+    { id: 'director-clip', sceneId: 'scene-a', sourceIn: 0, sourceOut: 4,
       projectFileId: 'director-file', assetMimeType: 'video/mp4' },
   ];
   value.timeline.videoTracks = [{
     id: 'uploaded-row', clips: [{
-      id: 'uploaded-next', start: 8, duration: 3,
+      id: 'uploaded-next', start: 4, duration: 3,
       projectFileId: 'uploaded-file', assetMimeType: 'video/mp4', mediaKind: 'video',
     }],
   }];
@@ -180,7 +180,7 @@ test('resolves transitions between Director scene media and uploaded visual clip
   const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
   assert.deepEqual(plan.transitions, [{
     key: 'director-clip:uploaded-next', effect: 'crossfade', durationSeconds: 0.6,
-    scope: 'video', boundarySeconds: 8, fromId: 'director-clip', toId: 'uploaded-next',
+    scope: 'video', boundarySeconds: 4, fromId: 'director-clip', toId: 'uploaded-next',
   }]);
 });
 
