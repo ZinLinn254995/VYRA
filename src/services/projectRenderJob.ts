@@ -147,9 +147,16 @@ export function createProjectRenderJob(input: {
   if (!input.id.trim() || !input.ownerId.trim()) throw new Error('A render job ID and owner ID are required.');
   if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 200) throw new Error('A bounded idempotency key is required.');
   if (!/^[a-f0-9]{64}$/i.test(input.inputDigest)) throw new Error('A SHA-256 render input digest is required.');
-  if (input.manifest.projectId !== input.compositionPlan.projectId) throw new Error('The render manifest and composition plan must belong to the same Project.');
-  if (input.compositionPlan.schema !== 'vyra.project-render-composition-plan' || input.compositionPlan.version !== 1) {
+  if (!input.manifest || input.manifest.schema !== 'vyra.project-render-manifest' || input.manifest.version !== 1 ||
+      !input.manifest.projectId?.trim()) {
+    throw new Error('A supported Project render manifest is required.');
+  }
+  if (!input.compositionPlan || input.compositionPlan.schema !== 'vyra.project-render-composition-plan' ||
+      input.compositionPlan.version !== 1 || !input.compositionPlan.projectId?.trim()) {
     throw new Error('A supported immutable Project composition plan is required.');
+  }
+  if (input.manifest.projectId !== input.compositionPlan.projectId) {
+    throw new Error('The render manifest and composition plan must belong to the same Project.');
   }
   const job: ProjectRenderJob = {
     schema: 'vyra.project-render-job',
