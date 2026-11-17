@@ -83,7 +83,8 @@
     "test:scene-visual-verification": "node --import tsx --test tests/universe-scene-visual-verification.spec.ts",
     "test:shot-orchestrator": "node --import tsx --test tests/runway-project-generation-workflow.spec.ts",
     "test:timeline-media-placement": "node --import tsx --test tests/timeline-media-placement.spec.ts",
-    "test:project-storage-migration": "node --import tsx --test tests/project-scoped-storage-migration.spec.ts"
+    "test:project-storage-migration": "node --import tsx --test tests/project-scoped-storage-migration.spec.ts",
+    "test:project-storage-runtime": "node --import tsx --test tests/project-scoped-storage-runtime.spec.ts tests/project-scoped-storage-migration.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
