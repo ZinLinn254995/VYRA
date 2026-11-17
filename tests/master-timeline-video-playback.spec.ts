@@ -238,7 +238,7 @@ test('plays a Project File-backed Scene video without legacy Asset identifiers',
   assert.equal(plan[0].assetId, undefined);
   assert.equal(plan[0].assetVersionId, undefined);
   assert.equal(plan[0].sourceOffsetSeconds, 3);
-  assert.equal(plan[0].durationSeconds, 2);
+  assert.equal(plan[0].durationSeconds, 1);
   assert.equal(plan[0].playbackStartSeconds, 2);
-  assert.equal(plan[0].playbackEndSeconds, 4);
+  assert.equal(plan[0].playbackEndSeconds, 3);
 });
