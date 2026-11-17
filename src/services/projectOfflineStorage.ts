@@ -6,7 +6,7 @@
  * a durable sync-queue entry for a separate background sync worker.
  */
 
-export type ProjectOfflineReplicaState = 'copying' | 'available' | 'failed';
+export type ProjectOfflineReplicaState = 'copying' | 'available' | 'failed' | 'deleting';
 export type ProjectCloudReplicaState = 'not_queued' | 'queued' | 'uploading' | 'synced' | 'failed';
 
 export type ProjectOfflineFileRecord = {
@@ -158,7 +158,7 @@ async function claimProjectFileRestore(
     const unchanged = expected
       ? Boolean(current && current.projectId === expected.projectId &&
         current.replicaRevision === expected.replicaRevision && current.updatedAt === expected.updatedAt &&
-        current.fileName === expected.fileName && current.folderId === expected.folderId && !current.deletedAt)
+        current.fileName === expected.fileName && current.folderId === expected.folderId && current.localState === expected.localState && !current.deletedAt)
       : !current;
     if (!unchanged) {
       transaction.abort();
@@ -426,7 +426,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     throw new Error('This Project File ID already belongs to a different Project and cannot be reassigned.');
   }
   if (existing?.deletedAt && existing.projectId === input.projectId) throw new Error('This Project file has a pending deletion and cannot be restored.');
-  if (existing?.localState === 'copying') throw new Error('This Project file is already being copied into Offline Storage. Try again after the current copy finishes.');
+  if (existing?.localState === 'copying' || existing?.localState === 'deleting') throw new Error('This Project file is currently being copied or removed from Offline Storage. Try again after that operation finishes.');
   if (existing?.localState === 'available' && existing.projectId === input.projectId) {
     const existingBlob = await getProjectOfflineFileBlob(input.projectFileId);
     if (existingBlob) return existing;
@@ -763,13 +763,65 @@ export async function removeProjectOfflineFile(projectFileId: string): Promise<v
   if (record.cloudState !== 'synced') {
     throw new Error('This file has not been safely synchronized to Cloud yet and cannot be removed from Offline Storage.');
   }
-  if (record.storageBackend === 'opfs') {
+
+  // Claim eviction before touching OPFS/IndexedDB bytes. Restore rejects the
+  // deleting state, preventing both operations from writing the same storage key.
+  const db = await openDatabase();
+  const claim = db.transaction(FILE_STORE, 'readwrite');
+  const store = claim.objectStore(FILE_STORE);
+  const request = store.get(projectFileId);
+  const deletingRecord: ProjectOfflineFileRecord = {
+    ...record,
+    localState: 'deleting',
+    replicaRevision: createId(),
+    updatedAt: new Date().toISOString(),
+  };
+  request.onsuccess = () => {
+    const current = request.result as ProjectOfflineFileRecord | undefined;
+    if (!current || current.projectId !== record.projectId ||
+      current.replicaRevision !== record.replicaRevision ||
+      current.updatedAt !== record.updatedAt ||
+      current.storageKey !== record.storageKey ||
+      current.storageBackend !== record.storageBackend ||
+      current.cloudState !== 'synced' || current.deletedAt ||
+      (current.localState !== 'available' && current.localState !== 'deleting')) {
+      claim.abort();
+      return;
+    }
+    store.put(deletingRecord);
+  };
+  await new Promise<void>((resolve, reject) => {
+    claim.oncomplete = () => resolve();
+    claim.onerror = () => reject(claim.error ?? new Error('Could not claim the Project file for Offline Storage removal.'));
+    claim.onabort = () => reject(claim.error ?? new Error('The Project file changed before Offline Storage removal could begin.'));
+  });
+
+  if (deletingRecord.storageBackend === 'opfs') {
     const directory = await getOpfsDirectory();
-    try { await directory?.removeEntry(record.storageKey); } catch { /* idempotent removal */ }
+    if (!directory) throw new Error('Offline Storage is unavailable; the file remains marked for safe removal retry.');
+    try { await directory.removeEntry(deletingRecord.storageKey); } catch (error) {
+      if (!(error && typeof error === 'object' && 'name' in error && error.name === 'NotFoundError')) throw error;
+    }
   } else {
-    await deleteValue(BLOB_STORE, record.storageKey);
+    await deleteValue(BLOB_STORE, deletingRecord.storageKey);
   }
-  await deleteValue(FILE_STORE, projectFileId);
-  await deleteValue(SYNC_STORE, 'upload:' + projectFileId);
+
+  const finalize = db.transaction([FILE_STORE, SYNC_STORE], 'readwrite');
+  const files = finalize.objectStore(FILE_STORE);
+  const currentRequest = files.get(projectFileId);
+  currentRequest.onsuccess = () => {
+    const current = currentRequest.result as ProjectOfflineFileRecord | undefined;
+    if (!current || current.localState !== 'deleting' ||
+      current.replicaRevision !== deletingRecord.replicaRevision ||
+      current.updatedAt !== deletingRecord.updatedAt ||
+      current.storageKey !== deletingRecord.storageKey) return;
+    files.delete(projectFileId);
+    finalize.objectStore(SYNC_STORE).delete('upload:' + projectFileId);
+  };
+  await new Promise<void>((resolve, reject) => {
+    finalize.oncomplete = () => resolve();
+    finalize.onerror = () => reject(finalize.error ?? new Error('Could not finalize Offline Storage removal.'));
+    finalize.onabort = () => reject(finalize.error ?? new Error('Offline Storage removal finalization was interrupted.'));
+  });
   emitOfflineStorageChanged(projectFileId);
 }
