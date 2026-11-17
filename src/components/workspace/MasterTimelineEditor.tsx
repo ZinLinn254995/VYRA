@@ -791,7 +791,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     orderedScenes.forEach((scene, index) => {
       const instance = instances.find((item) => item.sceneId === scene.id);
       const instanceClips = (instance?.videoClips || []).filter((clip) =>
-        clip.assetId && clip.assetVersionId &&
+        (clip.projectFileId || (clip.assetId && clip.assetVersionId)) &&
         (clip.assetMimeType?.toLowerCase().startsWith('video/') || clip.assetMimeType?.toLowerCase().startsWith('image/')),
       );
       if (instanceClips.length) {
@@ -799,7 +799,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           const mediaKind = clip.assetMimeType?.toLowerCase().startsWith('image/') ? 'image' : 'video';
           clips.push({ ...clip, start: sceneStart + clip.start, mediaKind });
         }
-      } else if (instance?.assetId && instance.assetVersionId &&
+      } else if ((instance?.projectFileId || (instance?.assetId && instance.assetVersionId)) &&
         (instance.assetMimeType?.toLowerCase().startsWith('video/') || instance.assetMimeType?.toLowerCase().startsWith('image/'))) {
         const mediaKind = instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' : 'video';
         const sourceIn = instance.videoSourceIn ?? 0;
@@ -807,9 +807,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         clips.push({
           id: instance.id, name: scene.title, start: sceneStart,
           duration: Math.max(0.1, Math.min(scene.duration, sourceOut - sourceIn)),
-          sourceIn, sourceOut, assetId: instance.assetId,
-          assetVersionId: instance.assetVersionId, assetMimeType: instance.assetMimeType,
-          mediaKind,
+          sourceIn, sourceOut, projectFileId: instance.projectFileId,
+          assetId: instance.assetId, assetVersionId: instance.assetVersionId,
+          assetMimeType: instance.assetMimeType, mediaKind,
         });
       }
       sceneStart += sceneSegments[index]?.duration ?? scene.duration;
