@@ -420,7 +420,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
-            ...(Array.isArray(message.projectFiles) ? { projectFiles: message.projectFiles.flatMap((entry: unknown) => {\n              if (!entry || typeof entry !== 'object') return [];\n              const file = entry as Record<string, unknown>;\n              return typeof file.projectFileId === 'string' && typeof file.name === 'string' && typeof file.mimeType === 'string'\n                ? [{ projectFileId: file.projectFileId, name: file.name, mimeType: file.mimeType }] : [];\n            }) } : {}),\n            ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
+            ...(Array.isArray(message.projectFiles) ? { projectFiles: message.projectFiles.flatMap((entry: unknown) => {\n              if (!entry || typeof entry !== 'object') return [];\n              const file = entry as Record<string, unknown>;\n              return typeof file.projectFileId === 'string' && typeof file.name === 'string' && typeof file.mimeType === 'string'\n                ? [{ projectFileId: file.projectFileId, name: file.name, mimeType: file.mimeType }] : [];\n            }) } : {}),
+            ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
               if (!entry || typeof entry !== 'object') return [];
               const asset = entry as Record<string, unknown>;
               return typeof asset.assetId === 'string' && typeof asset.name === 'string' && typeof asset.mimeType === 'string'
@@ -543,7 +544,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         content: message.content,
         ...(message.status ? { status: message.status } : {}),
         ...(message.providerLabel ? { providerLabel: message.providerLabel } : {}),
-        ...(message.mediaAssets?.length ? { mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType })) } : {}),\n        ...(message.projectFiles?.length ? { projectFiles: message.projectFiles.map(({ projectFileId, name, mimeType }) => ({ projectFileId, name, mimeType })) } : {}),
+        ...(message.mediaAssets?.length ? { mediaAssets: message.mediaAssets.map(({ assetId, name, mimeType }) => ({ assetId, name, mimeType })) } : {}),
+        ...(message.projectFiles?.length ? { projectFiles: message.projectFiles.map(({ projectFileId, name, mimeType }) => ({ projectFileId, name, mimeType })) } : {}),
         ...(message.action ? { action: message.action } : {}),
       }));
       const { error } = await client.from('vyra_ai_chat_conversations').upsert({
