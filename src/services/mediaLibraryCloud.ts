@@ -5,6 +5,7 @@ export type MediaLibraryFolder = {
   id: string;
   user_id: string;
   universe_id: string | null;
+  project_id: string | null;
   parent_id: string | null;
   name: string;
   created_at: string;
@@ -15,6 +16,7 @@ export type MediaLibraryItem = {
   id: string;
   user_id: string;
   universe_id: string | null;
+  project_id: string | null;
   folder_id: string | null;
   source_kind: 'upload' | 'vyral_asset' | 'generated';
   source_asset_id: string | null;
@@ -46,8 +48,15 @@ const getDb = () => {
 // reused only until shortly before their one-hour expiry.
 const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
 const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
-const folderCacheKey = (ownerId: string, universeId?: string | null) => ownerId + ':' + (universeId ?? 'personal');
+const folderCacheKey = (ownerId: string, universeId?: string | null, projectId?: string | null) => ownerId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'personal');
 const applyUniverseScope = (query: any, universeId?: string | null) => universeId ? query.eq('universe_id', universeId) : query.is('universe_id', null);
+const applyProjectScope = (query: any, projectId?: string | null) => projectId ? query.eq('project_id', projectId).is('universe_id', null) : query.is('project_id', null);
+const applyMediaLibraryScope = (query: any, universeId?: string | null, projectId?: string | null) => projectId ? applyProjectScope(query, projectId) : applyUniverseScope(applyProjectScope(query, null), universeId);
+
+async function assertStoryboardProject(db: any, userId: string, projectId: string): Promise<void> {
+  const { data, error } = await db.from('vyral_storyboards').select('id').eq('id', projectId).eq('user_id', userId).maybeSingle();
+  if (error || !data) throw new Error('This project could not be verified for your account.');
+}
 const applyMetadataSnapshot = (query: any, metadata: Record<string, unknown> | null) => metadata === null ? query.is('metadata', null) : query.eq('metadata', metadata);
 const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 let lastStorageCleanupStartedAt = 0;
@@ -167,6 +176,7 @@ export type MediaLibraryPageOptions = {
   search?: string;
   filter?: MediaLibraryFilter;
   universeId?: string | null;
+  projectId?: string | null;
 };
 
 async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId: string): Promise<void> {
@@ -283,15 +293,17 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const ownerId = await getOwnerId();
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
+  if (options.universeId && options.projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  if (options.projectId) await assertStoryboardProject(db, ownerId, options.projectId);
   if (options.universeId) await syncStoryboardUniverseLibrary(db, ownerId, options.universeId);
   if (Date.now() - lastStorageCleanupStartedAt >= 15 * 60_000) {
     lastStorageCleanupStartedAt = Date.now();
     void processMediaLibraryStorageCleanup(4).catch(() => undefined);
   }
 
-  let itemQuery = applyUniverseScope(db.from('media_library_items')
-    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId), options.universeId);
+  let itemQuery = applyMediaLibraryScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,project_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), options.universeId, options.projectId);
   if (options.folderId === null) itemQuery = itemQuery.is('folder_id', null);
   else if (options.folderId) itemQuery = itemQuery.eq('folder_id', options.folderId);
 
@@ -320,11 +332,11 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
       break;
   }
 
-  const folderKey = folderCacheKey(ownerId, options.universeId);
+  const folderKey = folderCacheKey(ownerId, options.universeId, options.projectId);
   const cachedFolders = mediaLibraryFolderCache.get(folderKey);
   const useCachedFolders = Boolean(cachedFolders && cachedFolders.expiresAt > Date.now());
   const [folderResult, itemResult] = await Promise.all([
-    useCachedFolders ? Promise.resolve(null) : applyUniverseScope(db.from('media_library_folders').select('id,user_id,universe_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId), options.universeId).order('name'),
+    useCachedFolders ? Promise.resolve(null) : applyMediaLibraryScope(db.from('media_library_folders').select('id,user_id,universe_id,project_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId), options.universeId, options.projectId).order('name'),
     itemQuery.order('file_name', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limit),
   ]);
   if (folderResult && folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
