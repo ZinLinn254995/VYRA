@@ -192,3 +192,25 @@ Use one canonical Project identity across Workspace, Storage, generation jobs, a
 Only after that identity is settled should the new job reservation RPC bind project destination and credit reservation atomically, and the output pipeline register files in the same Storage scope. Existing Vyral-targeted jobs must remain recoverable until terminal; preserve the old transfer/ingestion path for those jobs during the transition.
 
 **Updated status:** no generation schema or service code has been changed yet. The current schema has conflicting project identity domains; inventing a migration before reconciling them risks orphaning jobs or cross-project data. This is a blocking architecture issue, not a reason to retain the old Vyral product workflow.
+
+
+## Editor and generation dependency audit — 2026-11-17
+
+The Editor audit confirms that the current Project Editor is not yet independent of the legacy Vyral Asset model:
+
+- `MasterTimelineEditor` still accepts an optional `vyralId`, and its upload/recovery path calls `ingestVyralAsset`, `vyralAssetLocalCache`, and `registerVyralAssetInMediaLibrary`.
+- The current `WorkspacePage` render of `MasterTimelineEditor` does not pass `vyralId`. Therefore the Editor's media-add control is disabled by its `!vyralId` guard, and pending local uploads cannot enter the cloud recovery path. This is a functional blocker, not merely a naming issue.
+- Timeline playback still resolves media through Vyral Asset/version playback helpers. Replacing only the upload call would leave existing clip playback and saved timeline references inconsistent.
+- `runwayProjectGeneration.ts` still requires `targetVyralId`, validates a row in `vyrals`, and scopes job recovery by `generation_jobs.target_vyral_id`.
+- `runwayProjectOutputIngestion.ts` still writes `vyral_assets` and `vyral_asset_versions`, and explicitly rejects completion when DNA/Fingerprint evidence is incomplete.
+- The existing generic project Storage path can upload/list/delete standalone files under the Storyboard `project_id` scope, but generated media and Editor clips do not yet use that same generic file identity.
+
+**Required migration before removing the old Asset pipeline:** define one durable project-file identity for Editor clips and generated outputs; add a safe resolver for private Storage objects; preserve playback for already-saved Vyral Asset/version clips; route new manual uploads and generation outputs into project Storage; and keep historical Vyral-targeted jobs recoverable until terminal. Do not map a generic Storage item ID onto `assetId` or fabricate an `assetVersionId`.
+
+## AI capability cleanup audit — 2026-11-17
+
+- The capability registry still advertises legacy `vyral.*` and `marketplace.*` operations alongside storyboard, scene, timeline, generation, editing, and media-library capabilities.
+- The executor is a generic fail-closed adapter registry; removing policy entries alone does not remove executor implementations, prompt declarations, or UI call sites.
+- The next cleanup must trace each capability ID through adapter registration, server prompt/tool schemas, and client callers. Keep project/storyboard, scene, timeline, generic Storage, and supported generation/editing capabilities only where their implementation is genuinely project-scoped and tested. Remove Marketplace and Vyral/DNA actions only after confirming no active workflow or historical recovery path depends on them.
+
+**Merge gate remains closed:** the project identity mismatch between `public.projects` and `public.vyral_storyboards`, the Vyral-bound generation/output path, and the Editor's Vyral-bound media identity must be resolved and verified before merge. The branch is still 38 commits behind and 1,854 commits ahead of `main`; do not reconcile or merge until the feature branch cleanup is complete and the history difference is understood.
