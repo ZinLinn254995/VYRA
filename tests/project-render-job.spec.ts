@@ -37,7 +37,9 @@ test('verifies the persisted render input digest against the exact manifest and 
     ...job, inputDigest: 'a'.repeat(64),
   }), /digest does not match/);
   const altered = JSON.parse(JSON.stringify(job)) as typeof job;
-  altered.manifest.scenes[0].title = 'Tampered after persistence';
+  altered.compositionPlan.visuals[0].source = {
+    kind: 'project-file', projectFileId: 'tampered-source', mimeType: 'video/mp4',
+  };
   await assert.rejects(() => verifyProjectRenderJobInputIntegrity(altered), /composition plan does not match/);
 });
 
