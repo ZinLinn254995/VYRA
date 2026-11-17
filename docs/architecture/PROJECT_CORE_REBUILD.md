@@ -540,7 +540,8 @@ The exact SQL must still be tested as a complete ordered chain on a disposable l
 ### Safety decision and next gate
 
 - Do not run hosted `db push`, migration repair, manual DDL, or selective replay.
-- Recover or explain the original SQL for the history-only Runway vault entry and the duplicate-name ledger rows.
+- The Development Runway Vault entry is now source-controlled as `20261112204351_vyra_runway_api_key_vault.sql`. Its getter/setter definitions and service-role-only grants were reconstructed from the live Development function catalog; this is a source recovery, not a claim that the new file is byte-identical to the untracked original SQL. The file was not applied to either hosted database.
+- Continue reconciling the duplicate-name ledger rows (`platform_admin_registry`, `vault_gemini_secret_accessors`, and `media_generation_quotes`) against Git history and current object definitions before any migration replay.
 - Compare the current SQL against the historical versions in Git history wherever the source file was renamed or replaced. Confirm actual database objects, policies, constraints, functions, and indexes before classifying a migration as already represented.
 - Then run a clean local Supabase reset/migration test against the exact active branch and verify all SQL tests. This workspace has GitHub/Supabase read access but no local Docker/CLI execution environment, so that test has not been run here.
 - No Development or Production schema was changed during this audit.
