@@ -244,3 +244,12 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Added forward migration `20261117040000_project_media_generation_output.sql`: introduces project-file output identity and a project-native output completion RPC while retaining the legacy Asset completion path for historical jobs.
 - These two generation migrations are not applied or exercised. The client generation workflow, transfer worker, output ingestion, Editor playback, and tests still need to switch to `target_project_id` and generic project files before the legacy target column and Vyral Asset/DNA pipeline can be removed.
 - Verification remains source inspection only. No TypeScript build, Node tests, browser E2E, migration execution, or RLS/Storage-policy validation has been run. Latest Vercel check is pending; no GitHub Actions workflow runs were returned.
+
+
+## Cleanup progress — 2026-11-17 (remove Vyral context from Chat)
+
+- Removed the selected-Vyral-Asset handoff state from `App`, `WorkspacePage`, and `AIChatPage`; the Profile Vyral library page was already retired, so there is no longer a UI path that passes a Vyral Asset selection into Chat.
+- Deleted the unused `VyralChatAssetContext` type and removed the selected-Asset inspection branch, selected-Asset chips, and now-unused PDF/audio inspection payload from Chat. Direct chat attachments and generated-video frame inspection remain separate.
+- Removed the large active-Vyral context assembly from `supabase/functions/vyra-openai-chat/index.ts` (32 KB of DNA/Fingerprint/Master-DNA, Universe inventory, creator evidence, and consistency-retrieval instructions). Project Chat no longer loads or injects that context.
+- Remaining AI Chat server code still contains legacy Vyral read/proposal adapters and the old Asset upload-completion workflow; these are not considered acceptable final architecture and must be removed or replaced with generic Project Storage operations. Generation and Editor still require Project-file identity migration before their Asset dependencies can be deleted.
+- Source-only changes; no TypeScript/build/test/browser/SQL/RLS verification has been run.
