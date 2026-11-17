@@ -540,6 +540,20 @@ export async function queueProjectOfflineFileMutation(input: {
 }
 
 
+export async function reconcileProjectOfflineFileMetadata(input: { projectFileId: string; fileName: string; folderId: string | null; updatedAt?: string | null }): Promise<void> {
+  const record = await getProjectOfflineFile(input.projectFileId);
+  if (!record || record.deletedAt || record.localState !== 'available') return;
+  const pendingRename = await getValue<ProjectOfflineSyncOperation>(SYNC_STORE, 'rename:' + input.projectFileId);
+  const pendingMove = await getValue<ProjectOfflineSyncOperation>(SYNC_STORE, 'move:' + input.projectFileId);
+  if (pendingRename || pendingMove) return;
+  await storeValue(FILE_STORE, {
+    ...record,
+    fileName: input.fileName || record.fileName,
+    folderId: input.folderId,
+    cloudState: 'synced',
+    updatedAt: input.updatedAt || new Date().toISOString(),
+  });
+}
 export async function completeProjectOfflineFileMutation(projectFileId: string, kind: 'rename' | 'move'): Promise<void> {
   await deleteValue(SYNC_STORE, kind + ':' + projectFileId);
   const record = await getProjectOfflineFile(projectFileId);
