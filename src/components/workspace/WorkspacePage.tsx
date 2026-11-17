@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
 import { ProjectStorageTab } from './ProjectStorageTab';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Clapperboard, Film, Maximize2, Play, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
 import { Card } from '../ui/Card';
 import { ProjectIdentityIcon } from '../icons/ProjectIdentityIcon';
 import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from '../profile/headerScrollMotion';
-import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
+import { supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
