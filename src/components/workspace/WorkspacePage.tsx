@@ -11,7 +11,7 @@ import { ProfileSubpageHeader } from '../profile/ProfileSubpageHeader';
 import { setCompactProgress, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from '../profile/headerScrollMotion';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { isPersistableStoryboardId, mergeWorkspaceStoryboards, workspaceStoryboardSuggestionKey } from '../../services/workspaceStoryboards';
-import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
+import { parseProjectDetailSuggestions } from '../../services/projectDetailSuggestions';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
@@ -314,7 +314,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     });
     const data = await response.json().catch(() => ({})) as { text?: string; error?: string; provider?: string; modelName?: string };
     if (!response.ok || !data.text) throw new Error(data.error || 'AI suggestions could not be generated.');
-    const parsed = parseVyralAiSuggestions(data.text);
+    const parsed = parseProjectDetailSuggestions(data.text);
     const asText = (key: string) => typeof parsed[key]?.value === 'string'
       ? String(parsed[key].value).trim().slice(0, 500) : '';
     const rawTags = parsed.tags?.value;
