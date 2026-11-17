@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const service = readFileSync(new URL('../src/services/mediaLibraryCloud.ts', import.meta.url), 'utf8');
-const projectStorageTab = readFileSync(new URL('../src/components/workspace/StoryboardUniverseTab.tsx', import.meta.url), 'utf8');
+const projectStorageTab = readFileSync(new URL('../src/components/workspace/ProjectStorageTab.tsx', import.meta.url), 'utf8');
 const projectStoragePage = readFileSync(new URL('../src/components/profile/MyMediaLibraryPage.tsx', import.meta.url), 'utf8');
 const projectChat = readFileSync(new URL('../src/components/ai/AIChatPage.tsx', import.meta.url), 'utf8');
 const projectStorageCleanup = readFileSync(new URL('../supabase/migrations/20261117020000_project_scoped_media_library_cleanup.sql', import.meta.url), 'utf8');
@@ -26,6 +26,7 @@ test('project Storage mutations preserve the project scope', () => {
   }
   assert.match(service, /project_id: projectId \?\? null/);
   assert.match(service, /applyMediaLibraryScope\([\s\S]*?universeId, projectId\)/);
+  assert.match(service, /userId \+ '\/media-library\/' \+ \(projectId \? projectId \+ '\/' : ''\) \+ id/);
 });
 
 test('project file deletion queues only owner-prefixed standalone binaries atomically', () => {
@@ -37,10 +38,11 @@ test('project file deletion queues only owner-prefixed standalone binaries atomi
   assert.match(projectStorageCleanup, /where user_id = v_user_id\s+and project_id = p_project_id/);
 });
 
-test('Project Storage UI no longer creates a Vyral or Universe record', () => {
-  assert.match(projectStorageTab, /projectId=\{storyboardId\}/);
+test('Project Storage UI is a generic project-scoped file manager', () => {
+  assert.match(projectStorageTab, /projectId=\{projectId\}/);
   assert.match(projectStoragePage, /projectId\?: string/);
   assert.match(projectStoragePage, /createMediaLibraryFolder\(folderName, activeFolderId, universeId, projectId\)/);
   assert.doesNotMatch(projectStorageTab, /from\('vyrals'\)|\.insert\(/);
-  assert.match(projectChat, /if \(supabase && text && !storyboardId\)/);
+  assert.doesNotMatch(projectStorageTab, /DNA|Fingerprint|Universe/);
+  assert.match(projectChat, /storyboardId/);
 });
