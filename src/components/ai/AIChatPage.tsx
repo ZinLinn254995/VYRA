@@ -8,7 +8,7 @@ import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGeneration';
@@ -223,7 +223,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [isMultiline, setIsMultiline] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
-  const [activeVyralId, setActiveVyralId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [mediaComposerOpen, setMediaComposerOpen] = useState(false);
   const [mediaTask, setMediaTask] = useState<'image' | 'video' | 'audio'>('image');
@@ -337,38 +336,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   }, [isActive]);
 
   useEffect(() => {
-    let active = true;
-    if (storyboardId) {
-      setActiveVyralId(storyboardUniverseId ?? null);
-      return () => { active = false; };
-    }
-    if (!historyOwnerId || !supabase) {
-      setActiveVyralId(null);
-      return () => { active = false; };
-    }
-    const storageKey = 'vyra_active_vyral_v1:' + historyOwnerId;
-    let storedId: string | null = null;
-    try { storedId = localStorage.getItem(storageKey); } catch { storedId = null; }
-    if (!storedId) {
-      setActiveVyralId(null);
-      return () => { active = false; };
-    }
-    void supabase.from('vyrals').select('id,name').eq('id', storedId).eq('user_id', historyOwnerId).maybeSingle()
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error || !data) {
-          setActiveVyralId(null);
-          try { localStorage.removeItem(storageKey); } catch { /* storage is optional */ }
-          return;
-        }
-        setActiveVyralId(String(data.id));
-      });
-    return () => { active = false; };
-  }, [historyOwnerId, storyboardId, storyboardUniverseId]);
-
-
-
-  useEffect(() => {
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextOwnerId = session?.user?.id ?? null;
@@ -385,7 +352,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setIsLocked(false);
         setSelectedFile(null);
         setSelectedFileStatus(null);
-        setActiveVyralId(null);
         
         setDraft('');
         setHistoryError(null);
@@ -708,40 +674,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
-      let resolvedActiveVyralId = storyboardId ? storyboardUniverseId ?? null : activeVyralId;
+      const resolvedActiveVyralId = storyboardUniverseId ?? null;
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
-      if (supabase && text && !storyboardId) {
-        const { data: authData } = await awaitForCurrentRequest(supabase.auth.getUser());
-        assertRequestCurrent();
-        if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this request.', 'AbortError');
-        if (authData.user) {
-          const { data: ownedVyrals } = await awaitForCurrentRequest(supabase.from('vyrals')
-            .select('id,name,description,metadata').eq('user_id', authData.user.id).limit(150));
-          if (ownedVyrals) {
-            const ownedRecords = ownedVyrals
-              .filter((item) => storyboardId ? item.id === storyboardUniverseId : (item.metadata as Record<string, unknown> | null)?.universe_scope !== 'storyboard')
-              .map((item) => ({
-                id: String(item.id), name: String(item.name), description: typeof item.description === 'string' ? item.description : '',
-              }));
-            if (resolvedActiveVyralId) {
-              const verifiedActive = ownedRecords.find((item) => item.id === resolvedActiveVyralId);
-              if (verifiedActive) {
-                try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, verifiedActive.id); } catch { /* in-memory context remains active */ }
-              } else {
-                resolvedActiveVyralId = null;
-                setActiveVyralId(null);
-              }
-            }
-            mentionedVyrals = findMentionedVyrals(text, ownedRecords);
-            if (!storyboardId && mentionedVyrals.length === 1) {
-              resolvedActiveVyralId = mentionedVyrals[0].id;
-              setActiveVyralId(resolvedActiveVyralId);
-              try { localStorage.setItem('vyra_active_vyral_v1:' + authData.user.id, resolvedActiveVyralId); } catch { /* in-memory context remains active */ }
-            }
-          }
-        }
-      }
-
       const navigationTarget = extractGlobalChatNavigationTarget(text);
       if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
