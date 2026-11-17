@@ -341,6 +341,8 @@ test('Cloud restore cannot overwrite a newer local replica or deletion', () => {
   assert.ok(storage.includes('replicaRevision?: string'));
   assert.ok(install.includes('replicaRevision: createId()'));
   assert.ok(install.includes('latestBeforeReady.replicaRevision !== base.replicaRevision'));
+  assert.ok(install.includes('latestBeforeReady.updatedAt !== base.updatedAt'));
+  assert.ok(install.includes('latest.updatedAt === base.updatedAt'));
   assert.ok(install.includes('latestBeforeReady.deletedAt'));
   assert.ok(install.includes('latest?.replicaRevision === base.replicaRevision && !latest.deletedAt'));
   assert.ok(install.includes('Never let an older restore overwrite its state'));
@@ -357,6 +359,9 @@ test('Cloud restore atomically claims a Project File ID before writing replica b
   const install = storage.slice(installStart, installEnd);
   assert.ok(claim.includes("db.transaction(FILE_STORE, 'readwrite')"));
   assert.ok(claim.includes('current.replicaRevision === expected.replicaRevision'));
+  assert.ok(claim.includes('current.updatedAt === expected.updatedAt'));
+  assert.ok(claim.includes('current.fileName === expected.fileName'));
+  assert.ok(claim.includes('current.folderId === expected.folderId'));
   assert.ok(claim.includes('!current.deletedAt'));
   assert.ok(claim.includes(': !current'));
   assert.ok(claim.includes('transaction.abort()'));
