@@ -86,11 +86,18 @@ Implemented on the working branch:
 - `src/services/runwayProjectFileGeneration.ts` implements quote → explicit approval → Project-bound reservation → one-time submission → polling → direct Project File ingestion → Offline Storage install → completion.
 - Static contract tests were added in `tests/project-native-generation-contract.spec.ts`.
 
-Still required before enabling the Chat UI:
+Chat integration progress:
 
-- Wire the Project Chat generation entry point and recovery/history UI to `generateRunwayProjectFiles`; preserve Scene shot-sequence verification and legacy repair history without inventing Asset IDs.
-- Add a safe recovery method for already-submitted Project jobs and partial multi-output ingestion.
+- The existing Project Chat generation action now routes non-Scene media generation to `generateRunwayProjectFiles`, using the actual Project ID. It no longer requires an Assets Vyral for this path.
+- Generated outputs are represented in chat history by `projectFileId`, not an Asset ID. History rehydrates previews from `media_library_items` scoped to the current Project.
+- Image, video, and audio previews are rendered from signed Project File URLs. The same output is already installed in Offline Storage by the generation service.
+- Existing Scene shot-sequence generation and repair continue through the legacy Asset/DNA/Fingerprint visual-verification path. They are deliberately not silently converted or stripped of continuity checks.
+
+Still required:
+
+- Wire the new Project-job recovery service into the unfinished-generation panel, including partial multi-output ingestion and already-submitted jobs.
+- Extend Scene shot-sequence, repair, and Editor timeline handoff to Project File IDs while preserving sampled-frame continuity verification.
 - Run typecheck, Deno checks, unit/contract tests, integration tests, and verify SQL/RLS/storage behavior in a non-production environment.
 - Confirm generated media opens from Project Storage and Editor offline on the same and a second device.
 
-The Project-native path is implemented in the service and Edge Function layers but is not yet exposed through Chat. Do not declare it production-ready until the verification gates pass.
+The non-Scene Project Chat path is connected but is not production-ready until the verification gates pass. Scene generation intentionally remains on its legacy compatibility path for now.
