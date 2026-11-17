@@ -86,7 +86,7 @@ const GridFileName: React.FC<{ name: string }> = ({ name }) => {
   );
 };
 
-export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId?: string }> = ({ isActive = true, projectId }) => {
+export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: string }> = ({ isActive = true, projectId }) => {
   const { user } = useAuth();
   const ownerId = user?.id ?? null;
   const [folders, setFolders] = useState<MediaLibraryFolder[]>([]);
