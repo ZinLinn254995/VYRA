@@ -2,6 +2,7 @@ import { supabase } from '../context/AuthContext';
 import {
   getProjectOfflineFile,
   getProjectOfflineFileBlob,
+  getProjectOfflineStorageEstimate,
   installProjectCloudFileToOfflineStorage,
   listPendingProjectOfflineSyncOperations,
   updateProjectOfflineCloudState,
@@ -9,6 +10,8 @@ import {
 
 const BUCKET = 'vyral-assets';
 const MAX_BATCH = 20;
+const MAX_RESTORE_BYTES_PER_PROJECT = 256 * 1024 * 1024;
+const UNKNOWN_QUOTA_RESTORE_BUDGET = 64 * 1024 * 1024;
 
 function getDb() {
   if (!supabase) throw new Error('Cloud synchronization is not configured.');
@@ -107,11 +110,18 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
   if (error) throw new Error('Could not load the Project Cloud manifest: ' + error.message);
 
   let restored = 0;
+  let restoredBytes = 0;
   for (const row of rows ?? []) {
     if (row.bucket_id !== BUCKET || typeof row.storage_path !== 'string' ||
         !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
     const local = await getProjectOfflineFile(row.id);
     if (local?.localState === 'available' && local.projectId === projectId) continue;
+    const fileSize = Math.max(0, Number(row.size_bytes) || 0);
+    const estimate = await getProjectOfflineStorageEstimate();
+    const passBudget = estimate.quotaBytes === null || estimate.usageBytes === null
+      ? UNKNOWN_QUOTA_RESTORE_BUDGET
+      : Math.min(MAX_RESTORE_BYTES_PER_PROJECT, Math.max(0, estimate.quotaBytes - estimate.usageBytes - Math.max(32 * 1024 * 1024, Math.floor(estimate.quotaBytes * 0.08))));
+    if (fileSize <= 0 || restoredBytes + fileSize > passBudget) break;
     const { data: downloaded, error: downloadError } = await db.storage.from(BUCKET).download(row.storage_path);
     if (downloadError || !downloaded) continue;
     const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
@@ -127,6 +137,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
       expectedSha256: expectedHash,
     });
     restored += 1;
+    restoredBytes += downloaded.size;
   }
   return restored;
 }
