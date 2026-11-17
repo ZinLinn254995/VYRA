@@ -50,7 +50,7 @@ Deno.serve(async (request: Request) => {
       typeof quote.provider_config_id !== 'string' || !isRecord(quote.request_payload) ||
       !isRecord(quote.request_payload.input)) {
     await context.supabaseAdmin.rpc('record_runway_media_submission', {
-      p_user_id: userId, p_job_id: body.jobId, p_outcome: 'unknown',
+      p_user_id: userId, p_job_id: body.jobId, p_outcome: 'rejected',
       p_failure_code: 'claimed_payload_invalid',
     });
     return json({ error: 'The claimed job payload is incomplete and requires reconciliation.' }, 503);
@@ -59,7 +59,7 @@ Deno.serve(async (request: Request) => {
   const { data: apiKey, error: secretError } = await context.supabaseAdmin.rpc('get_vyra_runway_secret');
   if (secretError || typeof apiKey !== 'string' || !apiKey) {
     await context.supabaseAdmin.rpc('record_runway_media_submission', {
-      p_user_id: userId, p_job_id: body.jobId, p_outcome: 'unknown',
+      p_user_id: userId, p_job_id: body.jobId, p_outcome: 'rejected',
       p_failure_code: 'provider_secret_unavailable',
     });
     return json({ error: 'Provider credentials are unavailable. The job was not resubmitted.' }, 503);
