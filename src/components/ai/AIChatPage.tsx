@@ -1324,8 +1324,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const missingText = message.projectFiles?.filter((file) => historicalText.has(file.projectFileId)
             && !message.content.includes('Attached text content:')) ?? [];
           if (missingText.length) {
-            const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\\n' + historicalText.get(file.projectFileId)).join('\n\n');
-            message.content += '\\n\\nRecovered Project attachment text:\\n' + recovered;
+            const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\n' + historicalText.get(file.projectFileId)).join('\n\n');
+            message.content += '\n\nRecovered Project attachment text:\n' + recovered;
           }
         }
         setMessages((previous) => previous.map((message) => {
