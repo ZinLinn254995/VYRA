@@ -28,7 +28,7 @@ import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
-import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
+import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -47,6 +47,7 @@ export type TimelineClip = {
   content?: string;
   assetId?: string;
   assetVersionId?: string;
+  projectFileId?: string;
   assetMimeType?: string;
   mediaKind?: 'video' | 'image' | 'audio';
   /** Local source is durable and cloud ingestion must resume after editor remount. */
@@ -98,6 +99,7 @@ type Scene = {
 
 type Props = {
   scenes: Scene[];
+  projectId?: string;
   vyralId?: string;
   value?: MasterTimelineData;
   onChange: (next: MasterTimelineData) => void;
@@ -125,7 +127,7 @@ const toolbarItems = [
  * - zoom changes horizontal pixels-per-second only
  * - playhead is an overlay fixed at the center of the timeline viewport
  */
-export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange, onImagePreviewChange, videoPreviewRef, onTextPreviewOverlaysChange }) => {
+export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyralId, value, onChange, onSceneDuplicate, onSceneDelete, onSelectionChange, onImagePreviewChange, videoPreviewRef, onTextPreviewOverlaysChange }) => {
   const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
   const [selectedVisualClipId, setSelectedVisualClipId] = useState<string | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
@@ -1040,6 +1042,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           return result.signedUrl;
         },
+        resolveProjectFileUrl: async (projectFileId, signal) => {
+          if (!projectId || signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+          const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, 'audio');
+          if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+          return source.signedUrl;
+        },
         fetchAudio: async (url, signal) => {
           const response = await fetch(url, { cache: 'no-store', signal });
           if (!response.ok) throw new Error('A private Audio Asset could not be downloaded for playback.');
@@ -1064,6 +1072,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, vyralId, value, 
             const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
             return result.signedUrl;
+          },
+          resolveProjectFileUrl: async (projectFileId, signal) => {
+            if (!projectId || signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, 'video');
+            if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
+            return source.signedUrl;
           },
           onError: (error) => setMasterPlaybackError(error.message),
         });
