@@ -1690,8 +1690,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       ) : (
         <section className="flex min-h-[min(52vh,440px)] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40 px-6 py-12 text-center">
           <div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><Clapperboard size={25} /></div>
-          <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No Projects yet</h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first Project to start creating.</p>
+          <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No Projects in this Workspace yet</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create a Project to start creating scenes and videos.</p>
         </section>
       )}
 
