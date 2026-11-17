@@ -407,8 +407,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setIsLocked(false);
         setSelectedFile(null);
         setSelectedFileStatus(null);
-        
-        
+        setSelectedAssets([]);
+        onSelectedAssetsChange?.([]);
         setActiveVyralId(null);
         
         setDraft('');
