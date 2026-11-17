@@ -1288,13 +1288,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           assertRequestCurrent();
           let blob = await getProjectOfflineFileBlob(attachment.projectFileId);
           if (!blob) {
-            const { data: row, error: rowError } = await supabase.from('media_library_items')
+            const { data: row, error: rowError } = await awaitForCurrentRequest(supabase.from('media_library_items')
               .select('id,file_name,mime_type,size_bytes,storage_path,folder_id,updated_at,metadata')
               .eq('id', attachment.projectFileId).eq('user_id', requestOwnerId)
-              .eq('project_id', storyboardId).is('universe_id', null).maybeSingle();
+              .eq('project_id', storyboardId).is('universe_id', null).maybeSingle());
             if (rowError) throw new Error('A previous Project attachment could not be located.');
             if (row?.storage_path) {
-              const { data: downloaded, error: downloadError } = await supabase.storage.from('vyral-assets').download(row.storage_path);
+              const { data: downloaded, error: downloadError } = await awaitForCurrentRequest(
+                supabase.storage.from('vyral-assets').download(row.storage_path),
+              );
               if (downloadError || !downloaded) throw new Error('A previous Project attachment is not available on this device or Cloud.');
               const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
               await installProjectCloudFileToOfflineStorage({
