@@ -130,7 +130,7 @@ export function connectVoiceChangerGraph(
   nodes.push(highpass, lowpass, warmth, presence, shaper, output);
 
   let oscillator: OscillatorNode | null = null;
-  let modulation: GainNode | null = null;
+  let biasSource: ConstantSourceNode | null = null;
   if (settings.robot > 0) {
     const depth = context.createGain();
     depth.gain.value = settings.robot * 0.42;
@@ -139,13 +139,13 @@ export function connectVoiceChangerGraph(
     carrier.frequency.value = 34 + settings.robot * 92;
     const bias = context.createConstantSource();
     bias.offset.value = 1 - depth.gain.value;
+    biasSource = bias;
     carrier.connect(depth);
     depth.connect(output.gain);
     bias.connect(output.gain);
     carrier.start(startAt);
     bias.start(startAt);
     oscillator = carrier;
-    modulation = depth;
     nodes.push(depth, carrier, bias);
   }
 
@@ -165,11 +165,11 @@ export function connectVoiceChangerGraph(
   return {
     disconnect: () => {
       try { oscillator?.stop(); } catch { /* already stopped */ }
+      try { biasSource?.stop(); } catch { /* already stopped */ }
       try { source.disconnect(highpass); } catch { /* already disconnected */ }
       for (const node of nodes) {
         try { node.disconnect(); } catch { /* already disconnected */ }
       }
-      void modulation;
     },
   };
 }
