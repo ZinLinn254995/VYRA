@@ -52,7 +52,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
   scenes: MasterTimelineVideoScene[],
   instances: MasterTimelineVideoInstance[] | undefined,
   playheadTime: number,
-  videoTracks: Array<{ id: string; clips: Array<{ id: string; start: number; duration: number; sourceIn?: number; sourceOut?: number; assetId?: string; assetVersionId?: string; assetMimeType?: string; mediaKind?: string }> }> = [],
+  videoTracks: Array<{ id: string; clips: Array<{ id: string; start: number; duration: number; sourceIn?: number; sourceOut?: number; assetId?: string; assetVersionId?: string; projectFileId?: string; assetMimeType?: string; mediaKind?: string }> }> = [],
 ): MasterTimelineVideoPlaybackItem[] {
   if (!Array.isArray(scenes) || !Number.isFinite(playheadTime) || playheadTime < 0) return [];
 
