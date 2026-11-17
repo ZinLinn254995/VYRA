@@ -62,6 +62,55 @@ function freeze<T>(value: T): T {
   return value;
 }
 
+/** Canonical JSON encoding makes the render input digest independent of object key insertion order. */
+function canonicalRenderInput(value: unknown, ancestors = new Set<object>()): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Render input contains a non-finite number.');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) throw new Error('Render input must not contain circular references.');
+    ancestors.add(value);
+    const result = '[' + value.map((item) => canonicalRenderInput(item, ancestors)).join(',') + ']';
+    ancestors.delete(value);
+    return result;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
+      throw new Error('Render input must contain only plain JSON objects.');
+    }
+    if (ancestors.has(value)) throw new Error('Render input must not contain circular references.');
+    ancestors.add(value);
+    const keys = Object.keys(record).sort();
+    const result = '{' + keys.map((key) => {
+      if (record[key] === undefined) throw new Error('Render input must not contain undefined values.');
+      return JSON.stringify(key) + ':' + canonicalRenderInput(record[key], ancestors);
+    }).join(',') + '}';
+    ancestors.delete(value);
+    return result;
+  }
+  throw new Error('Render input must contain only JSON-compatible values.');
+}
+
+/** Hash the exact immutable manifest and composition plan pinned to a render job. */
+export async function createProjectRenderInputDigest(
+  manifest: ProjectRenderManifest,
+  compositionPlan: ProjectRenderCompositionPlan,
+): Promise<string> {
+  if (!manifest || manifest.schema !== 'vyra.project-render-manifest' || manifest.version !== 1 ||
+      !compositionPlan || compositionPlan.schema !== 'vyra.project-render-composition-plan' || compositionPlan.version !== 1 ||
+      manifest.projectId !== compositionPlan.projectId) {
+    throw new Error('A matching supported Project render manifest and composition plan are required.');
+  }
+  if (!globalThis.crypto?.subtle) throw new Error('Web Crypto SHA-256 is unavailable in this runtime.');
+  const canonical = canonicalRenderInput({ manifest, compositionPlan });
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 /** Create the immutable job envelope. Persistence and provider execution are deliberately separate. */
 export function createProjectRenderJob(input: {
   id: string;
