@@ -1,0 +1,58 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(10);
+insert into auth.users (id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+values ('26000000-0000-4000-8000-000000000001','authenticated','authenticated','folder-delete-test@example.invalid','',now(),
+ '{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb,now(),now())
+on conflict (id) do nothing;
+set local role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select ok(not has_function_privilege('authenticated','public.delete_empty_vyral_folder(uuid,uuid,uuid,text,timestamptz)','EXECUTE'), 'Authenticated browser role cannot execute folder deletion RPC');
+select ok(has_function_privilege('service_role','public.delete_empty_vyral_folder(uuid,uuid,uuid,text,timestamptz)','EXECUTE'), 'Service role can execute folder deletion RPC');
+insert into public.vyrals (id,user_id,name,metadata,master_dna_purpose,master_dna_status)
+values ('26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',
+ 'Folder Delete Test Vyral','{}'::jsonb,'A test Vyral for empty-folder deletion.','stale');
+insert into public.vyrals (id,user_id,name,metadata,master_dna_purpose,master_dna_status)
+values ('26000000-0000-4000-8000-000000000012','26000000-0000-4000-8000-000000000001',
+ 'Protected Folder Test Vyral','{"protected":true}'::jsonb,'Protected test fixture.','stale');
+insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
+values ('26000000-0000-4000-8000-000000000025','26000000-0000-4000-8000-000000000012',
+ '26000000-0000-4000-8000-000000000001',null,'Protected Empty Folder');
+insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
+values
+ ('26000000-0000-4000-8000-000000000021','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',null,'Empty Folder'),
+ ('26000000-0000-4000-8000-000000000022','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001',null,'Nonempty Folder'),
+ ('26000000-0000-4000-8000-000000000023','26000000-0000-4000-8000-000000000011','26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000022','Child Folder');
+insert into public.vyral_folders (id,vyral_id,user_id,parent_id,name)
+values ('26000000-0000-4000-8000-000000000024','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000001',null,'Folder With Asset');
+insert into public.vyral_assets (id,vyral_id,user_id,folder_id,name,original_filename,asset_type,mime_type,size_bytes,storage_path,sha256,processing_status)
+values ('26000000-0000-4000-8000-000000000026','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000024',
+ 'Test Image','test.png','image','image/png',4,'folder-delete-test/test.png',repeat('b',64),'ready');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000021','Empty Folder',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000021'))),1,'Deletes an exact empty owner-owned folder');
+select is((select count(*)::int from public.vyral_folders where id='26000000-0000-4000-8000-000000000021'),0,'Deleted empty folder is absent');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000022','Nonempty Folder',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000022'))),0,'Refuses folders containing child folders');
+select is((select count(*)::int from public.vyral_folders where id='26000000-0000-4000-8000-000000000023'),1,'Refused deletion preserves child folder');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000022','Wrong Name',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000022'))),0,'Refuses stale or mismatched folder identity');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000012',
+ '26000000-0000-4000-8000-000000000025','Protected Empty Folder',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000025'))),0,'Refuses deletion inside a protected Vyral');
+select is((select count(*)::int from public.delete_empty_vyral_folder(
+ '26000000-0000-4000-8000-000000000001','26000000-0000-4000-8000-000000000011',
+ '26000000-0000-4000-8000-000000000024','Folder With Asset',
+ (select created_at from public.vyral_folders where id='26000000-0000-4000-8000-000000000024'))),0,'Refuses folders containing Assets');
+select is((select count(*)::int from public.vyral_assets where id='26000000-0000-4000-8000-000000000026'),1,'Refused deletion preserves the Asset');
+select * from finish();
+rollback;

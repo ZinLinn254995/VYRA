@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@import "./design-system/tokens.css";
+
+/* Light-mode variant: components opt into light styles with `light:` utilities.
+   The .light class is toggled on <html> by StudioContext. Without this declaration,
+   Tailwind v4 silently drops every `light:` utility and the whole light theme breaks. */
+@custom-variant light (&:where(.light, .light *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Light Theme Tokens */
+    --color-bg-base: #F8FAFC;
+    --color-surface-1: #FFFFFF;
+    --color-surface-2: #F1F5F9;
+    --color-surface-hover: #E2E8F0;
+    --color-border: #E2E8F0;
+    --color-border-subtle: #EDF2F7;
+    --color-text-primary: #090B18;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748B;
+    --color-accent-cyan: #0284C7;
+    --color-accent-violet: #6366F1;
+    --color-accent-magenta: #C026D3;
+  }
+
+  .dark {
+    /* Dark Theme Tokens (Visual Identity specification) */
+    --color-bg-base: #090B18;
+    --color-surface-1: #171A35;
+    --color-surface-2: #1E2345;
+    --color-surface-hover: #262B54;
+    --color-border: #2B3058;
+    --color-border-subtle: #1F2445;
+    --color-text-primary: #F8FAFC;
+    --color-text-secondary: #94A3B8;
+    --color-text-muted: #64748B;
+    --color-accent-cyan: #55F4FF;
+    --color-accent-violet: #8D7CFF;
+    --color-accent-magenta: #E36CFF;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100svh;
+  }
+}
+
+/* Hide only the timeline viewport scrollbars; keep touch/trackpad scrolling enabled. */
+.master-timeline-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.master-timeline-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Keep the text insertion caret visible and consistent in every theme/browser. */
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: var(--vyra-text-primary);
+  cursor: text;
+}
+
+/* Keep the web app viewport fixed; only designated content panes may scroll. */
+html {
+  height: 100%;
+}
+
+html, body, #root {
+  width: 100%;
+  min-height: 100%;
+}
+
+html {
+  scroll-padding-top: calc(var(--vyra-global-header-height, 64px) + 12px);
+}
+
+input, textarea, [contenteditable="true"] {
+  scroll-margin-top: calc(var(--vyra-global-header-height, 64px) + 12px);
+}

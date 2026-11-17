@@ -1,0 +1,13 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(8);
+select has_column('public','vyral_dna_records','revision_number','Asset DNA records carry an explicit revision number');
+select has_column('public','vyral_dna_records','parent_dna_record_id','Asset DNA revisions retain immutable parent lineage');
+select ok(exists (select 1 from pg_constraint where conrelid='public.vyral_dna_records'::regclass and conname='vyral_dna_records_revision_positive'),'DNA revision numbers must be positive');
+select ok(exists (select 1 from pg_constraint where conrelid='public.vyral_dna_records'::regclass and conname='vyral_dna_records_parent_fk'),'DNA parent references a real historical record');
+select ok(exists (select 1 from pg_indexes where schemaname='public' and tablename='vyral_dna_records' and indexname='vyral_dna_records_asset_revision_unique'),'Each Asset revision number is unique');
+select ok(exists (select 1 from pg_indexes where schemaname='public' and tablename='vyral_dna_records' and indexname='vyral_dna_records_parent_idx'),'Historical parent lookup is indexed');
+select ok(not exists (select 1 from public.vyral_dna_records where scope='asset' and asset_id is not null group by asset_id,revision_number having count(*) > 1),'Existing Asset DNA records have collision-free revision numbers');
+select ok(not exists (select 1 from public.vyral_dna_records d left join public.vyral_dna_records p on p.id=d.parent_dna_record_id where d.parent_dna_record_id is not null and (p.id is null or p.asset_id is distinct from d.asset_id)),'Backfilled DNA parent lineage stays within the same Asset');
+select * from finish();
+rollback;

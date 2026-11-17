@@ -1,0 +1,1028 @@
+import { supabase } from '../context/AuthContext';
+import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from './vyralAssetIngestion';
+
+export type MediaLibraryFolder = {
+  id: string;
+  user_id: string;
+  universe_id: string | null;
+  parent_id: string | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MediaLibraryItem = {
+  id: string;
+  user_id: string;
+  universe_id: string | null;
+  folder_id: string | null;
+  source_kind: 'upload' | 'vyral_asset' | 'generated';
+  source_asset_id: string | null;
+  bucket_id: 'vyral-assets';
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  signed_url: string | null;
+  thumbnail_url: string | null;
+};
+
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const SAFE_NAME = (value: string) => value.replaceAll('/', '-').replaceAll(String.fromCharCode(92), '-').split('').filter((char) => { const code = char.charCodeAt(0); return code >= 32 && code !== 127; }).join('').trim().slice(0, 180);
+const SAFE_STORAGE_EXTENSION = (fileName: string) => {
+  const extension = fileName.match(/\.([a-zA-Z0-9]{1,10})$/)?.[1];
+  return extension ? '.' + extension.toLowerCase() : '';
+};
+const getDb = () => {
+  if (!supabase) throw new Error('Cloud storage is not configured in this environment.');
+  return supabase;
+};
+
+// Short-lived owner-scoped metadata caches avoid repeating identical reads while
+// preserving the private Storage authorization boundary. Signed thumbnails are
+// reused only until shortly before their one-hour expiry.
+const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
+const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
+const folderCacheKey = (ownerId: string, universeId?: string | null) => ownerId + ':' + (universeId ?? 'personal');
+const applyUniverseScope = (query: any, universeId?: string | null) => universeId ? query.eq('universe_id', universeId) : query.is('universe_id', null);
+const applyMetadataSnapshot = (query: any, metadata: Record<string, unknown> | null) => metadata === null ? query.is('metadata', null) : query.eq('metadata', metadata);
+const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+let lastStorageCleanupStartedAt = 0;
+
+/** Run a bounded number of async tasks to avoid request spikes on large Libraries. */
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(values.length, Math.max(1, Math.floor(concurrency) || 1));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= values.length) return;
+      results[index] = await mapper(values[index]);
+    }
+  }));
+  return results;
+}
+
+/** Accept only normalized object paths rooted in the signed-in owner's namespace. */
+function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: string[] = []): path is string {
+  if (typeof path !== 'string' || !path || path.includes('\\')) return false;
+  const segments = path.split('/');
+  if (segments.length < 2 || segments[0] !== ownerId
+    || segments.some((segment) => !segment || segment === '.' || segment === '..')) return false;
+  return allowedRoots.length === 0 || allowedRoots.some((root) => path.startsWith(ownerId + '/' + root + '/'));
+}
+
+async function getOwnerId(): Promise<string> {
+  const db = getDb();
+  const { data, error } = await db.auth.getUser();
+  if (error || !data.user?.id) throw new Error('Sign in to use My Media Library.');
+  return data.user.id;
+}
+
+async function assertStoryboardUniverse(db: any, userId: string, universeId: string, storyboardId?: string): Promise<void> {
+  const { data, error } = await db.from('vyrals').select('id,metadata')
+    .eq('id', universeId).eq('user_id', userId).maybeSingle();
+  const metadata = data?.metadata as Record<string, unknown> | null;
+  if (error || !data || metadata?.universe_scope !== 'storyboard'
+    || (storyboardId && metadata?.storyboard_id !== storyboardId)) {
+    throw new Error('This private Storyboard Universe could not be verified for your account.');
+  }
+}
+
+type MediaLibraryStorageCleanupJob = {
+  id: string;
+  bucket_id: string;
+  storage_paths: string[];
+  attempts: number;
+};
+
+/** Retries owner-scoped Storage cleanup jobs without blocking normal Library access. */
+export async function processMediaLibraryStorageCleanup(limit = 4): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const batchSize = Math.max(1, Math.min(8, Math.floor(limit)));
+  const { data, error } = await db.from('media_library_storage_cleanup_jobs')
+    .select('id,bucket_id,storage_paths,attempts')
+    .eq('user_id', userId)
+    .lte('next_attempt_at', new Date().toISOString())
+    .order('created_at', { ascending: true })
+    .limit(batchSize);
+  if (error) return 0;
+
+  let completed = 0;
+  for (const job of (data ?? []) as MediaLibraryStorageCleanupJob[]) {
+    // Never let a malformed or tampered queue row target canonical Vyral assets
+    // or another user's objects. Standalone originals and thumbnails have
+    // dedicated, owner-prefixed paths only.
+    const validCleanupPaths = job.bucket_id === 'vyral-assets'
+      && Array.isArray(job.storage_paths)
+      && job.storage_paths.length > 0
+      && job.storage_paths.every((path) => {
+        if (typeof path !== 'string' || !path) return false;
+        const segments = path.split('/');
+        return !path.includes('\\')
+          && !segments.some((segment) => !segment || segment === '.' || segment === '..')
+          && (path.startsWith(userId + '/media-library/') || path.startsWith(userId + '/media-library-thumbnails/'));
+      });
+    if (!validCleanupPaths) {
+      const attempts = job.attempts + 1;
+      await db.from('media_library_storage_cleanup_jobs').update({
+        attempts,
+        next_attempt_at: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+        last_error: 'Blocked cleanup job with an unsafe bucket or object path.',
+      }).eq('id', job.id).eq('user_id', userId);
+      continue;
+    }
+    const { error: removeError } = await db.storage.from(job.bucket_id).remove(job.storage_paths);
+    if (removeError) {
+      const attempts = job.attempts + 1;
+      const delayMinutes = Math.min(5 * (2 ** Math.min(attempts - 1, 8)), 1440);
+      await db.from('media_library_storage_cleanup_jobs').update({
+        attempts,
+        next_attempt_at: new Date(Date.now() + delayMinutes * 60_000).toISOString(),
+        last_error: removeError.message.slice(0, 1000),
+      }).eq('id', job.id).eq('user_id', userId);
+      continue;
+    }
+    const { error: queueError } = await db.from('media_library_storage_cleanup_jobs')
+      .delete().eq('id', job.id).eq('user_id', userId);
+    if (!queueError) completed += 1;
+  }
+  return completed;
+}
+
+export type MediaLibraryFilter = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
+export type MediaLibraryPageOptions = {
+  folderId?: string | null;
+  offset?: number;
+  limit?: number;
+  search?: string;
+  filter?: MediaLibraryFilter;
+  universeId?: string | null;
+};
+
+async function syncStoryboardUniverseLibrary(db: any, userId: string, universeId: string): Promise<void> {
+  await assertStoryboardUniverse(db, userId, universeId);
+  const canonicalFolders: Array<{ id: string; parent_id: string | null; name: string; created_at: string }> = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data: page, error } = await db.from('vyral_folders')
+      .select('id,user_id,vyral_id,parent_id,name,created_at')
+      .eq('vyral_id', universeId).eq('user_id', userId)
+      .order('created_at', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + 499);
+    if (error) throw new Error('Could not sync Storyboard Universe folders: ' + error.message);
+    canonicalFolders.push(...((page ?? []) as typeof canonicalFolders));
+    if (!page || page.length < 500) break;
+  }
+  const pending = [...canonicalFolders];
+  const synced = new Set<string>();
+  while (pending.length) {
+    const index = pending.findIndex((folder) => !folder.parent_id || synced.has(folder.parent_id));
+    if (index < 0) throw new Error('The Storyboard Universe contains a folder with a missing or cyclic parent.');
+    const folder = pending.splice(index, 1)[0];
+    const { error } = await db.from('media_library_folders').upsert({
+      id: folder.id, user_id: userId, universe_id: universeId, vyral_folder_id: folder.id,
+      parent_id: folder.parent_id, name: folder.name, created_at: folder.created_at,
+    }, { onConflict: 'id' });
+    if (error) throw new Error('Could not sync a Universe folder into the Library: ' + error.message);
+    synced.add(folder.id);
+  }
+
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  const assets: Array<{ id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }> = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data: page, error } = await db.from('vyral_assets')
+      .select('id,folder_id,name,mime_type,size_bytes,storage_path,metadata,processing_status')
+      .eq('vyral_id', universeId).eq('user_id', userId)
+      .neq('processing_status', 'archived')
+      .order('created_at', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + 499);
+    if (error) throw new Error('Could not sync Storyboard Universe Assets: ' + error.message);
+    assets.push(...((page ?? []) as typeof assets));
+    if (!page || page.length < 500) break;
+  }
+  if (assets.length) {
+    const assetIds = assets.map((asset: { id: string }) => asset.id);
+    const { data: indexed, error: indexedError } = await db.from('media_library_items')
+      .select('id,source_asset_id,universe_id,metadata').eq('user_id', userId).in('source_asset_id', assetIds);
+    if (indexedError) throw new Error('Could not reconcile the Universe Asset index: ' + indexedError.message);
+    const indexedByAsset = new Map((indexed ?? []).filter((row: { source_asset_id: string | null }) => row.source_asset_id)
+      .map((row: { id: string; source_asset_id: string; universe_id: string | null; metadata: Record<string, unknown> | null }) => [row.source_asset_id, row]));
+    const hasNewAssets = assets.some((asset: { id: string }) => !indexedByAsset.has(asset.id));
+    const rows = assets.map((asset: { id: string; folder_id: string | null; name: string; mime_type: string; size_bytes: number; storage_path: string; metadata: Record<string, unknown> | null }) => ({
+      user_id: userId, universe_id: universeId, folder_id: asset.folder_id,
+      source_kind: asset.metadata?.upload_source === 'media_generation' ? 'generated' : 'vyral_asset',
+      source_asset_id: asset.id, bucket_id: 'vyral-assets', storage_path: asset.storage_path,
+      file_name: asset.name, mime_type: asset.mime_type, size_bytes: asset.size_bytes,
+      metadata: { ...((indexedByAsset.get(asset.id) as { metadata?: Record<string, unknown> | null } | undefined)?.metadata ?? {}), origin: 'vyral_asset_inventory' },
+    }));
+    for (const asset of assets as Array<{ id: string }>) {
+      const existing = indexedByAsset.get(asset.id) as { id: string; universe_id: string | null } | undefined;
+      if (existing?.universe_id && existing.universe_id !== universeId) {
+        throw new Error('An Asset index row is attached to a different Universe; the cross-Universe reference was blocked.');
+      }
+      if (existing && existing.universe_id === null) {
+        const row = rows.find((candidate: { source_asset_id: string }) => candidate.source_asset_id === asset.id);
+        if (!row) throw new Error('Could not reconcile a legacy Asset index row into its private Universe.');
+        const { error } = await db.from('media_library_items').update({
+          universe_id: universeId, folder_id: row.folder_id, file_name: row.file_name,
+          mime_type: row.mime_type, size_bytes: row.size_bytes, bucket_id: row.bucket_id,
+          storage_path: row.storage_path, source_kind: row.source_kind, metadata: row.metadata,
+        }).eq('id', existing.id).eq('user_id', userId);
+        if (error) throw new Error('Could not move a legacy Storyboard Asset index into its private Universe: ' + error.message);
+      }
+    }
+    const newRows = rows.filter((row: { source_asset_id: string }) => !indexedByAsset.has(row.source_asset_id));
+    if (newRows.length) {
+      const { error } = await db.from('media_library_items').upsert(newRows, {
+        onConflict: 'user_id,universe_id,source_asset_id',
+      });
+      if (error) throw new Error('Could not index the Storyboard Universe Assets: ' + error.message);
+    }
+    const currentRows = rows.filter((row: { source_asset_id: string }) => {
+      const existing = indexedByAsset.get(row.source_asset_id) as { universe_id: string | null } | undefined;
+      return existing?.universe_id === universeId;
+    });
+    for (const row of currentRows) {
+      const existing = indexedByAsset.get(row.source_asset_id) as { id: string } | undefined;
+      if (existing?.id) {
+        const { error } = await db.from('media_library_items').update({
+          folder_id: row.folder_id, file_name: row.file_name, mime_type: row.mime_type,
+          size_bytes: row.size_bytes, bucket_id: row.bucket_id, storage_path: row.storage_path,
+          source_kind: row.source_kind, metadata: row.metadata,
+        }).eq('id', existing.id).eq('user_id', userId).eq('universe_id', universeId);
+        if (error) throw new Error('Could not refresh a Universe Asset index row: ' + error.message);
+      }
+    }
+    const { data: universeState } = await db.from('vyrals').select('master_dna_status')
+      .eq('id', universeId).eq('user_id', userId).maybeSingle();
+    if (hasNewAssets || universeState?.master_dna_status !== 'ready') {
+      try {
+        await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
+      } catch {
+        // A stale/non-ready Master DNA state causes the next Universe Library refresh to retry.
+      }
+    }
+  }
+}
+
+export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): Promise<{
+  folders: MediaLibraryFolder[];
+  items: MediaLibraryItem[];
+  hasMore: boolean;
+}> {
+  const db = getDb();
+  const ownerId = await getOwnerId();
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
+  if (options.universeId) await syncStoryboardUniverseLibrary(db, ownerId, options.universeId);
+  if (Date.now() - lastStorageCleanupStartedAt >= 15 * 60_000) {
+    lastStorageCleanupStartedAt = Date.now();
+    void processMediaLibraryStorageCleanup(4).catch(() => undefined);
+  }
+
+  let itemQuery = applyUniverseScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), options.universeId);
+  if (options.folderId === null) itemQuery = itemQuery.is('folder_id', null);
+  else if (options.folderId) itemQuery = itemQuery.eq('folder_id', options.folderId);
+
+  const search = options.search?.trim();
+  if (search) {
+    const term = search.replace(/[(),]/g, ' ').replace(/[%_\\]/g, (value) => '\\\\' + value).trim();
+    if (term) itemQuery = itemQuery.ilike('file_name', '%' + term + '%');
+  }
+
+  switch (options.filter ?? 'all') {
+    case 'image': itemQuery = itemQuery.like('mime_type', 'image/%'); break;
+    case 'video': itemQuery = itemQuery.like('mime_type', 'video/%'); break;
+    case 'audio': itemQuery = itemQuery.like('mime_type', 'audio/%'); break;
+    case 'document':
+      itemQuery = itemQuery.or('mime_type.eq.application/pdf,mime_type.ilike.%word%,mime_type.ilike.%officedocument%,mime_type.like.text/%');
+      break;
+    case 'other':
+      itemQuery = itemQuery
+        .not('mime_type', 'like', 'image/%')
+        .not('mime_type', 'like', 'video/%')
+        .not('mime_type', 'like', 'audio/%')
+        .not('mime_type', 'eq', 'application/pdf')
+        .not('mime_type', 'ilike', '%word%')
+        .not('mime_type', 'ilike', '%officedocument%')
+        .not('mime_type', 'like', 'text/%');
+      break;
+  }
+
+  const folderKey = folderCacheKey(ownerId, options.universeId);
+  const cachedFolders = mediaLibraryFolderCache.get(folderKey);
+  const useCachedFolders = Boolean(cachedFolders && cachedFolders.expiresAt > Date.now());
+  const [folderResult, itemResult] = await Promise.all([
+    useCachedFolders ? Promise.resolve(null) : applyUniverseScope(db.from('media_library_folders').select('id,user_id,universe_id,parent_id,name,created_at,updated_at').eq('user_id', ownerId), options.universeId).order('name'),
+    itemQuery.order('file_name', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limit),
+  ]);
+  if (folderResult && folderResult.error) throw new Error('Could not load Media Library folders: ' + folderResult.error.message);
+  if (itemResult.error) throw new Error('Could not load Media Library files: ' + itemResult.error.message);
+  const folders = useCachedFolders ? cachedFolders!.folders : (folderResult?.data ?? []) as MediaLibraryFolder[];
+  if (!useCachedFolders) mediaLibraryFolderCache.set(folderKey, { folders, expiresAt: Date.now() + MEDIA_FOLDER_CACHE_TTL_MS });
+  const rawPage = (itemResult.data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[];
+  const hasMore = rawPage.length > limit;
+  const rawItems = rawPage.slice(0, limit);
+  const items = await mapWithConcurrency(rawItems, 8, async (item) => {
+    const storedThumbnailPath = item.metadata?.thumbnail_path;
+    const thumbnailPath = item.bucket_id === 'vyral-assets'
+      && isSafeOwnerStoragePath(storedThumbnailPath, ownerId, ['media-library-thumbnails'])
+      ? storedThumbnailPath
+      : null;
+    try {
+      const storage = db.storage.from(item.bucket_id);
+      if (!thumbnailPath) return { ...item, signed_url: null, thumbnail_url: null };
+      const cacheKey = item.bucket_id + ':' + thumbnailPath;
+      const cachedThumbnail = thumbnailSignedUrlCache.get(cacheKey);
+      if (cachedThumbnail && cachedThumbnail.expiresAt > Date.now() + 60_000) {
+        return { ...item, signed_url: null, thumbnail_url: cachedThumbnail.url };
+      }
+      const thumbnail = await storage.createSignedUrl(thumbnailPath, 60 * 60);
+      const signedUrl = thumbnail.data?.signedUrl ?? null;
+      if (signedUrl) thumbnailSignedUrlCache.set(cacheKey, { url: signedUrl, expiresAt: Date.now() + 55 * 60_000 });
+      return { ...item, signed_url: null, thumbnail_url: signedUrl };
+    } catch {
+      return { ...item, signed_url: null, thumbnail_url: null };
+    }
+  });
+  return { folders, items, hasMore };
+}
+
+/** Load only the newly changed Library rows; used for incremental UI updates after uploads. */
+export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?: string | null): Promise<MediaLibraryItem[]> {
+  if (!itemIds.length) return [];
+  const db = getDb();
+  const ownerId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, ownerId, universeId);
+  let itemQuery = applyUniverseScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), universeId);
+  itemQuery = itemIds.length === 1 ? itemQuery.eq('id', itemIds[0]) : itemQuery.in('id', itemIds);
+  const { data, error } = await itemQuery;
+  if (error) throw new Error('Could not load the updated Media Library files: ' + error.message);
+  return mapWithConcurrency((data ?? []) as Omit<MediaLibraryItem, 'signed_url'>[], 8, async (item) => {
+    const storedPath = item.metadata?.thumbnail_path;
+    const thumbnailPath = item.bucket_id === 'vyral-assets'
+      && isSafeOwnerStoragePath(storedPath, ownerId, ['media-library-thumbnails'])
+      ? storedPath : null;
+    if (!thumbnailPath) return { ...item, signed_url: null, thumbnail_url: null };
+    const cacheKey = item.bucket_id + ':' + thumbnailPath;
+    const cached = thumbnailSignedUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return { ...item, signed_url: null, thumbnail_url: cached.url };
+    }
+    try {
+      const { data: signed, error: signError } = await db.storage.from(item.bucket_id).createSignedUrl(thumbnailPath, 60 * 60);
+      const url = signError ? null : signed?.signedUrl ?? null;
+      if (url) thumbnailSignedUrlCache.set(cacheKey, { url, expiresAt: Date.now() + 55 * 60_000 });
+      return { ...item, signed_url: null, thumbnail_url: url };
+    } catch {
+      return { ...item, signed_url: null, thumbnail_url: null };
+    }
+  });
+}
+
+/** Create a short-lived original-file URL only when the owner opens or downloads an item. */
+export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null): Promise<string> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const { data, error } = await applyUniverseScope(db.from('media_library_items')
+    .select('bucket_id,storage_path')
+    .eq('id', itemId)
+    .eq('user_id', userId), universeId).maybeSingle();
+  if (error || !data) throw new Error('This file is unavailable or you no longer have access to it.');
+  if (data.bucket_id !== 'vyral-assets' || !isSafeOwnerStoragePath(data.storage_path, userId)) {
+    throw new Error('This file has an invalid private storage location.');
+  }
+  const { data: signed, error: signError } = await db.storage.from(data.bucket_id).createSignedUrl(data.storage_path, 60 * 60);
+  if (signError || !signed?.signedUrl) throw new Error('Could not create a secure preview link. Refresh and try again.');
+  return signed.signedUrl;
+}
+
+export async function createMediaLibraryFolder(name: string, parentId: string | null = null, universeId?: string | null): Promise<MediaLibraryFolder> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (!cleanName) throw new Error('Enter a folder name.');
+  let folderId: string | undefined;
+  if (universeId) {
+    await assertStoryboardUniverse(db, userId, universeId);
+    folderId = crypto.randomUUID();
+    const { error: canonicalError } = await db.from('vyral_folders').insert({ id: folderId, vyral_id: universeId, user_id: userId, parent_id: parentId, name: cleanName });
+    if (canonicalError) throw new Error(canonicalError.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create Universe folder: ' + canonicalError.message);
+  }
+  const { data, error } = await db.from('media_library_folders')
+    .insert({ ...(folderId ? { id: folderId, vyral_folder_id: folderId } : {}), user_id: userId, universe_id: universeId ?? null, parent_id: parentId, name: cleanName })
+    .select('id,user_id,universe_id,parent_id,name,created_at,updated_at').single();
+  if (error) {
+    if (folderId) await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not create folder: ' + error.message);
+  }
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+  return data as MediaLibraryFolder;
+}
+
+export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null): Promise<void> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (!cleanName) throw new Error('Enter a folder name.');
+  if (universeId) {
+    const { error: canonicalError } = await db.from('vyral_folders').update({ name: cleanName }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (canonicalError) throw new Error('Could not rename Universe folder: ' + canonicalError.message);
+  }
+  const { error } = await applyUniverseScope(db.from('media_library_folders').update({ name: cleanName, updated_at: new Date().toISOString() }).eq('id', folderId).eq('user_id', userId), universeId);
+  if (error) throw new Error(error.code === '23505' ? 'A folder with this name already exists here.' : 'Could not rename folder: ' + error.message);
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+}
+
+export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null): Promise<void> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
+    applyUniverseScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId),
+    applyUniverseScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId),
+  ]);
+  if (childError || itemError) throw new Error('Could not check whether this folder is empty.');
+  if ((childCount ?? 0) > 0 || (itemCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
+  if (universeId) {
+    const [{ count: canonicalChildCount, error: canonicalChildError }, { count: assetCount, error: assetError }] = await Promise.all([
+      db.from('vyral_folders').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('parent_id', folderId),
+      db.from('vyral_assets').select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId).eq('folder_id', folderId),
+    ]);
+    if (canonicalChildError || assetError) throw new Error('Could not verify the canonical Universe folder contents.');
+    if ((canonicalChildCount ?? 0) > 0 || (assetCount ?? 0) > 0) throw new Error('Move or remove this folder’s contents before deleting it.');
+    const { error } = await db.from('vyral_folders').delete().eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (error) throw new Error('Could not delete Universe folder: ' + error.message);
+  } else {
+    const { error } = await db.from('media_library_folders').delete().eq('id', folderId).eq('user_id', userId).is('universe_id', null);
+    if (error) throw new Error('Could not delete folder: ' + error.message);
+  }
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+}
+
+export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null): Promise<void> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (universeId) {
+    const { error: canonicalError } = await db.from('vyral_folders').update({ parent_id: parentId }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
+    if (canonicalError) throw new Error(canonicalError.message.toLowerCase().includes('descendant') ? 'A folder cannot be moved into one of its descendants.' : 'Could not move Universe folder: ' + canonicalError.message);
+  }
+  const { error } = await applyUniverseScope(db.from('media_library_folders')
+    .update({ parent_id: parentId, updated_at: new Date().toISOString() })
+    .eq('id', folderId).eq('user_id', userId), universeId);
+  if (error) {
+    if (error.message.toLowerCase().includes('descendant') || error.message.toLowerCase().includes('cycle')) {
+      throw new Error('A folder cannot be moved into itself or one of its subfolders.');
+    }
+    throw new Error('Could not move folder: ' + error.message);
+  }
+  mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId));
+}
+
+export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null, universeId?: string | null): Promise<void> {
+  if (!itemIds.length) return;
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (universeId) {
+    const { data: selected, error: selectedError } = await applyUniverseScope(db.from('media_library_items').select('id,source_asset_id')
+      .in('id', itemIds).eq('user_id', userId), universeId);
+    if (selectedError || !selected || selected.length !== itemIds.length || selected.some((row: { source_asset_id: string | null }) => !row.source_asset_id)) {
+      throw new Error('Only canonical Universe Assets can be moved in this Library.');
+    }
+    const assetIds = selected.map((row: { source_asset_id: string }) => row.source_asset_id);
+    const { error: assetMoveError } = await db.from('vyral_assets').update({ folder_id: folderId, updated_at: new Date().toISOString() })
+      .in('id', assetIds).eq('vyral_id', universeId).eq('user_id', userId);
+    if (assetMoveError) throw new Error('Could not move the canonical Universe Assets: ' + assetMoveError.message);
+  }
+  const { error } = await applyUniverseScope(db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
+    .in('id', itemIds).eq('user_id', userId), universeId);
+  if (error) throw new Error('Could not move selected files: ' + error.message);
+}
+
+export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null): Promise<void> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const cleanName = SAFE_NAME(fileName);
+  if (!cleanName) throw new Error('Enter a file name.');
+  if (universeId) {
+    const { data: row, error: readError } = await applyUniverseScope(db.from('media_library_items').select('source_asset_id')
+      .eq('id', itemId).eq('user_id', userId), universeId).maybeSingle();
+    if (readError || !row?.source_asset_id) throw new Error('This file is not a verified Universe Asset.');
+    const { error: assetError } = await db.from('vyral_assets').update({ name: cleanName, updated_at: new Date().toISOString() })
+      .eq('id', row.source_asset_id).eq('vyral_id', universeId).eq('user_id', userId);
+    if (assetError) throw new Error('Could not rename the canonical Universe Asset: ' + assetError.message);
+  }
+  const { error } = await applyUniverseScope(db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
+    .eq('id', itemId).eq('user_id', userId), universeId);
+  if (error) throw new Error('Could not rename file: ' + error.message);
+}
+
+export async function deleteMediaLibraryItems(itemIds: string[], universeId?: string | null): Promise<{ deletedCount: number; cleanupPending: boolean; masterDnaStatus?: 'ready' | 'pending' | 'empty' }> {
+  if (!itemIds.length) return { deletedCount: 0, cleanupPending: false };
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) {
+    await assertStoryboardUniverse(db, userId, universeId);
+    const { data: rows, error: rowsError } = await applyUniverseScope(db.from('media_library_items')
+      .select('id,source_asset_id,metadata').eq('user_id', userId).in('id', itemIds), universeId);
+    if (rowsError || !rows || rows.length !== itemIds.length || rows.some((row: { source_asset_id: string | null }) => !row.source_asset_id)) {
+      throw new Error('Only verified Universe Assets can be deleted from this Storyboard Library.');
+    }
+    const assetIds = rows.map((row: { source_asset_id: string }) => row.source_asset_id);
+    const { data: assets, error: assetError } = await db.from('vyral_assets').select('id,storage_path')
+      .in('id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
+    if (assetError || !assets || assets.length !== assetIds.length) throw new Error('One or more Assets no longer belong to this Storyboard Universe.');
+    const { data: versions, error: versionsError } = await db.from('vyral_asset_versions').select('storage_path')
+      .in('asset_id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
+    if (versionsError) throw new Error('Could not verify stored Asset versions before deletion.');
+    const canonicalPaths = [...new Set([...(versions ?? []).map((v: { storage_path: string }) => v.storage_path), ...assets.map((a: { storage_path: string }) => a.storage_path)])];
+    const thumbnailPathValues: string[] = [];
+    for (const row of rows as Array<{ metadata?: Record<string, unknown> | null }>) {
+      const path = row.metadata?.thumbnail_path;
+      if (typeof path === 'string') thumbnailPathValues.push(path);
+    }
+    const thumbnailPaths: string[] = [...new Set(thumbnailPathValues)];
+    if (canonicalPaths.some((path: string) => !path.startsWith(userId + '/' + universeId + '/') || path.includes('\\') || path.split('/').some((part: string) => !part || part === '.' || part === '..'))
+      || thumbnailPaths.some((path: string) => !isSafeOwnerStoragePath(path, userId, ['media-library-thumbnails']))) {
+      throw new Error('A stored Asset path failed the private Universe safety check.');
+    }
+    const paths = [...canonicalPaths, ...thumbnailPaths];
+    if (paths.length) {
+      const { error: storageError } = await db.storage.from('vyral-assets').remove(paths);
+      if (storageError) throw new Error('Could not remove the selected Asset binaries: ' + storageError.message);
+    }
+    const { error: deleteError } = await db.from('vyral_assets').delete().in('id', assetIds).eq('user_id', userId).eq('vyral_id', universeId);
+    if (deleteError) throw new Error('Stored media was removed, but the Asset records could not be deleted: ' + deleteError.message);
+    let masterDnaStatus: 'ready' | 'pending' | 'empty' = 'pending';
+    const { count: remainingAssetCount, error: remainingAssetError } = await db.from('vyral_assets')
+      .select('id', { count: 'exact', head: true }).eq('vyral_id', universeId).eq('user_id', userId);
+    if (!remainingAssetError && (remainingAssetCount ?? 0) === 0) {
+      masterDnaStatus = 'empty';
+    } else {
+      try {
+        const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: universeId } });
+        if (!error && data?.status === 'ready') masterDnaStatus = 'ready';
+      } catch {
+        masterDnaStatus = 'pending';
+      }
+    }
+    window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
+    return { deletedCount: assetIds.length, cleanupPending: false, masterDnaStatus };
+  }
+  const { data: personalRows, error: personalRowsError } = await applyUniverseScope(db.from('media_library_items')
+    .select('id').eq('user_id', userId).in('id', itemIds), null);
+  if (personalRowsError || !personalRows || personalRows.length !== itemIds.length) throw new Error('One or more selected files are not in your personal Media Library.');
+  // The RPC atomically queues standalone originals/thumbnails and deletes the
+  // Library index rows. Vyral-backed canonical binaries are never queued.
+  const { data, error } = await db.rpc('delete_media_library_items_and_queue_storage_cleanup', {
+    p_item_ids: itemIds,
+  });
+  if (error) throw new Error('Could not safely delete the selected files: ' + error.message);
+
+  // Try immediately for a responsive experience; failed removals remain durable
+  // and receive bounded exponential retry delays on later Library visits.
+  try {
+    await processMediaLibraryStorageCleanup(8);
+  } catch {
+    // The index deletion and cleanup queue are already committed; keep the
+    // successful delete result and report the durable cleanup as pending.
+  }
+  const { count, error: queueError } = await db.from('media_library_storage_cleanup_jobs')
+    .select('id', { count: 'exact', head: true });
+  return { deletedCount: typeof data === 'number' ? data : 0, cleanupPending: Boolean(queueError) || (count ?? 0) > 0 };
+}
+
+async function createMediaThumbnail(file: File): Promise<Blob | null> {
+  const canvas = document.createElement('canvas');
+  const maxSide = 256;
+  const drawFrame = (source: CanvasImageSource, width: number, height: number) => {
+    if (!width || !height) return null;
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.68));
+  };
+
+  try {
+    if (file.type.startsWith('image/')) {
+      if (typeof createImageBitmap !== 'function') return null;
+      const bitmap = await createImageBitmap(file);
+      try { return await drawFrame(bitmap, bitmap.width, bitmap.height); }
+      finally { bitmap.close(); }
+    }
+    if (file.type.startsWith('video/')) {
+      const objectUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      return await new Promise<Blob | null>((resolve) => {
+        let settled = false;
+        const finish = (blob: Blob | null) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          video.removeAttribute('src');
+          video.load();
+          URL.revokeObjectURL(objectUrl);
+          resolve(blob);
+        };
+        const timeout = window.setTimeout(() => finish(null), 8000);
+        video.addEventListener('loadedmetadata', () => {
+          if (!Number.isFinite(video.duration) || video.videoWidth === 0 || video.videoHeight === 0) return finish(null);
+          video.currentTime = Math.min(0.25, video.duration / 2);
+        }, { once: true });
+        video.addEventListener('seeked', async () => {
+          try { finish(await drawFrame(video, video.videoWidth, video.videoHeight)); }
+          catch { finish(null); }
+        }, { once: true });
+        video.addEventListener('error', () => finish(null), { once: true });
+        video.src = objectUrl;
+        video.load();
+      });
+    }
+  } catch {
+    // Thumbnail generation is best-effort; the original upload remains usable.
+  }
+  return null;
+}
+
+/**
+ * Backfills a small number of legacy image/video rows that predate thumbnails.
+ * Originals are only downloaded; they are never moved, overwritten or deleted.
+ * The thumbnail is stored first, then its path is added to the row metadata.
+ */
+const activeThumbnailBackfills = new Map<string, Promise<number>>();
+
+/**
+ * Deduplicate overlapping backfills within this app session. Storage object keys
+ * remain unique and the metadata update remains compare-and-set, so separate
+ * tabs/devices are also safe: only one worker can attach a thumbnail to a row.
+ */
+export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  const key = userId + ':' + (universeId ?? 'personal');
+  const existing = activeThumbnailBackfills.get(key);
+  if (existing) return existing;
+
+  const task = runMediaLibraryThumbnailBackfill(limit, universeId, userId);
+  activeThumbnailBackfills.set(key, task);
+  try {
+    return await task;
+  } finally {
+    if (activeThumbnailBackfills.get(key) === task) activeThumbnailBackfills.delete(key);
+  }
+}
+
+async function runMediaLibraryThumbnailBackfill(
+  limit: number,
+  universeId: string | null | undefined,
+  userId: string,
+): Promise<number> {
+  const db = getDb();
+  const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
+  // Keep the PostgREST filter value free of fractional-second dots.
+  const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const { data, error } = await applyUniverseScope(db.from('media_library_items')
+    .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
+    .eq('user_id', userId), universeId)
+    .is('metadata->thumbnail_path', null)
+    .is('metadata->thumbnail_backfill_attempted_at', null)
+    .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + retryCutoff)
+    .or('mime_type.like.image/%,mime_type.like.video/%')
+    .order('created_at', { ascending: true })
+    .limit(batchSize);
+  if (error) throw new Error('Could not find older media thumbnails to generate: ' + error.message);
+
+  let generated = 0;
+  const scheduleRetry = async (row: { id: string; metadata: Record<string, unknown> | null }) => {
+    const previousAttempts = Number(row.metadata?.thumbnail_backfill_attempts ?? 0);
+    const attempts = (Number.isFinite(previousAttempts) ? Math.max(0, Math.floor(previousAttempts)) : 0) + 1;
+    const retryMetadata: Record<string, unknown> = {
+      ...(row.metadata ?? {}),
+      thumbnail_backfill_attempts: attempts,
+    };
+    if (attempts >= 8) {
+      retryMetadata.thumbnail_backfill_attempted_at = new Date().toISOString();
+      delete retryMetadata.thumbnail_backfill_retry_after_at;
+    } else {
+      // Exponential backoff (5 minutes to 24 hours) prevents old transient
+      // failures from occupying every small batch on every Library visit.
+      const delayMinutes = Math.min(5 * (2 ** (attempts - 1)), 24 * 60);
+      retryMetadata.thumbnail_backfill_retry_after_at = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+    }
+    await applyUniverseScope(applyMetadataSnapshot(db.from('media_library_items')
+      .update({ metadata: retryMetadata })
+      .eq('id', row.id).eq('user_id', userId), row.metadata), universeId)
+      .is('metadata->thumbnail_path', null)
+      .is('metadata->thumbnail_backfill_attempted_at', null);
+  };
+
+  for (const row of (data ?? []) as Array<{
+    id: string; bucket_id: 'vyral-assets'; storage_path: string; file_name: string;
+    mime_type: string; metadata: Record<string, unknown> | null;
+  }>) {
+    try {
+      const { data: original, error: downloadError } = await db.storage.from(row.bucket_id).download(row.storage_path);
+      if (downloadError || !original) { await scheduleRetry(row); continue; }
+      const sourceFile = new File([original], row.file_name, { type: row.mime_type || original.type || 'application/octet-stream' });
+      const thumbnailBlob = await createMediaThumbnail(sourceFile);
+      if (!thumbnailBlob) {
+        // A decode timeout or temporary browser limitation may be recoverable;
+        // use the same bounded backoff instead of permanently skipping the file.
+        await scheduleRetry(row);
+        continue;
+      }
+
+      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+      // Each worker gets its own object key: a losing concurrent metadata update
+      // must never remove the thumbnail object claimed by another worker.
+      const thumbnailPath = userId + '/media-library-thumbnails/' + row.id + '-' + crypto.randomUUID() + '.' + thumbnailExtension;
+      const { error: uploadError } = await db.storage.from('vyral-assets').upload(thumbnailPath, thumbnailBlob, {
+        contentType: thumbnailType, upsert: true, cacheControl: '86400',
+      });
+      if (uploadError) { await scheduleRetry(row); continue; }
+
+      const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
+      const attachmentQuery = applyUniverseScope(
+        applyMetadataSnapshot(db.from('media_library_items')
+          .update({ metadata })
+          .eq('id', row.id).eq('user_id', userId)
+          .is('metadata->thumbnail_path', null), row.metadata),
+        universeId,
+      ).select('id').maybeSingle();
+      const { data: updatedRow, error: updateError } = await attachmentQuery;
+      // A returned row confirms this worker actually claimed the row's thumbnail metadata slot.
+      if (updateError || !updatedRow) {
+        // A network error can happen after Postgres committed the update. Read
+        // the row before deleting the object: removing a possibly-referenced
+        // thumbnail would turn a transient response failure into broken media.
+        let latestMetadata: Record<string, unknown> | null | undefined;
+        let latestRowExists = false;
+        let couldVerifyRow = false;
+        try {
+          const { data: latestRow, error: readError } = await applyUniverseScope(
+            db.from('media_library_items').select('metadata')
+              .eq('id', row.id).eq('user_id', userId),
+            universeId,
+          ).maybeSingle();
+          if (!readError) {
+            couldVerifyRow = true;
+            latestRowExists = Boolean(latestRow);
+            latestMetadata = latestRow?.metadata as Record<string, unknown> | null | undefined;
+          }
+        } catch {
+          // Keep the uploaded object when attachment state is uncertain.
+        }
+        if (latestMetadata?.thumbnail_path === thumbnailPath) {
+          generated += 1;
+          continue;
+        }
+        // If the row could not be read, retain the object rather than risk
+        // deleting a thumbnail whose metadata update actually committed.
+        if (!couldVerifyRow) continue;
+        const { error: removeError } = await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        if (removeError) {
+          // Persist orphan cleanup so a temporary Storage failure is recoverable.
+          await db.from('media_library_storage_cleanup_jobs').insert({
+            user_id: userId,
+            bucket_id: 'vyral-assets',
+            storage_paths: [thumbnailPath],
+            attempts: 0,
+            next_attempt_at: new Date().toISOString(),
+            last_error: 'Unclaimed thumbnail cleanup failed: ' + removeError.message.slice(0, 700),
+          });
+        }
+        if (latestRowExists && latestMetadata?.thumbnail_path == null) await scheduleRetry(row);
+        continue;
+      }
+      generated += 1;
+    } catch {
+      // Retry transient download, upload or metadata failures without starving
+      // later rows; the retry counter is bounded to eight attempts.
+      await scheduleRetry(row);
+    }
+  }
+  return generated;
+}
+
+export async function uploadMediaLibraryFiles(
+  files: File[], folderId: string | null,
+  onProgress?: (completed: number, total: number, currentFileName: string) => void,
+  onFileError?: (file: File, error: Error) => void,
+  signal?: AbortSignal,
+  onFileUploaded?: (itemId: string) => void,
+  scope?: { universeId: string; storyboardId: string; onMasterDnaSync?: (status: 'ready' | 'pending') => void },
+): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  if (scope) await assertStoryboardUniverse(db, userId, scope.universeId, scope.storyboardId);
+  let uploaded = 0;
+  let processed = 0;
+  for (const file of files) {
+    // Cancellation is intentionally checked between files only: an active Storage
+    // transfer is allowed to finish so it cannot leave a partially written object.
+    if (signal?.aborted) break;
+    // Report the file before its transfer starts so the UI never labels the
+    // previously completed file as the one currently uploading.
+    onProgress?.(uploaded, files.length, file.name);
+    try {
+      if (!file.size) throw new Error(file.name + ' is empty.');
+      if (file.size > MAX_FILE_BYTES) throw new Error(file.name + ' exceeds the 100 MB per-file limit.');
+      if (scope) {
+        const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(db), {
+          vyralId: scope.universeId, userId, file, folderId,
+          metadata: { upload_source: 'creator_workspace', origin: 'storyboard_universe_media_library', storyboard_id: scope.storyboardId },
+        });
+        let itemId: string | null = null;
+        try {
+          itemId = await registerVyralAssetInMediaLibrary({
+            assetId: ingested.assetId, userId, fileName: file.name, mimeType: ingested.mimeType,
+            sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath, sourceKind: 'vyral_asset',
+            universeId: scope.universeId, folderId, thumbnailSource: file,
+          });
+        } catch {
+          // The canonical Asset and its DNA are already durable. Reconciliation
+          // will rebuild the Media Library index without asking the creator to re-upload.
+          window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
+        }
+        uploaded += 1;
+        if (itemId) onFileUploaded?.(itemId);
+        continue;
+      }
+      const id = crypto.randomUUID();
+      // Keep the user's original filename in the Library record, but never use it
+      // as a Storage object key: Unicode and punctuation can be rejected by the
+      // storage backend. UUID + a conservative extension gives every upload a safe,
+      // collision-resistant object path on every platform.
+      const fileName = file.name.replace(/[\u0000-\u001F\u007F]/g, '').trim() || 'upload-' + id;
+      const storagePath = userId + '/media-library/' + id + SAFE_STORAGE_EXTENSION(fileName);
+      const mimeType = file.type || 'application/octet-stream';
+      const { error: uploadError } = await db.storage.from('vyral-assets').upload(storagePath, file, {
+        contentType: mimeType, upsert: false, cacheControl: '3600',
+      });
+      if (uploadError) throw new Error('Could not upload ' + file.name + ': ' + uploadError.message);
+      let thumbnailPath: string | null = null;
+      const thumbnailBlob = await createMediaThumbnail(file);
+      if (thumbnailBlob) {
+        const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+        const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+        const candidatePath = userId + '/media-library-thumbnails/' + id + '.' + thumbnailExtension;
+        const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
+          contentType: thumbnailType, upsert: false, cacheControl: '86400',
+        });
+        if (!thumbnailError) thumbnailPath = candidatePath;
+      }
+      const { error: insertError } = await db.from('media_library_items').insert({
+        id, user_id: userId, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
+        bucket_id: 'vyral-assets', storage_path: storagePath, file_name: fileName,
+        mime_type: mimeType, size_bytes: file.size,
+        metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
+      });
+      if (insertError) {
+        const orphanPaths = [storagePath, ...(thumbnailPath ? [thumbnailPath] : [])];
+        // Persist cleanup before attempting removal so a transient Storage failure
+        // cannot leave an unindexed object with no recovery path.
+        const { error: queueError } = await db.from('media_library_storage_cleanup_jobs').insert({
+          user_id: userId,
+          bucket_id: 'vyral-assets',
+          storage_paths: orphanPaths,
+          attempts: 0,
+          next_attempt_at: new Date().toISOString(),
+          last_error: 'Upload metadata insert failed: ' + insertError.message.slice(0, 700),
+        });
+        if (!queueError) {
+          try { await processMediaLibraryStorageCleanup(1); } catch { /* queued retry remains durable */ }
+        } else {
+          // Fall back to immediate removal if the queue itself is unavailable.
+          const { error: cleanupError } = await db.storage.from('vyral-assets').remove(orphanPaths);
+          if (cleanupError) {
+            throw new Error('The file record could not be saved (' + insertError.message + ') and orphan cleanup could not be queued or completed (' + cleanupError.message + ').');
+          }
+        }
+        throw new Error('The file uploaded but its library record could not be saved: ' + insertError.message);
+      }
+      uploaded += 1;
+      onFileUploaded?.(id);
+    } catch (cause) {
+      const failure = cause instanceof Error ? cause : new Error('Could not upload ' + file.name + '.');
+      // Keep the original fail-fast contract for existing callers. The Library UI
+      // opts into per-file reporting so later files can still finish.
+      if (!onFileError) throw failure;
+      onFileError(file, failure);
+    } finally {
+      // Progress tracks completed attempts, not only successful uploads. A failed
+      // file must not leave the batch looking permanently stuck.
+      processed += 1;
+      onProgress?.(processed, files.length, file.name);
+    }
+  }
+  if (scope && uploaded > 0) {
+    let dnaStatus: 'ready' | 'pending' = 'pending';
+    try {
+      const { data, error } = await db.functions.invoke('build-vyral-master-dna', { body: { vyralId: scope.universeId } });
+      if (!error && data?.status === 'ready') dnaStatus = 'ready';
+    } catch {
+      dnaStatus = 'pending';
+    }
+    scope.onMasterDnaSync?.(dnaStatus);
+  }
+  return uploaded;
+}
+/** Adds a successfully ingested Chat/Workspace Asset to the unified Library without duplicating its binary. */
+export async function registerVyralAssetInMediaLibrary(input: {
+  assetId: string; userId: string; fileName: string; mimeType: string; sizeBytes: number; storagePath: string;
+  sourceKind?: 'vyral_asset' | 'generated';
+  universeId?: string | null;
+  folderId?: string | null;
+  /** Pass the already-selected source File so thumbnails are created without downloading the canonical object again. */
+  thumbnailSource?: File;
+}): Promise<string> {
+  const db = getDb();
+  const ownerId = await getOwnerId();
+  if (input.userId !== ownerId) {
+    throw new Error('Cannot index an Asset for a different signed-in user.');
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.assetId)) {
+    throw new Error('A valid Vyral Asset ID is required.');
+  }
+  const storageSegments = input.storagePath.split('/');
+  if (!input.storagePath.startsWith(ownerId + '/')
+    || input.storagePath.includes('\\')
+    || storageSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    throw new Error('The Asset has an invalid private storage location.');
+  }
+  if (input.universeId) await assertStoryboardUniverse(db, ownerId, input.universeId);
+  let thumbnailPath: string | null = null;
+  if (input.thumbnailSource) {
+    const thumbnailBlob = await createMediaThumbnail(input.thumbnailSource).catch(() => null);
+    if (thumbnailBlob) {
+      const thumbnailType = thumbnailBlob.type === 'image/webp' ? 'image/webp' : 'image/png';
+      const thumbnailExtension = thumbnailType === 'image/webp' ? 'webp' : 'png';
+      const candidatePath = input.userId + '/media-library-thumbnails/' + input.assetId + '.' + thumbnailExtension;
+      const { error: thumbnailError } = await db.storage.from('vyral-assets').upload(candidatePath, thumbnailBlob, {
+        contentType: thumbnailType, upsert: true, cacheControl: '86400',
+      });
+      if (!thumbnailError) thumbnailPath = candidatePath;
+    }
+  }
+  const { data: indexed, error } = await db.from('media_library_items').upsert({
+    user_id: input.userId, universe_id: input.universeId ?? null, folder_id: input.folderId ?? null, source_kind: input.sourceKind ?? 'vyral_asset',
+    source_asset_id: input.assetId, bucket_id: 'vyral-assets', storage_path: input.storagePath,
+    file_name: SAFE_NAME(input.fileName) || 'Untitled asset', mime_type: input.mimeType,
+    size_bytes: input.sizeBytes,
+    metadata: { origin: 'vyral_asset_inventory', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
+  }, { onConflict: input.universeId ? 'user_id,universe_id,source_asset_id' : 'user_id,source_asset_id' }).select('id').single();
+  if (error) {
+    if (thumbnailPath) {
+      // The canonical Asset is owned by the Vyral pipeline, but this newly
+      // uploaded Library thumbnail belongs to the failed index operation.
+      // Persist its cleanup before attempting removal so retries survive a
+      // transient Storage failure without ever touching the canonical object.
+      const { error: queueError } = await db.from('media_library_storage_cleanup_jobs').insert({
+        user_id: input.userId,
+        bucket_id: 'vyral-assets',
+        storage_paths: [thumbnailPath],
+        attempts: 0,
+        next_attempt_at: new Date().toISOString(),
+        last_error: 'Vyral Asset Library index upsert failed: ' + error.message.slice(0, 700),
+      });
+      if (!queueError) {
+        try { await processMediaLibraryStorageCleanup(1); } catch { /* queued retry remains durable */ }
+      } else {
+        const { error: cleanupError } = await db.storage.from('vyral-assets').remove([thumbnailPath]);
+        if (cleanupError) {
+          throw new Error('Could not add this Asset to My Media Library (' + error.message + ') and thumbnail cleanup could not be queued or completed (' + cleanupError.message + ').');
+        }
+      }
+    }
+    throw new Error('Could not add this Asset to My Media Library: ' + error.message);
+  }
+  window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
+  if (!indexed?.id) throw new Error('Asset was saved but its Media Library index could not be confirmed.');
+  return indexed.id as string;
+}

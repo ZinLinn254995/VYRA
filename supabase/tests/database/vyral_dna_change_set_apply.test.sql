@@ -1,0 +1,14 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(9);
+select has_column('public','vyral_asset_dna_improvement_proposals','applied_dna_record_id','Applied proposal records its created immutable DNA revision');
+select ok(exists(select 1 from pg_constraint where conrelid='public.vyral_asset_dna_improvement_proposals'::regclass and conname='vyral_asset_dna_proposal_applied_record_required'),'Applied proposals require a DNA revision reference');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and tablename='vyral_asset_dna_improvement_proposals' and indexname='vyral_asset_dna_proposals_applied_record_unique'),'An applied DNA revision can be referenced only once');
+select ok(to_regprocedure('public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)') is not null,'Trusted atomic application function exists');
+select ok(position('fully validated, hash-pinned DNA change set' in pg_get_functiondef('public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)'::regprocedure))>0,'Application requires a fully validated hash-pinned change set');
+select ok(position('Creator evidence does not authorize DNA patch operation' in pg_get_functiondef('public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)'::regprocedure))>0,'Application rechecks exact creator evidence');
+select ok(position('Submitted DNA payload does not equal the validated deterministic patch result' in pg_get_functiondef('public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)'::regprocedure))>0,'Database verifies the exact deterministic patch result');
+select ok(position('parent_dna_record_id' in pg_get_functiondef('public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)'::regprocedure))>0,'New revision preserves parent lineage');
+select ok(not has_function_privilege('authenticated','public.apply_vyral_asset_dna_change_set(uuid,uuid,text,uuid,jsonb)','EXECUTE'),'Authenticated clients cannot directly invoke application function');
+select * from finish();
+rollback;

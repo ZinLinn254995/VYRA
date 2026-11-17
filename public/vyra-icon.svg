@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="vyra-mark" x1="9" y1="8" x2="55" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20DDF2"/>
+      <stop offset=".48" stop-color="#3978FF"/>
+      <stop offset="1" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 9H20.5L32 39.2L43.5 9H57L37.1 55.2C36.2 57.3 34.2 58.7 32 58.7C29.8 58.7 27.8 57.3 26.9 55.2L7 9Z" fill="url(#vyra-mark)"/>
+</svg>

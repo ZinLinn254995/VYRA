@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VYRA DNA & Consistency Engine | VYRA</title>
+  <meta name="description" content="Learn how VYRA maintains identity, canon, relationships, and creative continuity across assets, stories, and media.">
+  <link rel="canonical" href="https://vyra-nine-theta.vercel.app/vyral-dna.html">
+  <meta name="robots" content="index,follow">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="VYRA">
+  <meta property="og:title" content="VYRA DNA & Consistency Engine">
+  <meta property="og:description" content="A technical introduction to Asset DNA, Creative Universe knowledge, fingerprints, provenance, and context retrieval.">
+  <meta property="og:url" content="https://vyra-nine-theta.vercel.app/vyral-dna.html">
+  <meta property="og:image" content="https://vyra-nine-theta.vercel.app/vyra-icon.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="VYRA DNA & Consistency Engine">
+  <meta name="twitter:description" content="Understand how VYRA preserves Asset identity, Creative Universe knowledge, fingerprints and continuity.">
+  <link rel="icon" type="image/svg+xml" href="/vyra-icon.svg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "VYRA DNA & Consistency Engine",
+    "description": "A technical introduction to Asset DNA, Creative Universe knowledge, fingerprints, provenance and context retrieval.",
+    "mainEntityOfPage": "https://vyra-nine-theta.vercel.app/vyral-dna.html",
+    "publisher": {
+      "@type": "Organization",
+      "name": "VYRA",
+      "url": "https://vyra-nine-theta.vercel.app/"
+    },
+    "inLanguage": "en"
+  }
+  </script>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #09090b; color: #f4f4f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(ellipse at 50% -20%, #202044 0, #09090b 55%); }
+    main { width: min(860px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0; }
+    .brand { color: #67e8f9; font-size: 13px; font-weight: 800; letter-spacing: .22em; }
+    h1 { margin: 24px 0 16px; font-size: clamp(36px, 7vw, 60px); line-height: 1.06; letter-spacing: -.05em; }
+    h2 { margin: 38px 0 10px; font-size: 23px; }
+    h3 { margin: 22px 0 8px; font-size: 17px; }
+    p, li { color: #c4c4ce; font-size: 16px; line-height: 1.75; }
+    .lead { font-size: 19px; }
+    .note { border-left: 3px solid #67e8f9; padding: 12px 16px; background: #15151b; border-radius: 0 12px 12px 0; }
+    code { color: #a5f3fc; }
+    a { color: #67e8f9; }
+    footer { margin-top: 48px; border-top: 1px solid #30303a; padding-top: 18px; color: #8d8d99; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">VYRA · TECHNICAL OVERVIEW</div>
+    <h1>DNA & Consistency: the knowledge behind every Creative Universe.</h1>
+    <p class="lead">A Universe is a reusable Creative Space that can contain characters, worlds, locations, stories, relationships, rules, timelines, state, and creative Assets. VYRA maintains structured DNA and fingerprints behind the scenes so creators can preserve identity and continuity while creating, editing, sharing, and publishing media.</p>
+
+    <h2>What does DNA describe?</h2>
+    <p>Asset DNA records an Asset's identity, relevant properties, structure, provenance, and references. Universe DNA is derived from its Assets, entities, relationships, canon, timeline, and evolving state. It is internal structured knowledge used by VYRA's Consistency Engine, not a requirement for creators to author technical records.</p>
+
+    <h2>One identity system, multiple evidence types</h2>
+    <h3>Asset identity and visual evidence</h3>
+    <p>For supported PNG, JPEG and WebP uploads, VYRA uses a pinned server-side ImageMagick WASM decoder to produce a canonical row-major RGBA8 sample stream. The stream is stored in lossless tiles. Tile SHA-256 values and an aggregate decoded-sample SHA-256 digest support source integrity verification.</p>
+    <p class="note"><strong>Important boundary:</strong> this path verifies decoded pixel samples under the recorded decoder contract. It is an integrity check, not a promise that generative models will reproduce the original file or pixels.</p>
+
+    <h3>Source integrity and provenance</h3>
+    <p>For supported non-raster files, Asset integrity records preserve the source file's SHA-256 identity. VYRA can verify retained source bytes against that identity when assets are packaged, copied, or restored.</p>
+
+    <h2>DNA, fingerprints, and provenance are different</h2>
+    <ul>
+      <li><strong>DNA</strong> describes identity and the knowledge needed to create consistent related media.</li>
+      <li><strong>Fingerprint</strong> checks whether source bytes or visual samples match recorded evidence.</li>
+      <li><strong>Provenance</strong> records where an asset or observation came from and whether its claims are trusted.</li>
+    </ul>
+    <p>A matching fingerprint is evidence of identity for the data that was hashed. It does not, by itself, prove authorship, ownership, copyright or a license grant.</p>
+
+    <h2>How does VYRA use DNA?</h2>
+    <p>When a creator asks VYRA to create or edit a scene, the Context Engine retrieves only the relevant character, world, asset, canon, relationship, and timeline knowledge. The Consistency Engine uses those references to guide generation, validate outputs, and support correction workflows. VYRA does not promise that every generative model will produce pixel-identical results.</p>
+    <p>Third-party access to private VYRA assets requires explicit, permission-controlled access. Downloading selected files and granting an external service ongoing access are separate actions; a download never silently grants account access.</p>
+
+    <h2>Integrity, consistency, and limitations</h2>
+    <p>Source integrity checks can verify hashes and supported visual fingerprints. Creative consistency is a separate challenge: generative providers can vary, so VYRA combines structured knowledge, relevant references, context retrieval, validation, and correction rather than promising perfect output from a single prompt. Imported evidence is treated as unverified until checked in the destination workspace.</p>
+
+    <h2>Explore VYRA</h2>
+    <p>Learn about the <a href="/discover-vyra.html">VYRA creative platform</a>, or <a href="/">open the VYRA application</a>.</p>
+    <footer>VYRA — Creative Universe identity, consistency, and integrity.</footer>
+  </main>
+</body>
+</html>

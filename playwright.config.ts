@@ -1,0 +1,27 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  reporter: [['list'], ['html', { outputFolder: 'artifacts/playwright-report', open: 'never' }]],
+  outputDir: 'test-results',
+  use: {
+    baseURL: 'http://127.0.0.1:4173',
+    browserName: 'chromium',
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
+  },
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:4173',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+    env: {
+      PORT: '4173',
+      VITE_E2E_SEED_PROJECTS: 'true',
+      // Fake, isolated Supabase settings allow browser tests to read the seeded session without contacting a real project.
+      VITE_SUPABASE_URL: 'https://e2e-test.supabase.co',
+      VITE_SUPABASE_ANON_KEY: 'e2e-test-publishable-key-not-a-real-credential',
+    },
+  },
+});
