@@ -29,6 +29,7 @@ export type ProjectOfflineFileRecord = {
 
 export type ProjectOfflineSyncOperation = {
   operationId: string;
+  revision?: string;
   kind: 'upload' | 'rename' | 'move' | 'delete';
   fileName?: string;
   folderId?: string | null;
@@ -143,11 +144,15 @@ async function addValue<T>(storeName: string, value: T): Promise<void> {
   });
 }
 
-async function storeValuesAtomically(entries: Array<{ storeName: string; value: unknown }>): Promise<void> {
+async function storeValuesAtomically(
+  entries: Array<{ storeName: string; value: unknown }>,
+  deletions: Array<{ storeName: string; key: IDBValidKey }> = [],
+): Promise<void> {
   const db = await openDatabase();
-  const storeNames = Array.from(new Set(entries.map((entry) => entry.storeName)));
+  const storeNames = Array.from(new Set([...entries.map((entry) => entry.storeName), ...deletions.map((entry) => entry.storeName)]));
   const transaction = db.transaction(storeNames, 'readwrite');
   for (const entry of entries) transaction.objectStore(entry.storeName).put(entry.value);
+  for (const deletion of deletions) transaction.objectStore(deletion.storeName).delete(deletion.key);
   await new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not commit Offline Storage records.'));
@@ -562,6 +567,7 @@ export async function queueProjectOfflineFileMutation(input: {
   };
   const operation: ProjectOfflineSyncOperation = {
     operationId: input.kind + ':' + input.projectFileId,
+    revision: createId(),
     kind: input.kind,
     projectFileId: input.projectFileId,
     projectId: record.projectId,
@@ -573,13 +579,15 @@ export async function queueProjectOfflineFileMutation(input: {
     updatedAt: now,
     lastError: null,
   };
-  await storeValue(FILE_STORE, updated);
-  if (input.kind === 'delete') {
-    for (const kind of ['upload', 'rename', 'move']) await deleteValue(SYNC_STORE, kind + ':' + input.projectFileId);
-    await storeValue(SYNC_STORE, operation);
-  } else {
-    await storeValue(SYNC_STORE, operation);
-  }
+  await storeValuesAtomically(
+    [
+      { storeName: FILE_STORE, value: updated },
+      { storeName: SYNC_STORE, value: operation },
+    ],
+    input.kind === 'delete'
+      ? ['upload', 'rename', 'move'].map((kind) => ({ storeName: SYNC_STORE, key: kind + ':' + input.projectFileId }))
+      : [],
+  );
   emitOfflineStorageChanged(input.projectFileId);
   return updated;
 }
@@ -599,13 +607,49 @@ export async function reconcileProjectOfflineFileMetadata(input: { projectFileId
     updatedAt: input.updatedAt || new Date().toISOString(),
   });
 }
-export async function completeProjectOfflineFileMutation(projectFileId: string, kind: 'rename' | 'move'): Promise<void> {
-  await deleteValue(SYNC_STORE, kind + ':' + projectFileId);
-  const record = await getProjectOfflineFile(projectFileId);
-  if (record && !record.deletedAt) {
-    const now = new Date().toISOString();
-    await storeValue(FILE_STORE, { ...record, cloudState: 'synced', updatedAt: now });
-  }
+export async function completeProjectOfflineFileMutation(
+  projectFileId: string,
+  kind: 'rename' | 'move',
+  expectedRevision?: string,
+): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction([FILE_STORE, SYNC_STORE], 'readwrite');
+  const syncStore = transaction.objectStore(SYNC_STORE);
+  const fileStore = transaction.objectStore(FILE_STORE);
+  const operationId = kind + ':' + projectFileId;
+  const operationRequest = syncStore.get(operationId);
+  operationRequest.onsuccess = () => {
+    const currentOperation = operationRequest.result as ProjectOfflineSyncOperation | undefined;
+    // A newer rename/move may have replaced the operation while the Cloud
+    // request was in flight. Never delete that newer intent.
+    if (!currentOperation || currentOperation.revision !== expectedRevision) return;
+    syncStore.delete(operationId);
+    const renameRequest = syncStore.get('rename:' + projectFileId);
+    const moveRequest = syncStore.get('move:' + projectFileId);
+    const fileRequest = fileStore.get(projectFileId);
+    let renameLoaded = false;
+    let moveLoaded = false;
+    let fileLoaded = false;
+    let renamePending = false;
+    let movePending = false;
+    let fileRecord: ProjectOfflineFileRecord | undefined;
+    const updateIfReady = () => {
+      if (!renameLoaded || !moveLoaded || !fileLoaded || !fileRecord || fileRecord.deletedAt) return;
+      fileStore.put({
+        ...fileRecord,
+        cloudState: renamePending || movePending ? 'queued' : 'synced',
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    renameRequest.onsuccess = () => { renamePending = Boolean(renameRequest.result); renameLoaded = true; updateIfReady(); };
+    moveRequest.onsuccess = () => { movePending = Boolean(moveRequest.result); moveLoaded = true; updateIfReady(); };
+    fileRequest.onsuccess = () => { fileRecord = fileRequest.result as ProjectOfflineFileRecord | undefined; fileLoaded = true; updateIfReady(); };
+  };
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not complete the Project file mutation.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Project file mutation completion was interrupted.'));
+  });
 }
 
 export async function completeProjectOfflineFileDeletion(projectFileId: string): Promise<void> {
