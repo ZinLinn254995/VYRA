@@ -135,12 +135,12 @@ Deno.serve(async (request: Request) => {
         return json({ error: 'The completed Project output record could not be verified.' }, 503);
       }
       const { data: item, error: itemError } = await context.supabaseAdmin.from('media_library_items')
-        .select('id,user_id,project_id,universe_id,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata')
+        .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata')
         .eq('id', claim.project_file_id).eq('user_id', userId).eq('project_id', projectTarget)
         .is('universe_id', null).maybeSingle();
       if (itemError || !item || item.id !== output.project_file_id || item.user_id !== userId ||
           item.project_id !== projectTarget || item.universe_id !== null || item.source_asset_id !== null ||
-          item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
+          item.source_kind !== 'generated' || item.bucket_id !== BUCKET || item.storage_path !== output.storage_path ||
           item.mime_type !== output.mime_type || Number(item.size_bytes) !== Number(output.size_bytes) ||
           item.metadata?.generation_job_id !== body.jobId ||
           Number(item.metadata?.output_index) !== Number(outputIndex) ||
@@ -186,11 +186,13 @@ Deno.serve(async (request: Request) => {
     const existingPath = typeof claim.storage_path === 'string' ? claim.storage_path : '';
     if (existingPath) {
       const { data: indexed, error: indexedError } = await context.supabaseAdmin.from('media_library_items')
-        .select('id,storage_path,mime_type,size_bytes,metadata')
+        .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')
         .eq('id', projectFileId).eq('user_id', userId).eq('project_id', targetProjectId)
         .is('universe_id', null).maybeSingle();
-      if (indexedError || !indexed || indexed.storage_path !== existingPath ||
-          indexed.metadata?.generation_job_id !== body.jobId ||
+      if (indexedError || !indexed || indexed.id !== projectFileId || indexed.user_id !== userId ||
+          indexed.project_id !== targetProjectId || indexed.universe_id !== null ||
+          indexed.source_asset_id !== null || indexed.source_kind !== 'generated' || indexed.bucket_id !== BUCKET ||
+          indexed.storage_path !== existingPath || indexed.metadata?.generation_job_id !== body.jobId ||
           Number(indexed.metadata?.output_index) !== Number(outputIndex) ||
           typeof indexed.metadata?.sha256 !== 'string' ||
           typeof indexed.mime_type !== 'string' || !Number.isSafeInteger(indexed.size_bytes) ||
