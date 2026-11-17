@@ -77,8 +77,18 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   const instanceByScene = new Map<string, ProjectRenderManifest['sceneInstances'][number]>();
   // Scene media forms the base composition. Explicit video tracks are overlays and
   // must always stack above every scene-local video clip, regardless of track IDs.
-  const sceneLayerCount = Math.max(1, ...manifest.sceneInstances.map((instance) =>
-    Array.isArray(instance.videoClips) ? instance.videoClips.length : 1));
+  const sceneLayerCount = Math.max(1, ...manifest.sceneInstances.map((instance) => {
+    if (!Array.isArray(instance.videoClips)) return 1;
+    const sceneDuration = manifest.scenes.find((scene) => scene.id === instance.sceneId)?.duration ?? 0;
+    return instance.videoClips.filter((clip) => {
+      const source = clipSource(clip);
+      if (!source || clip.mediaKind === 'audio') return false;
+      const mime = source.mimeType?.toLowerCase() ?? '';
+      if (mime.startsWith('audio/') || (mime && !mime.startsWith('video/') && !mime.startsWith('image/'))) return false;
+      const range = sourceRange(clip);
+      return range.durationSeconds > 0 && Math.min(sceneDuration, clip.start + range.durationSeconds) > clip.start;
+    }).length;
+  }));
   for (const instance of manifest.sceneInstances) {
     if (!instanceByScene.has(instance.sceneId)) instanceByScene.set(instance.sceneId, instance);
   }
@@ -94,7 +104,8 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     if (!instance) continue;
 
     if (Array.isArray(instance.videoClips)) {
-      instance.videoClips.forEach((clip, layer) => {
+      let sceneLayer = 0;
+      instance.videoClips.forEach((clip) => {
         const source = clipSource(clip);
         if (!source) return;
         const mime = source.mimeType?.toLowerCase() ?? '';
@@ -106,7 +117,7 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
         const end = Math.min(endSeconds, start + range.durationSeconds);
         if (end <= start) return;
         visuals.push({
-          kind, trackId: 'scene:' + scene.id, clipId: clip.id, layer,
+          kind, trackId: 'scene:' + scene.id, clipId: clip.id, layer: sceneLayer++,
           startSeconds: start, endSeconds: end,
           sourceInSeconds: range.sourceInSeconds,
           sourceOutSeconds: range.sourceInSeconds + (end - start),
