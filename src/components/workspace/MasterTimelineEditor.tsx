@@ -1073,7 +1073,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart, value?.videoTracks || []);
     const hasLegacyAssetRefs = [...(value?.audioTracks || []), ...(value?.videoTracks || [])]
       .some((track) => track.clips.some((clip) => !clip.projectFileId && Boolean(clip.assetId && clip.assetVersionId)))
-      || (value?.sceneInstances || []).some((instance) => Boolean(instance.assetId && instance.assetVersionId));
+      || (value?.sceneInstances || []).some((instance) => instance.videoClips?.length
+        ? instance.videoClips.some((clip) => !clip.projectFileId && Boolean(clip.assetId && clip.assetVersionId))
+        : Boolean(instance.assetId && instance.assetVersionId));
     if (!supabase && hasLegacyAssetRefs) { setMasterPlaybackError('Connect to Cloud to play legacy Asset clips. Project Files stored offline remain available.'); return; }
     if (!audioPlan.length && !videoPlan.length) {
       setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
