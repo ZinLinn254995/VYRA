@@ -10,6 +10,7 @@ export type MasterTimelineVideoInstance = {
   sourceOut: number;
   assetId?: string | null;
   assetVersionId?: string | null;
+  projectFileId?: string | null;
   assetMimeType?: string | null;
   videoSourceIn?: number | null;
   videoSourceOut?: number | null;
@@ -21,6 +22,7 @@ export type MasterTimelineVideoInstance = {
     sourceOut?: number | null;
     assetId?: string | null;
     assetVersionId?: string | null;
+    projectFileId?: string | null;
     assetMimeType?: string | null;
   }>;
 };
@@ -28,8 +30,9 @@ export type MasterTimelineVideoInstance = {
 export type MasterTimelineVideoPlaybackItem = {
   instanceId: string;
   sceneId: string;
-  assetId: string;
-  assetVersionId: string;
+  assetId?: string;
+  assetVersionId?: string;
+  projectFileId?: string;
   timelineStartSeconds: number;
   timelineEndSeconds: number;
   delaySeconds: number;
@@ -91,8 +94,8 @@ export function buildMasterTimelineVideoPlaybackPlan(
         if (!clip || typeof clip.id !== 'string' || !clip.id ||
             !Number.isFinite(clip.start) || clip.start < 0 ||
             !Number.isFinite(clip.duration) || clip.duration <= 0 ||
-            typeof clip.assetId !== 'string' || !clip.assetId ||
-            typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
+            !(typeof clip.projectFileId === 'string' && clip.projectFileId) &&
+            !(typeof clip.assetId === 'string' && clip.assetId && typeof clip.assetVersionId === 'string' && clip.assetVersionId) ||
             typeof clip.assetMimeType !== 'string' || !/^video\//i.test(clip.assetMimeType)) continue;
         const clipStart = sceneStart + clip.start;
         const clipEnd = Math.min(sceneEnd, clipStart + clip.duration);
@@ -109,8 +112,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
         plan.push({
           instanceId: instance.id + ':' + clip.id,
           sceneId: scene.id,
-          assetId: clip.assetId,
-          assetVersionId: clip.assetVersionId,
+          ...(clip.projectFileId ? { projectFileId: clip.projectFileId } : { assetId: clip.assetId!, assetVersionId: clip.assetVersionId! }),
           timelineStartSeconds: clipStart,
           timelineEndSeconds: clipEnd,
           delaySeconds: Math.max(0, clipStart - playheadTime),
@@ -159,8 +161,8 @@ export function buildMasterTimelineVideoPlaybackPlan(
     for (const clip of track.clips || []) {
       if (!clip || !clip.id || !Number.isFinite(clip.start) || clip.start < 0 ||
           !Number.isFinite(clip.duration) || clip.duration <= 0 ||
-          typeof clip.assetId !== 'string' || !clip.assetId ||
-          typeof clip.assetVersionId !== 'string' || !clip.assetVersionId ||
+          !(typeof (clip as any).projectFileId === 'string' && (clip as any).projectFileId) &&
+          !(typeof clip.assetId === 'string' && clip.assetId && typeof clip.assetVersionId === 'string' && clip.assetVersionId) ||
           typeof clip.assetMimeType !== 'string' || !/^video\//i.test(clip.assetMimeType)) continue;
       const clipEnd = clip.start + clip.duration;
       if (playheadTime >= clipEnd) continue;
@@ -174,8 +176,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
       plan.push({
         instanceId: 'timeline-track:' + track.id + ':' + clip.id,
         sceneId: 'timeline-track:' + track.id,
-        assetId: clip.assetId,
-        assetVersionId: clip.assetVersionId,
+        ...((clip as any).projectFileId ? { projectFileId: (clip as any).projectFileId } : { assetId: clip.assetId!, assetVersionId: clip.assetVersionId! }),
         timelineStartSeconds: clip.start,
         timelineEndSeconds: clipEnd,
         delaySeconds: Math.max(0, clip.start - playheadTime),
