@@ -16,6 +16,7 @@ export type MasterTimelineVideoElement = {
 export type MasterTimelineVideoRuntime = {
   video: MasterTimelineVideoElement;
   resolveAssetUrl: (assetId: string, assetVersionId: string, signal: AbortSignal) => Promise<string>;
+  resolveProjectFileUrl?: (projectFileId: string, signal: AbortSignal) => Promise<string>;
   onError?: (error: Error) => void;
 };
 
@@ -85,7 +86,12 @@ export function startMasterTimelineVideoPlayback(
     sourceReady = false;
     playBlocked = false;
     video.pause();
-    void runtime.resolveAssetUrl(item.assetId, item.assetVersionId, controller.signal)
+    const sourceUrl = item.projectFileId && runtime.resolveProjectFileUrl
+      ? runtime.resolveProjectFileUrl(item.projectFileId, controller.signal)
+      : item.assetId && item.assetVersionId
+        ? runtime.resolveAssetUrl(item.assetId, item.assetVersionId, controller.signal)
+        : Promise.reject(new Error('The Video clip has no supported private media source.'));
+    void sourceUrl
       .then((url) => {
         if (stopped || controller.signal.aborted || token !== loadToken) return;
         if (!/^(https:\/\/|blob:)/i.test(url)) throw new Error('The private Video playback URL is invalid.');
