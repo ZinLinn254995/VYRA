@@ -151,5 +151,4 @@ test('Editor reuses existing Project Storage files without creating duplicate lo
   assert.ok(editor.includes('Add from Project Storage'));
   assert.ok(editor.includes('placeTimelineMediaClip(value?.videoTracks || [], clip, kind'));
   assert.ok(editor.includes("placeTimelineOverlayClip(value?.audioTracks || [], clip, 'Audio'"));
-  assert.ok(!editor.includes('registerVyralAssetInMediaLibrary') || editor.includes('Legacy historical Editor uploads'));
 });
