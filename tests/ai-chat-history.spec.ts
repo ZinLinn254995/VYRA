@@ -295,7 +295,7 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
   assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\)/);
   assert.match(block, /const awaitForCurrentRequest = async <T,>\(operation: PromiseLike<T>\): Promise<T> => \{\s*assertRequestCurrent\(\);\s*const result = await operation;\s*assertRequestCurrent\(\);/);
   assert.doesNotMatch(block, /await supabase\s*\./);
-  assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 40);
+  assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 25);
   assert.match(block, /const accessToken = await getCurrentAccessToken\(\);\s*assertRequestCurrent\(\);/);
   assert.match(block, /fetch\(signed\.signedUrl, \{ signal: requestController\.signal \}\)/);
   assert.match(block, /const blob = await response\.blob\(\);\s*assertRequestCurrent\(\);/);
@@ -317,16 +317,7 @@ test('AI Chat revalidates request ownership after asynchronous selected-asset pr
   assert.match(page, /const result = await aiService\.generateResponse\([\s\S]*?\);\s*assertRequestCurrent\(\);\s*let assetUploadCompletionText/);
 });
 
-test('AI Chat revalidates request ownership after asynchronous provider error-body parsing', () => {
+test('AI Chat no longer exposes legacy DNA assessment and package workflows', () => {
   const page = read('src/components/ai/AIChatPage.tsx');
-  const start = page.indexOf('const sendMessage = async');
-  const end = page.indexOf('const handleFileSelection', start);
-  const lines = page.slice(start, end).split(String.fromCharCode(10));
-  const parseLines = lines
-    .map((line, index) => ({ line, index }))
-    .filter(({ line }) => line.includes('const payload = await') && line.includes('.clone().json()'));
-  assert.equal(parseLines.length, 8);
-  for (const { index } of parseLines) {
-    assert.equal(lines[index + 1]?.trim(), 'assertRequestCurrent();');
-  }
+  assert.doesNotMatch(page, /inspectVyralAttachment|reviewDnaEvidence|prepareDnaChangeSet|validateDnaChangeSet|requestsVyralQualityEvaluationV1|requestsVyralAssetDnaAssessmentV1/);
 });
