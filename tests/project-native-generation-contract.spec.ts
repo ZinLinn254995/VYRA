@@ -51,7 +51,7 @@ test('Project-native client generation restores outputs into Offline Storage wit
 test('Project-native generation architecture preserves the legacy recovery boundary', () => {
   const doc = read('docs/architecture/PROJECT_NATIVE_GENERATION.md');
   assert.ok(doc.includes('Historical Vyral-targeted jobs continue'));
-  assert.ok(doc.includes('New jobs set'));
+  assert.ok(doc.includes('New generation jobs set'));
   assert.ok(doc.includes('No new output requires'));
   assert.ok(doc.includes('Migration and rollout gates'));
 });
@@ -59,7 +59,7 @@ test('Project-native generation architecture preserves the legacy recovery bound
 
 test('Project Chat sends non-Scene generation to the Project File service and persists file identity', () => {
   const chat = read('src/components/ai/AIChatPage.tsx');
-  assert.ok(chat.includes("import { generateRunwayProjectFiles }"));
+  assert.ok(chat.includes('import { generateRunwayProjectFiles, recoverRunwayProjectFiles }'));
   assert.ok(chat.includes('if (!activeDirectorScenePlan && !repairRequest)'));
   assert.ok(chat.includes('projectId: storyboardId'));
   assert.ok(chat.includes('projectFiles.push({ projectFileId: file.projectFileId'));
