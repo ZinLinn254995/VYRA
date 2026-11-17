@@ -81,6 +81,8 @@ test('Project Storage exposes local-first uploads and previews without waiting f
   const page = read('src/components/workspace/ProjectStoragePage.tsx');
   assert.ok(page.includes('importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file })'));
   assert.ok(page.includes('listProjectOfflineFiles(projectId)'));
+  assert.ok(page.includes('(record.folderId ?? null) === activeFolderId'));
+  assert.ok(page.includes('record.fileName.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase())'));
   assert.ok(page.includes('getProjectOfflineFileBlob(entry.item.id)'));
   assert.ok(page.includes("window.addEventListener('vyra:project-offline-file-ready'"));
   assert.ok(!page.includes('uploadMediaLibraryFiles('));
