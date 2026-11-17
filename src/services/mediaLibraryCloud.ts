@@ -635,8 +635,8 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
     return { deletedCount: assetIds.length, cleanupPending: false, masterDnaStatus };
   }
-  const { data: personalRows, error: personalRowsError } = await applyUniverseScope(db.from('media_library_items')
-    .select('id').eq('user_id', userId).in('id', itemIds), null);
+  const { data: personalRows, error: personalRowsError } = await applyMediaLibraryScope(db.from('media_library_items')
+    .select('id').eq('user_id', userId).in('id', itemIds), null, null);
   if (personalRowsError || !personalRows || personalRows.length !== itemIds.length) throw new Error('One or more selected files are not in your personal Media Library.');
   // The RPC atomically queues standalone originals/thumbnails and deletes the
   // Library index rows. Vyral-backed canonical binaries are never queued.
