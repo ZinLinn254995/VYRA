@@ -38,6 +38,13 @@ declare
   project_owner uuid;
   creates_cycle boolean := false;
 begin
+  -- Serialize folder-tree mutations per owner. Without this lock, two concurrent
+  -- moves could each pass the recursive cycle check against a snapshot that does
+  -- not yet include the other move, creating a cycle.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(new.user_id::text || ':media-library-folder-tree', 0)
+  );
+
   if new.project_id is not null and new.universe_id is not null then
     raise exception 'A Media Library folder cannot belong to both a project and a Universe';
   end if;
