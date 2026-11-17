@@ -37,7 +37,7 @@ export async function resolveProjectRenderCompositionInputs(
   const expectedKinds = new Map<string, ProjectRenderMediaKind>();
   const sourceDescriptors = new Map<string, string>();
   const describeSource = (source: ProjectRenderSource) => source.kind === 'project-file'
-    ? JSON.stringify({ kind: source.kind, projectFileId: source.projectFileId, mimeType: source.mimeType ?? '' })
+    ? JSON.stringify({ kind: source.kind, projectFileId: source.projectFileId, mimeType: source.mimeType?.split(';', 1)[0].trim().toLowerCase() ?? '' })
     : JSON.stringify({ kind: source.kind, assetId: source.assetId, assetVersionId: source.assetVersionId, mimeType: source.mimeType ?? '' });
   const registerUsage = (source: ProjectRenderSource, kind: ProjectRenderMediaKind) => {
     const key = getProjectRenderSourceKey(source);
