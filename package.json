@@ -62,6 +62,7 @@
     "test:ai-capability-executor": "node --import tsx --test tests/ai-capability-executor.spec.ts",
     "test:project-render-manifest": "node --import tsx --test tests/project-render-manifest.spec.ts",
     "test:project-render-source-resolver": "node --import tsx --test tests/project-render-source-resolver.spec.ts",
+    "test:project-render-composition-planner": "node --import tsx --test tests/project-render-composition-planner.spec.ts",
     "test:master-timeline-operations": "node --import tsx --test tests/master-timeline-operations.spec.ts",
     "test:master-timeline-audio-playback": "node --import tsx --test tests/master-timeline-audio-playback.spec.ts",
     "test:master-timeline-audio-playback-engine": "node --import tsx --test tests/master-timeline-audio-playback-engine.spec.ts",
