@@ -300,3 +300,11 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Rewrote the capability registry contract tests to match the actual reduced 12-domain catalogue and its approval/security boundaries; removed stale expectations for retired Asset, Vyral, Marketplace, and old folder actions.
 - Removed two npm test commands that referenced test files already deleted during the Chat/details cleanup.
 - This keeps the permission surface and test catalogue aligned; it does not yet migrate the Editor/generation runtime off historical Vyral Asset IDs. No test/build/typecheck execution has been performed.
+
+
+## Cleanup progress — 2026-11-17 (delete retired Vyral Chat action layer)
+
+- Deleted the unused server-side pending-action parsers for Vyral creation, Asset upload/rename/metadata/relationship/archive/restore, and legacy folder actions, together with their isolated unit tests.
+- Confirmed the active Project Chat Edge Function no longer imports or references these parser modules. The action layer had no active Project UI route after the earlier Chat handoff removal.
+- Removed the matching npm test commands. The remaining generation and Editor Asset services are intentionally retained for now because existing timeline playback and historical generation recovery still depend on their data contracts; those are separate migrations, not safe dead-code deletions yet.
+- No historical database rows, Storage objects, deployed migrations, or user files were deleted. No build/typecheck/test run has been executed.
