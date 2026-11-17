@@ -222,3 +222,13 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Audited the active `supabase/functions/vyra-openai-chat/index.ts` on this feature branch: it contains no Marketplace capability references or Marketplace adapter registrations, so removing the registry entries does not leave an active edge-function adapter pointing at a missing policy.
 - The AI capability coverage test derives its expected total from `VYRA_AI_CAPABILITIES.length`, so it does not rely on a stale hard-coded Marketplace count.
 - This removes the Marketplace AI permission surface only. It does **not** claim that every Marketplace UI, service, schema, migration, or historical data dependency has been removed. Those still require a repository-wide reference and data-retention audit before deletion.
+
+
+## Cleanup progress — 2026-11-17 (remove obsolete product namespace)
+
+- Moved the shared application header from `components/marketplace/MarketplaceHeader.tsx` to `components/common/AppHeader.tsx`; updated the app import and removed the now-empty Marketplace component directory. Header behavior and styling are unchanged.
+- Renamed the old Vyral identity icon component to `ProjectIdentityIcon` and updated the Workspace import; the visual mark is unchanged.
+- Corrected the Projects home data source: it now reads the canonical owner-scoped `vyral_storyboards` records directly instead of looking up a legacy `vyrals` row and its `storyboard_id` metadata pointer. Project identity is the Storyboard row ID.
+- Removed an obsolete `storyboardUniverse` variable reference from the embedded Project Chat call; it now passes a null optional Vyral context, matching the other Project Chat entry point.
+- Verification is source inspection only. No TypeScript build, automated tests, browser tests, database migration execution, or Supabase policy validation has been run. Vercel status remains pending and no GitHub Actions workflow runs were returned for the latest commit.
+- These changes remove stale product naming and one legacy data dependency; they do not complete the broader Vyral/Asset/DNA removal or generic Editor media migration. Those remain active cleanup work, not accepted permanent leftovers.
