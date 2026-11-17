@@ -109,6 +109,12 @@ function snapshotClip(clip: ProjectRenderClip, path: string, issues: ProjectRend
       (clip.sourceOut !== undefined && (!Number.isFinite(clip.sourceOut) || clip.sourceOut <= (clip.sourceIn ?? 0)))) {
     issues.push({ code: 'invalid-timing', path, message: 'Clip placement, duration, and source trim must be finite, non-negative, and ordered.' });
   }
+  if ((clip.name !== undefined && typeof clip.name !== 'string') ||
+      (clip.content !== undefined && typeof clip.content !== 'string') ||
+      (clip.mediaKind !== undefined && !['video', 'image', 'audio'].includes(clip.mediaKind)) ||
+      (clip.isPlaceholder !== undefined && typeof clip.isPlaceholder !== 'boolean')) {
+    issues.push({ code: 'invalid-track', path, message: 'Clip metadata must use valid text, media-kind, and placeholder values.' });
+  }
   const source = requiresMediaSource ? snapshotSource(clip, path, issues) : undefined;
   return {
     id: clip.id,
@@ -132,6 +138,12 @@ function snapshotTracks(tracks: ProjectRenderTrack[] | undefined, label: string,
       issues.push({ code: 'invalid-track', path, message: 'A timeline track must have a stable ID and a clips array.' });
       return { id: '', clips: [] };
     }
+    if ((track.name !== undefined && typeof track.name !== 'string') ||
+        (track.muted !== undefined && typeof track.muted !== 'boolean') ||
+        (track.visible !== undefined && typeof track.visible !== 'boolean') ||
+        (track.volume !== undefined && (!Number.isFinite(track.volume) || track.volume < 0 || track.volume > 1))) {
+      issues.push({ code: 'invalid-track', path, message: 'Track name, visibility, mute state, and normalized volume must be valid.' });
+    }
     return {
       id: track.id,
       ...(track.name !== undefined ? { name: track.name } : {}),
@@ -149,14 +161,17 @@ export function createProjectRenderManifest(input: ProjectRenderManifestInput): 
   if (!input.timeline || !Array.isArray(input.scenes)) throw new Error('A timeline and scene list are required to create a render manifest.');
   const issues: ProjectRenderManifestIssue[] = [];
   const scenes = input.scenes.map((scene, index) => {
-    if (!scene || typeof scene.id !== 'string' || !scene.id.trim() || !Number.isFinite(scene.duration) || scene.duration <= 0) {
-      issues.push({ code: 'invalid-scene', path: 'scenes[' + index + ']', message: 'Each scene must have a stable ID and positive finite duration.' });
+    if (!scene || typeof scene.id !== 'string' || !scene.id.trim() || typeof scene.title !== 'string' || !Number.isFinite(scene.duration) || scene.duration <= 0) {
+      issues.push({ code: 'invalid-scene', path: 'scenes[' + index + ']', message: 'Each scene must have a stable ID, text title, and positive finite duration.' });
     }
     return { id: scene.id, title: scene.title, duration: scene.duration };
   });
   const sceneInstances = (input.timeline.sceneInstances ?? []).map((instance, index) => {
-    if (!instance || !instance.id || !instance.sceneId || !Number.isFinite(instance.sourceIn) || !Number.isFinite(instance.sourceOut) || instance.sourceIn < 0 || instance.sourceOut <= instance.sourceIn) {
-      issues.push({ code: 'invalid-scene', path: 'sceneInstances[' + index + ']', message: 'Scene instances must have stable IDs and valid source ranges.' });
+    if (!instance || typeof instance.id !== 'string' || !instance.id.trim() || typeof instance.sceneId !== 'string' || !instance.sceneId.trim() ||
+        !Number.isFinite(instance.sourceIn) || !Number.isFinite(instance.sourceOut) || instance.sourceIn < 0 || instance.sourceOut <= instance.sourceIn ||
+        (instance.videoSourceIn !== undefined && (!Number.isFinite(instance.videoSourceIn) || instance.videoSourceIn < 0)) ||
+        (instance.videoSourceOut !== undefined && (!Number.isFinite(instance.videoSourceOut) || instance.videoSourceOut <= (instance.videoSourceIn ?? 0)))) {
+      issues.push({ code: 'invalid-scene', path: 'sceneInstances[' + index + ']', message: 'Scene instances must have stable IDs and valid scene/video source ranges.' });
     }
     return {
       id: instance.id,
