@@ -674,7 +674,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
-      let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       const navigationTarget = extractGlobalChatNavigationTarget(text);
       if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
