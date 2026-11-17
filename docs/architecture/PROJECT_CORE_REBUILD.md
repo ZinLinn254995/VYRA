@@ -168,7 +168,7 @@ Completed on the working branch:
 
 Still pending:
 
-- Project Chat attachment persistence and image/video/text inspection are partially integrated; generation jobs and generic retrieval by Project File ID still need the Project-native backend path.
+- Project Chat now persists structured attachment references in each user message. Later turns reload prior image/video attachments from Offline Storage first, fall back to the Project-scoped Cloud manifest, install the same Project File ID locally, and send them back through AI Vision. Small text files can be re-read from Offline Storage when older messages only retained the file ID. Remaining: OCR/PDF/document parsing, generic binary tool access, large-file chunking, and UI/runtime validation.
 - Editor timeline trim/edit operations and final render/export paths still need end-to-end verification against Project File IDs; the old Asset/version resolver remains intentionally available for historical timelines.
 - Offline rename/move/delete now update the local Project File record immediately and persist durable mutation operations. Cloud reconciliation reuses the authenticated Project-scoped Media Library operations; delete remains a local tombstone until Cloud deletion succeeds, and account recovery skips tombstoned IDs to prevent resurrection. Remaining verification: concurrent upload/delete races, folder deletion interactions, and retry behavior.
 - Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
@@ -211,3 +211,15 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 - Device recovery skips tombstoned Project File IDs, and explicit Cloud-to-device installation refuses to overwrite a pending tombstone. A completed Cloud manifest is also reconciled against local replicas: synced local files missing from the full manifest are removed, while queued/failed uploads are retained. Existing local files receive remote rename/move metadata unless a local mutation is still pending.
 - The IndexedDB schema version is advanced without recreating stores, preserving existing metadata, blobs, and upload queue rows. The existing upload operation remains readable as the first member of the expanded mutation queue.
 - Remaining verification: compile/typecheck, runtime Offline rename/move/delete, multi-tab races, upload-vs-delete concurrency, remote-device tombstone propagation, and storage cleanup after interrupted deletion.
+
+
+## Project Chat attachment continuity (Nov 17, 2026)
+
+- New user messages persist a structured attachment reference (projectFileId, name, MIME type) in the same conversation record as the turn text. The Project File remains the only binary source of truth.
+- On later turns, Chat collects attachment references from the conversation, deduplicates them by stable Project File ID, and reads the local Offline replica first.
+- If the current device lacks a local copy, Chat fetches only the owner- and Project-scoped Media Library row, downloads the Cloud object, verifies the optional SHA-256 metadata through the normal Offline installer, and installs it under the original Project File ID.
+- Prior image attachments are re-encoded into bounded Vision previews; prior video attachments are sampled into a maximum of four frames. The current turn's attachment is not duplicated in the Vision payload.
+- Small text files are re-read from Offline Storage and restored to the prompt when older history records contain only the Project File reference. New small text attachments continue to store their bounded text content with the originating user message.
+- User message history stores metadata references, not expiring signed URLs or binary payloads. Signed URLs remain transient preview handles.
+- Contract assertions cover persistent IDs, local-first rehydration, Cloud fallback installation, image/video Vision reconstruction, and text recovery.
+- Remaining: OCR and PDF/document extraction, generic binary tool access, chunked processing for large documents, user-side attachment preview polish, and full runtime/permission testing.
