@@ -28,3 +28,13 @@ test('Project Chat retains only the active Storyboard and Editor read tools', ()
   assert.match(edge, /name: 'get_master_timeline_state'/);
   assert.match(edge, /tools: GLOBAL_READ_TOOLS/);
 });
+
+test('Project Chat no longer emits structured Scene-state proposal handoffs', () => {
+  const app = read('src/App.tsx');
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  const types = read('src/types/workspaceAiContext.ts');
+  for (const source of [app, workspace, chat, types]) {
+    assert.doesNotMatch(source, /WorkspaceSceneStateProposalHandoff|pendingSceneStateProposal|onSceneStateProposal|vyra-scene-state/);
+  }
+});
