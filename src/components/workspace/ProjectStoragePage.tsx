@@ -418,6 +418,7 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     setStopRequested(false); setUploadingCount(files.length);
     setUploadProgress({ completed: 0, total: files.length, fileName: files[0]?.name ?? '' });
     let completed = 0;
+    let processed = 0;
     try {
       await withBusy(async () => {
         for (const file of files) {
@@ -447,8 +448,9 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
               && (!serverQuery || localItem.file_name.toLowerCase().includes(serverQuery.toLowerCase()))) setItems((rows) => merge(rows));
             completed += 1;
           } catch (cause) { failures.push({ file, message: cause instanceof Error ? cause.message : 'Could not copy into Offline Storage.' }); }
-          setUploadProgress({ completed, total: files.length, fileName: file.name });
-          setUploadingCount(files.length - completed - failures.length);
+          processed += 1;
+          setUploadProgress({ completed: processed, total: files.length, fileName: file.name });
+          setUploadingCount(files.length - processed);
         }
         setFailedUploads(failures); if (completed) setSelectedIds([]);
         setNotice((controller.signal.aborted ? 'Stopped after the current file. ' : '')
