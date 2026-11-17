@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectRenderManifest, type ProjectRenderManifestInput } from '../src/services/projectRenderManifest.ts';
 import { buildProjectRenderCompositionPlan } from '../src/services/projectRenderCompositionPlanner.ts';
-import { createProjectRenderInputDigest, createProjectRenderJob, transitionProjectRenderJob } from '../src/services/projectRenderJob.ts';
+import { createProjectRenderInputDigest, createProjectRenderJob, createProjectRenderJobFromInputs, transitionProjectRenderJob } from '../src/services/projectRenderJob.ts';
 
 const at = '2026-11-17T12:00:00.000Z';
 const manifestInput = (): ProjectRenderManifestInput => ({
@@ -130,4 +130,14 @@ test('rejects non-JSON render digest inputs', async () => {
     createProjectRenderInputDigest(manifest, { ...plan, text: circular as never }),
     /circular references/,
   );
+});
+
+test('creates a render job with a digest derived from its exact manifest and plan', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const job = await createProjectRenderJobFromInputs({
+    id: 'render-job-derived', ownerId: 'owner-1', idempotencyKey: 'derived:1', manifest, compositionPlan: plan, at,
+  });
+  assert.equal(job.inputDigest, await createProjectRenderInputDigest(manifest, plan));
+  assert.match(job.inputDigest, /^[a-f0-9]{64}$/);
 });
