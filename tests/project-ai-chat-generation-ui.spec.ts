@@ -13,6 +13,7 @@ test('Project workspace exposes only Storage, Chat and Editor', () => {
   assert.match(workspace, />Editor<\/button>/);
   assert.match(workspace, />Storage<\/button>/);
   assert.doesNotMatch(workspace, /StoryboardUniverseTab|storyboardUniverse|My Universes/);
+  assert.doesNotMatch(workspace, /Project Details|projectDetailSuggestions|Suggest with AI/);
   assert.match(workspace, /<ProjectStorageTab projectId=\{activeStoryboard\.id\}/);
   assert.match(workspace, /<MasterTimelineEditor/);
 });
