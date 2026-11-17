@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const service = readFileSync(new URL('../src/services/mediaLibraryCloud.ts', import.meta.url), 'utf8');
 const projectStorageTab = readFileSync(new URL('../src/components/workspace/StoryboardUniverseTab.tsx', import.meta.url), 'utf8');
+const projectStoragePage = readFileSync(new URL('../src/components/profile/MyMediaLibraryPage.tsx', import.meta.url), 'utf8');
 const projectStorageCleanup = readFileSync(new URL('../supabase/migrations/20261117020000_project_scoped_media_library_cleanup.sql', import.meta.url), 'utf8');
 
 test('project Storage reads always apply owner and project scope', () => {
@@ -15,6 +16,7 @@ test('project Storage reads always apply owner and project scope', () => {
 
 test('project Storage mutations preserve the project scope', () => {
   for (const functionName of [
+    'loadMediaLibrary', 'loadMediaLibraryItemsByIds', 'getMediaLibraryItemSignedUrl',
     'createMediaLibraryFolder', 'renameMediaLibraryFolder', 'deleteMediaLibraryFolder',
     'moveMediaLibraryFolder', 'moveMediaLibraryItems', 'renameMediaLibraryItem',
     'uploadMediaLibraryFiles', 'backfillMediaLibraryThumbnails',
@@ -36,5 +38,7 @@ test('project file deletion queues only owner-prefixed standalone binaries atomi
 
 test('Project Storage UI no longer creates a Vyral or Universe record', () => {
   assert.match(projectStorageTab, /projectId=\{storyboardId\}/);
+  assert.match(projectStoragePage, /projectId\?: string/);
+  assert.match(projectStoragePage, /projectId\}\s*\)/);
   assert.doesNotMatch(projectStorageTab, /from\('vyrals'\)|\.insert\(/);
 });
