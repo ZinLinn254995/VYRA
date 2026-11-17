@@ -2,7 +2,7 @@ import React from 'react';
 import { MyMediaLibraryPage } from '../profile/MyMediaLibraryPage';
 
 type Props = {
-  storyboardId: string;
+  projectId: string;
   isActive: boolean;
   renderLibrary?: boolean;
   isAuthenticated: boolean;
@@ -10,7 +10,7 @@ type Props = {
 };
 
 export const ProjectStorageTab: React.FC<Props> = ({
-  storyboardId, isActive, renderLibrary = true, isAuthenticated, onLoginRequired,
+  projectId, isActive, renderLibrary = true, isAuthenticated, onLoginRequired,
 }) => {
   if (!isAuthenticated) {
     return (
@@ -27,9 +27,9 @@ export const ProjectStorageTab: React.FC<Props> = ({
     <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
       <div className="mx-auto w-full max-w-6xl">
         <MyMediaLibraryPage
-          key={storyboardId}
+          key={projectId}
           isActive={isActive}
-          projectId={storyboardId}
+          projectId={projectId}
         />
       </div>
     </div>
