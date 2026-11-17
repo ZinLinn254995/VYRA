@@ -10,7 +10,7 @@ const [chat, service, server, entry] = await Promise.all([
 ]);
 
 test('AI Chat prepares selected image previews locally without a DNA reconstruction prerequisite', () => {
-  assert.match(chat, /createSelectedAssetVisionPreview/);
+  assert.match(chat, /createVisionImagePreview/);
   assert.match(chat, /createImageBitmap\(source\)/);
   assert.match(chat, /canvas\.toBlob/);
   assert.match(chat, /visionImages/);
