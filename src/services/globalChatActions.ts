@@ -158,13 +158,11 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
 };
 
 
-export type GlobalChatNavigationTarget = 'workspace' | 'my-projects' | 'my-media-library';
 
 export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
   const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
   const patterns: Array<[GlobalChatNavigationTarget, RegExp]> = [
     ['my-projects', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+my\s+projects|my\s+projects\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
-    ['my-media-library', /^(?:(?:go(?:\s+to)?|open|show|take me to)\s+(?:my\s+)?media\s+library|(?:my\s+)?media\s+library\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး)|media\s+library)$/i],
     ['workspace', /^(?:(?:go(?:\s+to)?|open|take me to)\s+(?:the\s+)?workspace|workspace\s+(?:ဖွင့်(?:ပေး)?|သွား|ပြပေး))$/i],
   ];
   for (const [target, pattern] of patterns) if (pattern.test(value)) return target;
