@@ -84,6 +84,24 @@ test('only the current unexpired lease owner can renew; expired leases cannot be
   }), /expired worker lease/);
 });
 
+
+test('renewal rejects malformed or not-yet-active persisted leases', () => {
+  const claimed = claimProjectRenderLease({
+    snapshot: base(), expectedRevision: 1, workerId: 'worker-a',
+    leaseToken: 'token-a', now, leaseDurationMs: 5_000,
+  }).snapshot;
+  assert.throws(() => renewProjectRenderLease({
+    snapshot: { ...claimed, lease: { ...claimed.lease!, expiresAt: 'not-a-date' } },
+    expectedRevision: 2, workerId: 'worker-a', leaseToken: 'token-a',
+    now: '2026-11-17T16:00:02.000Z', leaseDurationMs: 10_000,
+  }), /lease is malformed/);
+  assert.throws(() => renewProjectRenderLease({
+    snapshot: { ...claimed, lease: { ...claimed.lease!, acquiredAt: '2026-11-17T16:00:03.000Z' } },
+    expectedRevision: 2, workerId: 'worker-a', leaseToken: 'token-a',
+    now: '2026-11-17T16:00:02.000Z', leaseDurationMs: 10_000,
+  }), /not-yet-active/);
+});
+
 test('release requires exact worker, token and revision', () => {
   const claimed = claimProjectRenderLease({
     snapshot: base(), expectedRevision: 1, workerId: 'worker-a',
