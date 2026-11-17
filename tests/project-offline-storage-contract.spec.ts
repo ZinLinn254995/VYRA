@@ -290,3 +290,18 @@ test('failed Project imports clean up their unique local binary and copying reco
   assert.ok(importBody.includes('await deleteValue(FILE_STORE, projectFileId)'));
   assert.ok(!importBody.includes("localState: 'failed' as const"));
 });
+
+
+test('Project file metadata mutations commit atomically and stale Cloud completions cannot erase newer intent', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(storage.includes('revision: createId()'));
+  assert.ok(storage.includes('await storeValuesAtomically('));
+  assert.ok(storage.includes("storeName: FILE_STORE, value: updated"));
+  assert.ok(storage.includes("storeName: SYNC_STORE, value: operation"));
+  assert.ok(storage.includes("kind + ':' + projectFileId"));
+  assert.ok(storage.includes('currentOperation.revision !== expectedRevision'));
+  assert.ok(storage.includes('Never delete that newer intent'));
+  assert.ok(sync.includes("completeProjectOfflineFileMutation(operation.projectFileId, 'rename', operation.revision)"));
+  assert.ok(sync.includes("completeProjectOfflineFileMutation(operation.projectFileId, 'move', operation.revision)"));
+});
