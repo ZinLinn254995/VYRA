@@ -516,11 +516,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               const { data: signed } = await supabaseClient.storage.from('vyral-assets').createSignedUrl(file.storage_path, 3600);
               if (signed?.signedUrl) urls.set(file.id, signed.signedUrl);
             }
+            // Keep the canonical Project File reference even when Cloud has no row yet.
+            // Offline-only queued uploads must remain recoverable from this device after
+            // reopening the conversation; the send path resolves the local blob first.
             for (const session of loaded) session.messages = session.messages.map((message) => ({
               ...message,
-              ...(message.projectFiles ? { projectFiles: message.projectFiles.flatMap((file) => {
+              ...(message.projectFiles ? { projectFiles: message.projectFiles.map((file) => {
                 const url = urls.get(file.projectFileId);
-                return url ? [{ ...file, url }] : [];
+                return url ? { ...file, url } : file;
               }) } : {}),
             }));
           }
