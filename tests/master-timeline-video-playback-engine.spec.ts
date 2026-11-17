@@ -262,3 +262,47 @@ test('resolves Project File video by stable ID without legacy Asset lookup', asy
   assert.equal(mock.video.currentTime, 2);
   handle.stop();
 });
+
+test('Project File video keeps stable identity and correct source offset across seek, pause, and resume', async () => {
+  const mock = createVideo();
+  const resolved: string[] = [];
+  const handle = startMasterTimelineVideoPlayback([{
+    instanceId: 'project-video-seek',
+    sceneId: 'scene-project',
+    projectFileId: 'project-file-video-seek',
+    timelineStartSeconds: 0,
+    timelineEndSeconds: 8,
+    delaySeconds: 0,
+    sourceOffsetSeconds: 2,
+    durationSeconds: 8,
+    playbackStartSeconds: 0,
+    playbackEndSeconds: 8,
+  }], {
+    video: mock.video,
+    resolveAssetUrl: async () => { throw new Error('Project File playback must not resolve a legacy Asset'); },
+    resolveProjectFileUrl: async (projectFileId) => {
+      resolved.push(projectFileId);
+      return 'blob:project-video-seek';
+    },
+  });
+
+  handle.sync(1);
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.video.readyState = 1;
+  mock.dispatch('loadedmetadata');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mock.video.currentTime, 3);
+
+  handle.sync(3);
+  assert.equal(mock.video.currentTime, 5);
+
+  handle.pause();
+  handle.sync(4);
+  assert.equal(mock.video.currentTime, 5);
+  handle.resume();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mock.video.currentTime, 6);
+  assert.deepEqual(resolved, ['project-file-video-seek']);
+  handle.stop();
+});
+
