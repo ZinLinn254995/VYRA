@@ -688,6 +688,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     // Bind this entire turn to the owner whose history is currently validated.
     const requestOwnerId = historyOwnerRef.current;
     if (!requestOwnerId || requestOwnerId !== historyOwnerId) return;
+    let visionImages: Array<VisionImage & { assetId: string; assetName: string }> = [];
     
     const mediaFiles: {
       mimeType: 'application/pdf' | 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/flac' | 'audio/aac';
