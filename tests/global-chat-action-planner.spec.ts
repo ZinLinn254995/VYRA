@@ -9,7 +9,6 @@ import {
 
 const now = new Date('2026-11-13T00:02:00.000Z');
 const context = {
-  activeVyralId: 'b2d4cc6b-d0c2-473d-afe5-7eaa06318e4d',
   activeStoryboardId: '11111111-1111-4111-8111-111111111111',
   activeSceneId: '22222222-2222-4222-8222-222222222222',
 };
@@ -55,15 +54,13 @@ test('rejects unsupported operations, untrusted extra parameters and expired pla
   }, context, now), { ok: false, reason: 'plan-expired' });
 });
 
-test('requires an active Vyral for asset uploads and the matching active scene for scene edits', () => {
-  const upload: GlobalChatActionPlan = {
-    ...basePlan, operation: 'asset.upload',
-    target: { vyralId: context.activeVyralId },
-    parameters: { fileToken: 'temporary-file-token', fileName: 'ref.png', mimeType: 'image/png', sizeBytes: 1024 },
-  };
-  assert.equal(validateGlobalChatActionPlan(upload, context, now).ok, true);
-  assert.deepEqual(validateGlobalChatActionPlan({ ...upload, target: undefined }, context, now),
-    { ok: false, reason: 'missing-target' });
+test('rejects retired Vyral and Asset operations while allowing Project scene edits', () => {
+  const retiredVyralCreate: GlobalChatActionPlan = { ...basePlan, operation: 'vyral.create' as never };
+  const retiredAssetUpload: GlobalChatActionPlan = { ...basePlan, operation: 'asset.upload' as never };
+  assert.deepEqual(validateGlobalChatActionPlan(retiredVyralCreate, context, now),
+    { ok: false, reason: 'unsupported-operation' });
+  assert.deepEqual(validateGlobalChatActionPlan(retiredAssetUpload, context, now),
+    { ok: false, reason: 'unsupported-operation' });
   const sceneEdit: GlobalChatActionPlan = {
     ...basePlan, operation: 'scene.update',
     target: { storyboardId: context.activeStoryboardId, sceneId: context.activeSceneId },
