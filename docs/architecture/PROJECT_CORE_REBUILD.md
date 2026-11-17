@@ -450,6 +450,10 @@ The persisted row must contain:
 
 The Project foreign key must bind both `project_id` and `user_id` to `vyral_storyboards(id,user_id)`. The output reference must bind to the Project-scoped `media_library_items` row only after the Project-scoped Media Library migration is present. Do not store Blob bytes, signed URLs, object URLs, provider credentials, or transient runtime handles in this table.
 
+### Pinned-input verification boundary
+
+The pure render-job envelope constructor validates the digest shape and deterministic manifest-to-plan relationship, but a syntactically valid SHA-256 string alone does not prove that a deserialized job still contains the original inputs. A new asynchronous `verifyProjectRenderJobInputIntegrity` boundary recomputes SHA-256 from the canonical manifest and composition plan, confirms both belong to the job's Project, and fails closed on a digest mismatch or altered plan. Any future persistence adapter, worker recovery path, or output-commit path must call this verifier after loading a job and before trusting its pinned inputs. Contract coverage now checks valid persisted snapshots, digest tampering, and plan tampering. This is not yet a database adapter or a substitute for transactional CAS/lease checks.
+
 ### Database invariants
 
 1. Unique idempotency scope: `(user_id, project_id, idempotency_key)`. A replay with the same digest returns the existing job; the same key with a different digest is rejected.
