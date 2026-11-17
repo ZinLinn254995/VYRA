@@ -124,6 +124,22 @@ test('rejects stale lifecycle events whose timestamps precede the last accepted 
   }), /update timestamp backwards/);
 });
 
+test('rejects persisted jobs with lifecycle fields that contradict their status', () => {
+  const job = makeJob();
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'completed', progress: 100, completedAt: at,
+  } as never, { type: 'request_cancel', at: '2026-11-17T12:00:01.000Z' }), /inconsistent lifecycle fields/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'cancel_requested',
+  } as never, { type: 'cancelled', at: '2026-11-17T12:00:01.000Z' }), /inconsistent lifecycle fields/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, status: 'failed',
+  } as never, { type: 'retry', at: '2026-11-17T12:00:01.000Z' }), /inconsistent lifecycle fields/);
+  assert.throws(() => transitionProjectRenderJob({
+    ...job, createdAt: '2026-11-17T12:00:02.000Z',
+  } as never, { type: 'request_cancel', at: '2026-11-17T12:00:03.000Z' }), /precede its creation/);
+});
+
 test('rejects malformed persisted snapshots and unknown lifecycle events', () => {
   const job = makeJob();
   assert.throws(() => transitionProjectRenderJob({ ...job, revision: 0 } as never, {
