@@ -220,3 +220,11 @@ test('Editor Project File IDs survive timeline state persistence and Project aut
   assert.ok(editor.includes('projectFileId: projectFileId'));
   assert.ok(editor.includes('resolveProjectFilePlaybackUrl'));
 });
+
+
+test('Editor Director video track accepts Project File IDs without legacy Asset IDs', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes('(clip.projectFileId || (clip.assetId && clip.assetVersionId))'));
+  assert.ok(editor.includes('(instance?.projectFileId || (instance?.assetId && instance.assetVersionId))'));
+  assert.ok(editor.includes('sourceIn, sourceOut, projectFileId: instance.projectFileId'));
+});
