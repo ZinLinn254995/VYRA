@@ -43,7 +43,7 @@ export type ProjectRenderCompositionPlan = {
   visuals: ProjectRenderVisualLayer[];
   audio: ProjectRenderAudioLayer[];
   text: ProjectRenderTextLayer[];
-  transitions: Array<{ key: string; effect: string; durationSeconds: number }>;
+  transitions: Array<{ key: string; effect: string; durationSeconds: number; scope: 'scene' | 'video' | 'unresolved'; boundarySeconds: number | null; fromId?: string; toId?: string }>;
   requiredSources: ProjectRenderSource[];
 };
 
@@ -194,9 +194,48 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   visuals.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
   audio.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
   text.sort((a, b) => a.startSeconds - b.startSeconds || a.layer - b.layer);
-  const transitions = Object.entries(manifest.transitions).map(([key, value]) => ({
-    key, effect: value.effect, durationSeconds: value.duration,
-  })).sort((a, b) => a.key.localeCompare(b.key));
+  // The Editor stores transitions under stable adjacent-item keys:
+  // sceneId:nextSceneId for scene boundaries, or clipId:nextClipId for
+  // adjacent visual clips. Resolve those keys against the pinned manifest
+  // instead of leaving renderers to guess where an effect belongs.
+  const resolvedTransitions = new Map<string, ProjectRenderCompositionPlan['transitions'][number]>();
+  let transitionBoundary = 0;
+  for (let index = 0; index < scenes.length - 1; index += 1) {
+    const current = scenes[index];
+    const next = scenes[index + 1];
+    const key = current.sceneId + ':' + next.sceneId;
+    const value = manifest.transitions[key];
+    transitionBoundary = current.endSeconds;
+    if (value) resolvedTransitions.set(key, {
+      key, effect: value.effect, durationSeconds: value.duration,
+      scope: 'scene', boundarySeconds: transitionBoundary,
+      fromId: current.sceneId, toId: next.sceneId,
+    });
+  }
+  const orderedVideoClips = manifest.videoTracks
+    .flatMap((track) => track.visible === false ? [] : track.clips.map((clip) => ({ clip, trackId: track.id })))
+    .sort((a, b) => a.clip.start - b.clip.start || a.clip.duration - b.clip.duration);
+  for (let index = 0; index < orderedVideoClips.length - 1; index += 1) {
+    const current = orderedVideoClips[index].clip;
+    const next = orderedVideoClips[index + 1].clip;
+    const boundarySeconds = current.start + current.duration;
+    const matchingScene = scenes.find((scene, sceneIndex) =>
+      sceneIndex < scenes.length - 1 && scenes[sceneIndex + 1].startSeconds === boundarySeconds);
+    const key = matchingScene
+      ? matchingScene.sceneId + ':' + scenes[scenes.indexOf(matchingScene) + 1].sceneId
+      : current.id + ':' + next.id;
+    const value = manifest.transitions[key];
+    if (value && !resolvedTransitions.has(key)) resolvedTransitions.set(key, {
+      key, effect: value.effect, durationSeconds: value.duration,
+      scope: 'video', boundarySeconds, fromId: current.id, toId: next.id,
+    });
+  }
+  const transitions = Object.entries(manifest.transitions).map(([key, value]) =>
+    resolvedTransitions.get(key) ?? {
+      key, effect: value.effect, durationSeconds: value.duration,
+      scope: 'unresolved' as const, boundarySeconds: null,
+    },
+  ).sort((a, b) => a.key.localeCompare(b.key));
   const durationSeconds = Math.max(sceneCursor, ...visuals.map((item) => item.endSeconds), ...audio.map((item) => item.endSeconds), ...text.map((item) => item.endSeconds), 0);
   const plan = { schema: 'vyra.project-render-composition-plan' as const, version: 1 as const,
     projectId: manifest.projectId, durationSeconds, scenes, visuals, audio, text, transitions,
