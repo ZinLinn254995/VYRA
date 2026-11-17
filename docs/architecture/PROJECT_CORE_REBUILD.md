@@ -678,3 +678,10 @@ The migration chain now contains ten ordered Project/Runway migrations, includin
 - This is a database-level invariant complementing the Project-generation RPC's destination checks; application-level validation alone is not the authority.
 - The pending migration sequence now has ten files requiring clean ordered local-chain validation: `20261113150000`, `20261116100000`, `20261116110000`, `20261116130000`, `20261116140000`, and `20261117010000` through `20261117050000`.
 - No hosted database was changed. The migration has not been executed; local Supabase reset, SQL execution, typecheck, and integration tests remain unverified in this workspace.
+
+
+## Project Media Library folder-tree concurrency hardening — November 18, 2026
+
+- Static review of the pending Project-scoped Media Library migration found that its recursive descendant check prevented ordinary folder cycles but did not serialize concurrent moves. Two transactions could each validate against a snapshot that did not yet include the other move and jointly create a cycle.
+- The folder-owner trigger now takes a transaction-scoped advisory lock keyed by owner before validating folder parent/scope changes. This serializes tree mutations for one owner while allowing different owners to proceed independently.
+- This is a source-level concurrency safeguard. It has not been exercised with concurrent PostgreSQL transactions; local migration reset and race tests remain required before any hosted rollout.
