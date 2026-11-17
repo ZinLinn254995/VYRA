@@ -110,7 +110,7 @@ test('Project Editor navigation stays above its video preview and Scene manageme
   assert.ok(workspace.includes("onSceneOrderChange="));
   assert.ok(workspace.includes("onSceneDuplicate="));
   assert.ok(workspace.includes("onSceneDelete="));
-  assert.ok(workspace.includes("useState<'master' | 'chat' | 'universe' | 'details'>('chat')"));
+  assert.ok(workspace.includes("useState<'master' | 'chat' | 'universe'>('chat')"));
   assert.ok(workspace.includes(">Editor</button>"));
   assert.ok(!workspace.includes(">Master Editor</button>"));
   assert.ok(workspace.includes('aria-label="Project navigation"'));
