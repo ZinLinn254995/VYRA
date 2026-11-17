@@ -155,7 +155,7 @@ export function syncPendingProjectFilesToCloud(limit = 5): Promise<number> {
 }
 
 /**
- * Reconciles a Project's Cloud manifest with this device. Existing logical file Existing logical file
+ * Reconciles a Project's Cloud manifest with this device. Existing logical file
  * IDs are retained; only missing local replicas are downloaded and installed.
  */
 export async function restoreProjectOfflineFilesFromCloud(projectId: string, limit = 100): Promise<number> {
