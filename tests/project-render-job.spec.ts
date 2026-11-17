@@ -132,6 +132,27 @@ test('rejects non-JSON render digest inputs', async () => {
   );
 });
 
+test('rejects sparse arrays, symbol keys and accessor properties in digest inputs', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const sparse = new Array(2);
+  sparse[1] = 'present';
+  await assert.rejects(
+    createProjectRenderInputDigest(manifest, { ...plan, text: sparse as never }),
+    /sparse elements/,
+  );
+  const symbolKey = { value: 1, [Symbol('hidden')]: 2 };
+  await assert.rejects(
+    createProjectRenderInputDigest(manifest, { ...plan, text: symbolKey as never }),
+    /symbol keys/,
+  );
+  const accessor = Object.defineProperty({}, 'value', { enumerable: true, get: () => 1 });
+  await assert.rejects(
+    createProjectRenderInputDigest(manifest, { ...plan, text: accessor as never }),
+    /data properties/,
+  );
+});
+
 test('creates a render job with a digest derived from its exact manifest and plan', async () => {
   const manifest = createProjectRenderManifest(manifestInput());
   const plan = buildProjectRenderCompositionPlan(manifest);
