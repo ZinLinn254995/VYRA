@@ -6,7 +6,7 @@ type Db = {
   auth: { getUser(): Promise<{ data: { user: { id: string } | null }; error: unknown }> };
   from(table: string): any;
   functions: { invoke(name: string, options: { body: Record<string, unknown>; signal?: AbortSignal }): Promise<{ data: any; error: any }> };
-  storage?: { from(bucket: string): { createSignedUrl(path: string, expiresIn: number): Promise<{ data: { signedUrl?: string } | null; error: unknown }> } };
+  storage: { from(bucket: string): { createSignedUrl(path: string, expiresIn: number): Promise<{ data: { signedUrl?: string } | null; error: unknown }> } };
 };
 type Quote = {
   id: string; task: MediaTask; quality: MediaQuality; provider: string; model: string;
@@ -117,7 +117,7 @@ export async function generateRunwayProjectFiles(db: Db, request: {
   let outputCount = 0;
   while (Date.now() - started < timeout) {
     if (request.signal?.aborted) return { status: 'submitted_pending' as const, quote, jobId };
-    await sleep(interval, request.signal);
+    try { await sleep(interval, request.signal); } catch (error) { if (request.signal?.aborted) return { status: 'submitted_pending' as const, quote, jobId }; throw error; }
     const polled = record(await invoke(db, 'poll-runway-media-job', { jobId }, request.signal), 'The task polling response is invalid.');
     if (polled.throttled === true) continue;
     const state = record(polled.job, 'The task polling response has no job status.');
@@ -151,7 +151,7 @@ export async function generateRunwayProjectFiles(db: Db, request: {
       sizeBytes: Number(transferred.sizeBytes), sha256: transferred.sha256,
       storagePath: transferred.storagePath,
     };
-    const { data: signed, error: signError } = await db.storage?.from('vyral-assets').createSignedUrl(file.storagePath, 300);
+    const { data: signed, error: signError } = await db.storage.from('vyral-assets').createSignedUrl(file.storagePath, 300);
     if (!signed?.signedUrl || signError) throw new Error('The saved Project File could not be opened for local installation.');
     const response = await fetch(signed.signedUrl, { cache: 'no-store', redirect: 'error', signal: request.signal });
     if (!response.ok) throw new Error('The generated Project File could not be downloaded for Offline Storage.');
