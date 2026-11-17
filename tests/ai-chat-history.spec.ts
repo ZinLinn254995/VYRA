@@ -287,7 +287,7 @@ test('AI Chat checks request ownership after every Supabase await in a turn', ()
   assert.doesNotMatch(block, /await supabase\s*\./);
   assert.ok((block.match(/await awaitForCurrentRequest\(supabase/g) || []).length >= 15);
   assert.match(block, /const accessToken = await getCurrentAccessToken\(\);\s*assertRequestCurrent\(\);/);
-  assert.match(block, /fetch\(signed\.signedUrl, \{ signal: requestController\.signal \}\)/);
+  assert.match(block, /fetch\(signed\.signedUrl, \{\s*cache: 'no-store', redirect: 'error', \.\.\.\(signal \? \{ signal \} : \{\}\),\s*\}\)/);
   assert.match(block, /const blob = await response\.blob\(\);\s*assertRequestCurrent\(\);/);
 });
 
