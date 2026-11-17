@@ -125,3 +125,6 @@ The runtime switch remains intentionally blocked until all of the above paths ar
 - Added project runtime scope tests and wired them into CI alongside migration safety tests.
 - Verification status: source/commit inspection only. The new migration has not been applied to Supabase; tests, TypeScript check, browser flow, and production deployment have not been run. Do not expose the new Storage runtime in production until CI passes and the migration is reviewed/applied in the intended environment.
 - Remaining audit: project-scope generated/chat asset registration and AI file-tool operations; confirm project deletion/recovery interactions; verify Supabase RLS/Storage policies and execute the migration in a non-production environment before enabling the workflow.
+
+- Project-scoped AI Chat now skips the global owned-Vyral lookup, so ordinary project conversations do not depend on a selected Universe.
+- Important remaining dependency: Runway project media generation and recovery still target a Vyral/Universe ID. Generic project Storage is wired for user-managed files, but generated media handoff into project Storage is not yet migrated; do not claim full project-native AI generation until the generation-job schema, provider workflow, recovery, and asset ingestion are moved to project scope.
