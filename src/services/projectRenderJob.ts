@@ -221,12 +221,31 @@ export function transitionProjectRenderJob(job: ProjectRenderJob, event: Project
       !Number.isFinite(job.progress) || job.progress < 0 || job.progress > 100) {
     throw new Error('The render job snapshot contains invalid identity or lifecycle values.');
   }
+  assertTimestamp(job.createdAt);
   assertTimestamp(job.updatedAt);
+  if (Date.parse(job.updatedAt) < Date.parse(job.createdAt)) {
+    throw new Error('The render job update timestamp cannot precede its creation timestamp.');
+  }
   if (!['queued', 'preparing', 'rendering', 'uploading', 'cancel_requested', 'completed', 'failed', 'cancelled'].includes(job.status)) {
     throw new Error('The render job has an unsupported lifecycle status.');
   }
+  const hasOutput = typeof job.outputProjectFileId === 'string' && Boolean(job.outputProjectFileId.trim());
+  const hasCancelRequest = typeof job.cancelRequestedAt === 'string' && Boolean(job.cancelRequestedAt);
+  const hasCompletion = typeof job.completedAt === 'string' && Boolean(job.completedAt);
+  const hasError = Boolean(job.error && typeof job.error.code === 'string' && job.error.code.trim() &&
+    typeof job.error.message === 'string' && job.error.message.trim());
+  if ((job.status === 'completed' && (!hasOutput || !hasCompletion || job.progress !== 100 || hasCancelRequest || hasError)) ||
+      (job.status !== 'completed' && (hasOutput || hasCompletion)) ||
+      ((job.status === 'cancel_requested' || job.status === 'cancelled') !== hasCancelRequest) ||
+      (job.status === 'failed' !== hasError)) {
+    throw new Error('The render job snapshot contains inconsistent lifecycle fields.');
+  }
+  if (hasCancelRequest) assertTimestamp(job.cancelRequestedAt as string);
+  if (hasCompletion) assertTimestamp(job.completedAt as string);
   if (job.status === 'completed' || job.status === 'cancelled') throw new Error('A terminal render job cannot be changed.');
   if (Date.parse(event.at) < Date.parse(job.updatedAt)) throw new Error('Render job events cannot move the update timestamp backwards.');
+  if (job.revision === Number.MAX_SAFE_INTEGER) throw new Error('The render job revision limit has been reached.');
+  if (event.type === 'retry' && job.attempt === Number.MAX_SAFE_INTEGER) throw new Error('The render job attempt limit has been reached.');
   const next: ProjectRenderJob = { ...job, revision: job.revision + 1, updatedAt: event.at };
 
   if (event.type === 'advance') {
