@@ -352,7 +352,12 @@ export async function installProjectCloudFileToOfflineStorage(input: {
   if (!input.blob || input.blob.size <= 0) throw new Error('The Cloud file is empty.');
   const existing = await getProjectOfflineFile(input.projectFileId);
   if (existing?.deletedAt && existing.projectId === input.projectId) throw new Error('This Project file has a pending deletion and cannot be restored.');
-  if (existing?.localState === 'available' && existing.projectId === input.projectId) return existing;
+  if (existing?.localState === 'available' && existing.projectId === input.projectId) {
+    const existingBlob = await getProjectOfflineFileBlob(input.projectFileId);
+    if (existingBlob) return existing;
+    // IndexedDB metadata can outlive an evicted/missing OPFS file. Treat that
+    // replica as damaged and reinstall the Cloud copy under the same identity.
+  }
 
   const storageKey = input.projectFileId + '.blob';
   const directory = await getOpfsDirectory();
