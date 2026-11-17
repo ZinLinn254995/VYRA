@@ -118,9 +118,10 @@ export async function buildRunwayProjectConsistencyContext(
   const retrieval = retrieveUniverseConsistencyContext({
     query: input.promptText,
     assets: retrievalAssets,
-    relationships: relationships.map((edge) => ({
-      type: edge.relationship_type, fromAssetId: edge.from_asset_id, toAssetId: edge.to_asset_id,
-    })),
+    relationships: relationships.flatMap((edge) =>
+      edge.from_kind === 'asset' && edge.to_kind === 'asset' && edge.from_asset_id && edge.to_asset_id
+        ? [{ type: edge.relationship_type, fromAssetId: edge.from_asset_id, toAssetId: edge.to_asset_id }]
+        : []),
     maxAssets: 12,
     maxRelationships: 24,
   });
