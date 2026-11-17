@@ -769,3 +769,12 @@ The current Render Job implementation is a validated, immutable domain model, no
 The preparation service is read-only with respect to the editor and does not mutate timeline state. Invalid manifests fail before any media download begins. It does not yet create a durable Render Job, run an encoder/muxer, or persist an output Project File. The existing editor UI remains unchanged and is not yet wired to an export action.
 
 Focused contract tests cover snapshot-to-plan-to-source preparation, text/visual/audio schedule preservation, invalid-manifest short-circuiting, and cross-Project resolver identity rejection.
+
+
+## 27. Live Project Editor render adapter — November 18, 2026
+
+`projectRenderEditorAdapter.ts` now maps the existing `MasterTimelineData` model into the render-manifest input contract. It preserves scene instances, scene-local video clips, visual/audio/text tracks, trim ranges, track visibility/mute/volume, transitions, and immutable source identifiers.
+
+The adapter uses an explicit field whitelist. Editor-only waveform caches, temporary upload-recovery flags, local object URLs, collapsed UI state, and other runtime-only fields are not copied into the render snapshot.
+
+`prepareProjectRenderFromEditor` exposes the full read-only preparation path directly from Editor scenes and timeline data: Editor adapter → immutable manifest → deterministic composition plan → verified source Blob inventory. It does not add an export control or change the existing Editor UI. The function is ready for a future explicit export action once a real renderer adapter is implemented and validated.
