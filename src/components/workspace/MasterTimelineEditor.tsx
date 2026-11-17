@@ -1587,17 +1587,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           videoTracks: value?.videoTracks || [], transitions: { ...(value?.transitions || {}) },
           audioTracks: placement.tracks as TimelineTrack[], textTracks: value?.textTracks || [] });
       } else {
-        const existing = (value?.videoTracks || []).flatMap((track) => track.clips);
-        const insertion = getScenesInsertionIndex(existing, Math.max(0, (scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current));
-        const ordered = [...existing].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
-        ordered.splice(Math.min(insertion, ordered.length), 0, clip);
-        const layout = buildScenesClipTrainLayout(ordered);
-        const clipById = new Map(layout.map((item) => [item.id, item]));
-        const tracks = value?.videoTracks?.length ? value.videoTracks.map((track, index) => ({
-          ...track, clips: index === 0 ? layout.map((item) => clipById.get(item.id) ?? item) : track.clips,
-        })) : [{ id: crypto.randomUUID(), name: 'Video', clips: layout }];
+        const placement = placeTimelineMediaClip(value?.videoTracks || [], clip, kind, () => crypto.randomUUID());
         commitChange({ sceneRanges: value?.sceneRanges || {}, sceneInstances: value?.sceneInstances || [],
-          videoTracks: tracks, transitions: { ...(value?.transitions || {}) },
+          videoTracks: placement.tracks as TimelineTrack[], transitions: { ...(value?.transitions || {}) },
           audioTracks: value?.audioTracks || [], textTracks: value?.textTracks || [] });
       }
       setProjectStoragePickerOpen(false);
@@ -2865,6 +2857,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
               <button type="button" onClick={() => setProjectStoragePickerOpen(false)} className="rounded-lg px-3 py-1.5 text-xs text-[var(--vyra-text-secondary)]">Close</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {mediaUploadError && <p role="status" className="mb-2 rounded-lg border border-[var(--vyra-danger)]/30 px-3 py-2 text-xs text-[var(--vyra-danger)]">{mediaUploadError}</p>}
               {projectStoragePickerLoading ? <div className="py-8 text-center text-xs text-[var(--vyra-text-muted)]">Loading Project files…</div>
                 : projectStoragePickerFiles.length ? <div className="space-y-1">
                   {projectStoragePickerFiles.map((file) => (
