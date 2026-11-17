@@ -448,3 +448,12 @@ An append-only `project_render_job_events` table should record revision, event t
 This section is an architecture specification only. No table, RPC, policy, or migration was applied to either Supabase project. The Supabase CLI v3 documentation confirms that database commands now target the local stack by default and require explicit `--remote` for hosted projects; a local CLI/Docker migration workflow and testable local database are not available in this GitHub-only workspace. The required next step is to bring the Development schema up to the active branch's existing migrations using the repository's actual Supabase CLI workflow, then create and test the new migration locally. Do not apply the design to Production or bypass migration history with ad-hoc DDL.
 
 References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/local-development/cli/migrating-to-v3), [Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations), [Supabase Queues](https://supabase.com/docs/guides/queues).
+
+
+## Offline render source integrity hardening (Nov 17, 2026)
+
+- The render source resolver now verifies a locally stored Project File's SHA-256 when the Offline Storage record contains a hash, before returning the Blob to a render pipeline.
+- Malformed hash metadata and digest mismatches fail closed with explicit integrity errors; a missing Web Crypto digest implementation also fails closed when a hash is present.
+- Files without a stored hash retain the existing size/MIME/Project-ownership checks. This does not claim full-file hashing for large files whose Offline Storage import intentionally omits SHA-256.
+- Regression tests cover a matching local digest, a mismatched digest, and malformed hash metadata.
+- This protects the immutable render source boundary from silently accepting locally corrupted bytes. It does not implement or enable final media rendering/export.
