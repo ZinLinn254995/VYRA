@@ -333,3 +333,14 @@ This audit is a deliberate architecture hold, not an export implementation claim
 - Added `tests/project-render-manifest.spec.ts` and registered `npm run test:project-render-manifest` for source-level coverage of stable identity, immutability, transient URL exclusion, and validation failures.
 - This is a serializable input contract only. It does not resolve media bytes, choose codecs, render frames, encode audio, create jobs, or claim export is available. The renderer/runtime decision remains gated on production platform and device capability verification.
 - Test execution, typecheck, build, Worker runtime, and browser verification have not been run in this environment.
+
+
+## Project render source resolver — November 17, 2026
+
+- Added `src/services/projectRenderSourceResolver.ts` to resolve immutable manifest source references into media bytes for a future renderer.
+- Resolution order for Project Files is local Offline Storage first, then owner- and Project-scoped Cloud metadata/signing, download, integrity-aware installation, and re-read from Offline Storage. Cloud restoration retains the same Project File ID and uses the existing installer SHA-256 verification when a hash is available.
+- Every local record is checked against the active Project, deletion tombstones are rejected, MIME kind is checked, and local/Cloud byte counts are verified. Cloud URLs are short-lived transport details and are never returned in the resolved source object or persisted in the manifest.
+- Historical Asset sources remain exact Asset ID + immutable Version ID references and use the existing Vyral Asset playback authorization path; they are not converted into Project File IDs.
+- The Project media lookup now returns the stored SHA-256 metadata so the resolver can pass it into Offline installation for integrity verification.
+- Added resolver contract tests for local-first behavior, cross-Project rejection, Cloud restore identity preservation, MIME/size failures, and historical Asset version continuity.
+- This resolver returns source bytes only. It does not compose frames/audio, encode a video, or implement a render job. Automated tests and runtime verification have not been run in this environment.
