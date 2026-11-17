@@ -4,13 +4,10 @@ import {
   Settings2, Sun, UserRound, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { ProjectIdentityIcon } from '../icons/ProjectIdentityIcon';
-import { MyVyralsPage } from './MyVyralsPage';
 import { MyMediaLibraryPage } from './MyMediaLibraryPage';
 import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, updateProfileHeaderCompact, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
-import type { VyralChatAssetContext } from '../../types/vyralChat';
 
 type ProfilePageProps = {
   userEmail: string;
@@ -23,19 +20,17 @@ type ProfilePageProps = {
   backLabel: string;
   onSignOut: () => void;
   onLoginRequired: () => void;
-  initialPage?: 'my-vyrals' | 'my-media-library' | null;
+  initialPage?: 'my-media-library' | null;
   isActive?: boolean;
-  onSendAssetsToChat?: (assets: VyralChatAssetContext[]) => void;
 };
 
-type PageKey = 'home' | 'my-vyrals' | 'my-media-library' | 'settings' | 'setting-appearance' | 'setting-ai';
+type PageKey = 'home' | 'my-media-library' | 'settings' | 'setting-appearance' | 'setting-ai';
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
 type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponent };
 
 const groups: { title: string; items: NavItem[] }[] = [
   { title: 'My Space', items: [
-    { key: 'my-vyrals', label: 'My Universes', detail: 'Manage your Creative Universes', icon: ProjectIdentityIcon },
     { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded and generated media', icon: Images },
   ] },
   { title: 'Platform', items: [
@@ -47,7 +42,6 @@ const groups: { title: string; items: NavItem[] }[] = [
 ];
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
-  'my-vyrals': { title: 'My Universes', description: 'Manage your reusable Creative Universes.', icon: ProjectIdentityIcon, note: 'Your Creative Universes appear here.' },
   'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded and generated media.', icon: Images, note: 'Your media appears here.' },
   settings: { title: 'Settings', description: 'Control your VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Choose how VYRA looks on this device.' },
@@ -59,7 +53,7 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, isActive = true, onSendAssetsToChat,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, isActive = true,
 }) => {
   const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
   const [visitedSubpages, setVisitedSubpages] = useState<Set<PageKey>>(() => new Set(initialPage ? [initialPage] : []));
@@ -87,11 +81,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
-      {(activePage === 'my-vyrals' || visitedSubpages.has('my-vyrals')) && (
-        <div hidden={activePage !== 'my-vyrals'} aria-hidden={activePage !== 'my-vyrals'} style={{ display: activePage !== 'my-vyrals' ? "none" : undefined }} className="min-w-0">
-          <MyVyralsPage isAuthenticated={Boolean(userEmail)} isActive={isActive && activePage === 'my-vyrals'} onLoginRequired={onLoginRequired} onBack={initialPage ? onBack : goHome} backLabel={initialPage ? backLabel : 'Back to Profile'} onSendAssetsToChat={onSendAssetsToChat} />
-        </div>
-      )}
       {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
         <div hidden={activePage !== 'my-media-library'} aria-hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
           <section className="profile-subpage-card">
@@ -146,7 +135,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
-      ) : activePage === 'my-vyrals' || activePage === 'my-media-library' ? null : (
+      ) : activePage === 'my-media-library' ? null : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'settings' : 'home'); }}
