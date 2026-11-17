@@ -88,6 +88,15 @@ async function performPendingProjectFileSync(limit: number): Promise<number> {
       });
       if (uploadError) throw new Error(uploadError.message);
 
+      // A local delete may be queued while the binary upload is in flight.
+      // Re-check the tombstone before publishing its Cloud manifest row.
+      const latestBeforeManifest = await getProjectOfflineFile(record.id);
+      if (!latestBeforeManifest || latestBeforeManifest.deletedAt || latestBeforeManifest.projectId !== record.projectId) {
+        const { error: cleanupError } = await db.storage.from(BUCKET).remove([storagePath]);
+        if (cleanupError) throw new Error('The file was deleted locally, but its in-flight Cloud upload cleanup failed: ' + cleanupError.message);
+        continue;
+      }
+
       const { error: rowError } = await db.from('media_library_items').upsert({
         id: record.id,
         user_id: userId,
@@ -111,6 +120,11 @@ async function performPendingProjectFileSync(limit: number): Promise<number> {
         // Keep the binary for an idempotent retry. It is safe to overwrite this
         // deterministic object path on the next attempt.
         throw new Error(rowError.message);
+      }
+      const latestAfterManifest = await getProjectOfflineFile(record.id);
+      if (!latestAfterManifest || latestAfterManifest.deletedAt || latestAfterManifest.projectId !== record.projectId) {
+        await deleteMediaLibraryItems([record.id], null, record.projectId);
+        continue;
       }
       await updateProjectOfflineCloudState(record.id, 'synced');
       synced += 1;
