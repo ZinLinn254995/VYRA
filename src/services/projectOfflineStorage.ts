@@ -329,6 +329,7 @@ export async function importProjectFileToOfflineStorage(input: {
 export async function installProjectCloudFileToOfflineStorage(input: {
   projectId: string;
   projectFileId: string;
+  folderId?: string | null;
   fileName: string;
   mimeType: string;
   lastModified?: number;
@@ -347,7 +348,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
   const base: ProjectOfflineFileRecord = {
     id: input.projectFileId,
     projectId: input.projectId,
-    folderId: existing?.folderId ?? null,
+    folderId: input.folderId ?? existing?.folderId ?? null,
     fileName: input.fileName,
     mimeType: input.mimeType || 'application/octet-stream',
     sizeBytes: input.blob.size,
