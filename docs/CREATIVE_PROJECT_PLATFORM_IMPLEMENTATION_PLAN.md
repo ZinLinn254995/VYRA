@@ -308,3 +308,11 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Confirmed the active Project Chat Edge Function no longer imports or references these parser modules. The action layer had no active Project UI route after the earlier Chat handoff removal.
 - Removed the matching npm test commands. The remaining generation and Editor Asset services are intentionally retained for now because existing timeline playback and historical generation recovery still depend on their data contracts; those are separate migrations, not safe dead-code deletions yet.
 - No historical database rows, Storage objects, deployed migrations, or user files were deleted. No build/typecheck/test run has been executed.
+
+
+## Cleanup progress — 2026-11-17 (remove final Chat planner Vyral actions)
+
+- Removed `vyral.create` and `asset.upload` from the global Chat action planner, including its Vyral-target requirement, active-Vyral context, target ID, and payload validation. The planner now validates only Project/storyboard, scene, timeline, generation, and Workspace navigation actions.
+- Updated planner tests to assert retired Vyral/Asset operations fail closed while Project scene edits retain their existing approval checks.
+- Removed one unused Vyral-mention placeholder from the Chat request path. The optional legacy Vyral generation/recovery alias remains isolated in Chat because the provider generation and saved timeline playback migrations are not complete; it is not considered final Project architecture.
+- No build/typecheck/test run has been performed.
