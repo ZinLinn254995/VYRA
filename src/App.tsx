@@ -7,6 +7,7 @@ import type { WorkspaceAiContext } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { MyProjectsHome } from './components/project/MyProjectsHome';
+import { restoreAccountProjectsToOfflineStorage, startProjectOfflineCloudSync } from './services/projectOfflineCloudSync';
 
 type WalletResponse = { availableBalance?: string };
 type MainSection = 'workspace';
@@ -85,6 +86,19 @@ function VyraApp() {
       .finally(() => { if (active) setCreditLoading(false); });
     return () => { active = false; };
   }, [session?.access_token, isGuestSession]);
+
+
+  // Project files are restored into this device's dedicated Offline Storage
+  // after account login. Cloud transfers remain background work and never gate
+  // the workspace shell or its existing UI.
+  useEffect(() => {
+    if (!user?.id || isGuestSession) return;
+    const stopSync = startProjectOfflineCloudSync();
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      void restoreAccountProjectsToOfflineStorage().catch(() => undefined);
+    }
+    return stopSync;
+  }, [user?.id, isGuestSession]);
 
   const requestAuth = (mode: 'login' | 'signup' = 'login') => {
     setAuthMode(mode);
