@@ -1524,16 +1524,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     setProjectStoragePickerLoading(true);
     setMediaUploadError('');
     try {
-      const [localFiles, cloudResult] = await Promise.all([
-        listProjectOfflineFiles(projectId),
-        supabase.from('media_library_items')
+      const localFiles = await listProjectOfflineFiles(projectId);
+      const cloudRows: Array<{ id: string; file_name: string; mime_type: string; size_bytes: number | null; bucket_id: string | null; storage_path: string | null; folder_id: string | null }> = [];
+      for (let offset = 0; ; offset += 100) {
+        const { data, error } = await supabase.from('media_library_items')
           .select('id,file_name,mime_type,size_bytes,bucket_id,storage_path,folder_id')
           .eq('project_id', projectId).is('universe_id', null)
-          .order('created_at', { ascending: false }).limit(200),
-      ]);
-      if (cloudResult.error) throw cloudResult.error;
+          .order('created_at', { ascending: false }).range(offset, offset + 99);
+        if (error) throw error;
+        const page = (data ?? []) as typeof cloudRows;
+        cloudRows.push(...page);
+        if (page.length < 100) break;
+      }
       const merged = new Map<string, { id: string; fileName: string; mimeType: string; sizeBytes: number; bucketId: string | null; storagePath: string | null; folderId: string | null; local: boolean }>();
-      for (const row of cloudResult.data ?? []) {
+      for (const row of cloudRows) {
         if (typeof row.id !== 'string' || typeof row.file_name !== 'string' || typeof row.mime_type !== 'string') continue;
         const local = localFiles.find((file) => file.id === row.id);
         merged.set(row.id, { id: row.id, fileName: row.file_name, mimeType: row.mime_type,
