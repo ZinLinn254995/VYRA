@@ -32,7 +32,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-vyrals' | 'my-media-library';
-type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createUniverseRequest?: number; openUniverseRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createProjectRequest?: number; openProjectRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void; initialSelectedAssets?: VyralChatAssetContext[]; onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -69,10 +69,10 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createUniverseRequest = 0, openUniverseRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createProjectRequest = 0, openProjectRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal, initialSelectedAssets, onSelectedAssetsChange }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const createDefaultStoryboardRef = useRef<() => void>(() => {});
-  const lastOpenedUniverseRequestRef = useRef<number | null>(null);
+  const lastOpenedProjectRequestRef = useRef<number | null>(null);
   const lastStoryboardSyncAtRef = useRef(0);
   const storyboardSaveQueueRef = useRef<Map<string, Promise<void>>>(new Map());
   const deletedStoryboardIdsRef = useRef<Set<string>>(new Set());
@@ -680,7 +680,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
         sceneTitles: scenes.slice(0, 30).map((scene) => scene.title),
       } : null,
       ...(activeStoryboard ? { editorView: storyboardEditorView } : {}),
-      storyboardUniverse: null,
+      
       selectedSceneIds: selectedSceneIds.slice(0, 30),
       selectedSceneTitles: selectedSceneIds.slice(0, 30).map((id) => scenes.find((scene) => scene.id === id)?.title || 'Untitled scene'),
       activeSceneId,
@@ -1034,13 +1034,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   // Resolve the requested Project before the browser paints the editor host.
   // This prevents the retired Workspace landing page from flashing for one frame.
   useLayoutEffect(() => {
-    if (!openUniverseRequest || loadedStorageKey !== storageKey || lastOpenedUniverseRequestRef.current === openUniverseRequest.requestId) return;
-    const item = storyboards.find((storyboard) => storyboard.id === openUniverseRequest.storyboardId);
+    if (!openProjectRequest || loadedStorageKey !== storageKey || lastOpenedProjectRequestRef.current === openProjectRequest.requestId) return;
+    const item = storyboards.find((storyboard) => storyboard.id === openProjectRequest.storyboardId);
     if (item) {
-      lastOpenedUniverseRequestRef.current = openUniverseRequest.requestId;
+      lastOpenedProjectRequestRef.current = openProjectRequest.requestId;
       openStoryboardEditor(item);
     }
-  }, [openUniverseRequest?.requestId, openUniverseRequest?.storyboardId, loadedStorageKey, storageKey, storyboards]);
+  }, [openProjectRequest?.requestId, openProjectRequest?.storyboardId, loadedStorageKey, storageKey, storyboards]);
 
   const confirmDeleteStoryboard = async () => {
     if (!storyboardToDelete || isDeletingStoryboard) return;
@@ -1089,8 +1089,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     setCloudSyncMessage('');
   };
   useLayoutEffect(() => {
-    if (createUniverseRequest > 0 && isActive) createDefaultStoryboardRef.current();
-  }, [createUniverseRequest, isActive]);
+    if (createProjectRequest > 0 && isActive) createDefaultStoryboardRef.current();
+  }, [createProjectRequest, isActive]);
 
   const saveStoryboardEdits = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1218,7 +1218,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   // While a card-open request is resolving, never render the legacy Workspace
   // landing page as a transient fallback. The requested Storyboard will replace
   // this lightweight state as soon as its local record is available.
-  if (openUniverseRequest && !activeStoryboard && lastOpenedUniverseRequestRef.current !== openUniverseRequest.requestId) {
+  if (openProjectRequest && !activeStoryboard && lastOpenedProjectRequestRef.current !== openProjectRequest.requestId) {
     return (
       <main className="flex min-h-0 flex-1 items-center justify-center bg-[var(--vyra-bg-canvas)]">
         <div role="status" className="text-sm text-[var(--vyra-text-muted)]">Opening Project…</div>
