@@ -425,6 +425,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     throw new Error('This Project File ID already belongs to a different Project and cannot be reassigned.');
   }
   if (existing?.deletedAt && existing.projectId === input.projectId) throw new Error('This Project file has a pending deletion and cannot be restored.');
+  if (existing?.localState === 'copying') throw new Error('This Project file is already being copied into Offline Storage. Try again after the current copy finishes.');
   if (existing?.localState === 'available' && existing.projectId === input.projectId) {
     const existingBlob = await getProjectOfflineFileBlob(input.projectFileId);
     if (existingBlob) return existing;
