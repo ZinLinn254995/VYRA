@@ -36,6 +36,16 @@ test('Project output completion verifies Project ownership and hash without Asse
   assert.ok(complete.includes('if (!job.target_vyral_id)'));
 });
 
+test('already-ingested Project output recovery revalidates the immutable output and file identity', () => {
+  const transfer = read('supabase/functions/transfer-runway-media-output/index.ts');
+  assert.ok(transfer.includes("output.transfer_status !== 'ingested'"));
+  assert.ok(transfer.includes('output.project_file_id !== claim.project_file_id'));
+  assert.ok(transfer.includes('item.storage_path !== output.storage_path'));
+  assert.ok(transfer.includes('item.metadata?.generation_job_id !== body.jobId'));
+  assert.ok(transfer.includes('item.metadata?.sha256 !== output.sha256'));
+  assert.ok(transfer.includes('item.bucket_id !== BUCKET'));
+});
+
 test('Project-native client generation restores outputs into Offline Storage with stable IDs', () => {
   const client = read('src/services/runwayProjectFileGeneration.ts');
   assert.ok(client.includes('targetProjectId: request.projectId'));
