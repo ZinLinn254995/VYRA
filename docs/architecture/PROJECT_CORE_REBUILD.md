@@ -293,3 +293,31 @@ This architecture gate is a design decision, not a claim that export has shipped
 - The transition to `available` and creation of the durable Cloud upload operation are committed in one IndexedDB read-write transaction spanning the file and sync stores. A partial commit cannot expose an available file without its upload queue entry.
 - An IndexedDB blocked-open event clears the cached open promise so a later attempt can recover after another tab releases the database.
 - Contract tests were added for the atomic commit, identity collision guard, and blocked-open retry behavior. These are source-level assertions and have not been executed in this environment.
+
+
+## Render runtime feasibility audit — November 17, 2026
+
+A dependency and application-host audit was performed before selecting the final video renderer.
+
+### Findings
+
+- The current package manifest contains React, Vite, Supabase, Express, and the Cloudflare Vite/Wrangler toolchain, but no FFmpeg/WebCodecs muxing library, server render worker, or video composition runtime dependency.
+- The existing `videoExportRecorder` helper only negotiates MediaRecorder MIME types. It does not implement a deterministic timeline renderer, source hydration, track composition, or Project File output ingestion.
+- The Master Timeline Editor currently exposes Project File-aware preview playback, but the inspected Editor source does not contain a complete Project File-aware export flow.
+- The application has both Node/Express server code and Cloudflare deployment tooling. The exact production execution target, memory/time limits, codec support, and durable job mechanism must be verified before choosing a server-side renderer.
+- Browser-only rendering would need explicit support checks for codecs, memory, long-running jobs, background tab suspension, and device capabilities. It must not be assumed reliable for every supported phone or desktop.
+
+### Decision
+
+Do not add a rendering dependency or an Export control yet. The current repository evidence is insufficient to choose safely between browser-local, server-side, or hybrid rendering. A renderer choice must be made only after the actual deployment target and its execution limits are confirmed, along with target device/browser support and expected output formats.
+
+### Next implementation gates
+
+1. Identify the authoritative production execution platform and its limits for long-running CPU/memory-intensive jobs.
+2. Choose a renderer and muxer with verified codec/container support for the required output formats.
+3. Build a versioned, immutable render manifest and Project File source hydration layer.
+4. Implement asynchronous job status, cancellation, retry, and output ingestion.
+5. Add deterministic fixture-based tests for trim, placement, A/V sync, overlays, transitions, and legacy timeline reads.
+6. Only then expose the existing approved export entry point in the UI; do not redesign the Editor.
+
+This audit is a deliberate architecture hold, not an export implementation claim.
