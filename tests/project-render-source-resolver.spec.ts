@@ -28,6 +28,32 @@ test('resolves an available same-Project local replica without requesting Cloud'
   assert.equal(cloudCalls, 0);
 });
 
+test('verifies stored SHA-256 before accepting an Offline render source', async () => {
+  const sha256OfData = '3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7';
+  const input = { projectId: 'project-1', source: { kind: 'project-file' as const, projectFileId: 'file-1' }, expectedKind: 'video' as const };
+  const valid = await resolveProjectRenderSourceBlob(input, ports({
+    getOfflineRecord: async () => record({ contentHash: sha256OfData }),
+  }) as never);
+  assert.equal(valid.replica, 'offline');
+
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      getOfflineRecord: async () => record({ contentHash: '0'.repeat(64) }),
+    }) as never),
+    /SHA-256 integrity check/,
+  );
+});
+
+test('rejects malformed stored SHA-256 metadata instead of trusting the local bytes', async () => {
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(
+      { projectId: 'project-1', source: { kind: 'project-file', projectFileId: 'file-1' }, expectedKind: 'video' },
+      ports({ getOfflineRecord: async () => record({ contentHash: 'not-a-hash' }) }) as never,
+    ),
+    /invalid SHA-256 metadata/,
+  );
+});
+
 test('rejects cross-Project local identities before accessing Cloud', async () => {
   await assert.rejects(() => resolveProjectRenderSourceBlob({ projectId: 'project-2', source: { kind: 'project-file', projectFileId: 'file-1' }, expectedKind: 'video' }, ports({ getOfflineRecord: async () => record() }) as never), /different Project/);
 });
