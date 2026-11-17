@@ -184,6 +184,14 @@ export async function recoverRunwayProjectFiles(db: Db, projectId: string, jobId
     .eq('id', jobId).eq('user_id', auth.user.id).eq('target_project_id', projectId).maybeSingle();
   if (jobError || !job) throw jobError ?? new Error('This generation job does not belong to the selected Project.');
   if (job.status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+  if (job.status === 'queued') {
+    const submitted = record(await invoke(db, 'submit-runway-media-job', { jobId }, signal), 'The queued Project job submission response is invalid.');
+    const submittedJob = record(submitted.job, 'The queued Project job has no durable submission status.');
+    if (submittedJob.status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+    if (submittedJob.status === 'failed') return { status: 'failed' as const, jobId };
+    if (submittedJob.status !== 'submitted') return { status: 'submitted_pending' as const, jobId };
+    job.status = 'submitted';
+  }
   if (job.status === 'submitted' || job.status === 'processing') {
     const polled = record(await invoke(db, 'poll-runway-media-job', { jobId }, signal), 'The Project job status response is invalid.');
     if (polled.throttled === true) return { status: 'submitted_pending' as const, jobId };
