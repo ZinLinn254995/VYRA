@@ -491,3 +491,20 @@ test('AI Chat clears previous-owner conversation and attachment state immediatel
   assert.ok(chat.includes('cancelActiveRequest()'), 'An in-flight chat request must be aborted when its owner changes.');
 });
 
+
+
+test('Project Editor playback resolves real Project file IDs without synthesizing Asset identities', () => {
+  const service = read('src/services/mediaLibraryCloud.ts');
+  const resolver = service.slice(
+    service.indexOf('export async function getProjectMediaLibraryItemPlaybackSource'),
+    service.indexOf('/** Create a short-lived original-file URL'),
+  );
+  assert.ok(resolver.includes(".eq('id', itemId)"), 'Playback must resolve the exact Project file.');
+  assert.ok(resolver.includes(".eq('user_id', userId)"), 'Playback must be owner-scoped.');
+  assert.ok(resolver.includes(".eq('project_id', projectId)"), 'Playback must be restricted to the selected Project.');
+  assert.ok(resolver.includes(".is('universe_id', null)"), 'Project playback must not resolve legacy Universe records.');
+  assert.ok(resolver.includes("isSafeOwnerStoragePath(data.storage_path, userId, ['media-library'])"), 'Only private Project Storage paths may be signed.');
+  assert.ok(resolver.includes('projectFileId: data.id'), 'The resolver must return the real Project file identity.');
+  assert.ok(!resolver.includes('assetId') && !resolver.includes('assetVersionId'), 'Project file IDs must never be disguised as legacy Asset or Version IDs.');
+  assert.ok(resolver.includes('matchesKind'), 'The requested media kind must match the stored MIME type.');
+});
