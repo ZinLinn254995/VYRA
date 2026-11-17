@@ -15,6 +15,9 @@ There is no separate Details area. Do not add a Details tab, panel, mandatory fo
 
 ## Storage rules
 
+- Project Storage is the only user-facing file manager. Do not provide Personal Storage, My Media Library, or unscoped/global file storage destinations.
+- Every new user upload and AI-generated file must belong to a Project. Preserve existing personal-library records and binaries as legacy data; removing their UI does not authorize destructive deletion or silent migration.
+
 Storage is a general-purpose file manager, not a knowledge system.
 
 - Users may upload any supported file type, create any folders they want, and store nothing.
