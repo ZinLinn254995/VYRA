@@ -140,7 +140,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(read('supabase/migrations/20261114155727_media_library_storage_cleanup_queue.sql').includes('and item.source_asset_id is null'), 'The atomic cleanup RPC must exclude canonical Vyral assets.');
 });
 
-test('My Media Library UI includes required organization, filtering, views and multi-select', () => {
+test('Project Storage UI includes required organization, filtering, views and multi-select', () => {
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
   const service = read('src/services/mediaLibraryCloud.ts');
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
@@ -219,20 +219,20 @@ test('My Media Library UI includes required organization, filtering, views and m
 
   assert.ok(page.includes('downloadUrl.searchParams.set(\'download\', previewItem.file_name)'), 'Original files must use Storage download disposition with the original filename.');
   assert.ok(page.includes('aria-label="Download original file"'), 'The preview action must be exposed as a download, not an inline open.');
-  assert.ok(page.includes('cleanup is queued and will retry automatically when you next open My Media Library'), 'The user must be told when storage cleanup is deferred until the next Library visit.');
+  assert.ok(page.includes('cleanup is queued and will retry automatically when you next open My Media Library'), 'The user must be told when storage cleanup is deferred until the next Project Storage visit.');
   assert.ok(page.includes('formatBytes(entry.item.size_bytes)'), 'List view should retain file size metadata.');
   assert.ok(page.includes('Date modified'), 'List view should retain modification date metadata.');
   assert.ok(!page.includes("'Folder created.'"), 'Folder creation should not show a success toast.');
 });
 
-test('Project Storage uploads use a project-scoped object namespace without changing Personal Storage', () => {
+test('Project Storage uploads use a project-scoped object namespace while retaining legacy personal files', () => {
   const service = read('src/services/mediaLibraryCloud.ts');
   const start = service.indexOf('export async function uploadMediaLibraryFiles');
   const end = service.indexOf('export async function registerVyralAssetInMediaLibrary', start);
   const upload = service.slice(start, end);
   assert.ok(upload.includes("userId + '/media-library/' + (projectId ? projectId + '/' : '') + id"), 'Project files must be stored under their own project namespace.');
   assert.ok(upload.includes('project_id: projectId ?? null'), 'The file index must retain its canonical Project owner.');
-  assert.ok(upload.includes("projectId ? projectId + '/' : ''"), 'Personal Storage must keep its existing non-project path.');
+  assert.ok(upload.includes("projectId ? projectId + '/' : ''"), 'Legacy personal files keep their existing object paths; no new UI flow creates them.');
 });
 
 test('Vyral Asset indexing verifies the signed-in owner and canonical storage path before uploading a thumbnail', () => {
@@ -403,7 +403,7 @@ test('Media Library exposes selection state to assistive technology in both view
 });
 
 
-test('My Media Library restores cached views and reconciles mutations without full reloads', () => {
+test('Project Storage restores cached views and reconciles mutations without full reloads', () => {
   const page = read('src/components/profile/MyMediaLibraryPage.tsx');
   const service = read('src/services/mediaLibraryCloud.ts');
   assert.ok(page.includes('libraryCacheRef.current.get(cacheKey)'), 'A previously visited folder view must be available immediately.');
