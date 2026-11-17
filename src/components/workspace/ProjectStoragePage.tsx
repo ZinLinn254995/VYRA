@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   backfillMediaLibraryThumbnails, createMediaLibraryFolder, deleteMediaLibraryFolder, deleteMediaLibraryItems,
-  getMediaLibraryItemSignedUrl, loadMediaLibrary, loadMediaLibraryItemsByIds, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
+  getMediaLibraryItemSignedUrl, loadMediaLibrary, moveMediaLibraryFolder, moveMediaLibraryItems, renameMediaLibraryFolder,
   renameMediaLibraryItem,
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
@@ -238,14 +238,28 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
       setSelectedIds((previous) => previous.filter((id) => mergedItems.some((item) => item.id === id) || result.folders.some((folder) => folder.id === id)));
     } catch (cause) {
       if (requestId === libraryRequestRef.current) {
-        // Never leave the previous folder/search results visible after a failed
-        // refresh: stale rows could otherwise be mistaken for the current folder.
-        if (!cached) {
-          setItems([]);
-          setHasMoreItems(false);
-          setSelectedIds([]);
+        // Cloud may be unreachable while offline. Keep the Project usable from
+        // its local replica inventory instead of clearing the Storage view.
+        try {
+          const localRecords = await listProjectOfflineFiles(projectId);
+          if (requestId !== libraryRequestRef.current) return;
+          const localItems: MediaLibraryItem[] = localRecords.map((record) => ({
+            id: record.id, user_id: ownerId!, universe_id: null, project_id: projectId,
+            folder_id: record.folderId ?? null, source_kind: 'upload', source_asset_id: null,
+            bucket_id: 'vyral-assets', storage_path: '', file_name: record.fileName,
+            mime_type: record.mimeType, size_bytes: record.sizeBytes,
+            metadata: { offline_only: true, cloud_state: record.cloudState },
+            created_at: record.createdAt, updated_at: record.updatedAt, signed_url: null, thumbnail_url: null,
+          }));
+          const localFolders = cached?.folders ?? folders;
+          setFolders(localFolders); setItems(localItems); setHasMoreItems(false);
+          libraryCacheRef.current.set(cacheKey, { folders: localFolders, items: localItems, hasMore: false, cachedAt: Date.now() });
+          setSelectedIds((previous) => previous.filter((id) => localItems.some((item) => item.id === id) || localFolders.some((folder) => folder.id === id)));
+          setError(null);
+        } catch {
+          if (!cached) { setItems([]); setHasMoreItems(false); setSelectedIds([]); }
+          setError(cause instanceof Error ? cause.message : 'Could not load this Project Storage.');
         }
-        setError(cause instanceof Error ? cause.message : 'Could not load this Project Storage.');
       }
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
