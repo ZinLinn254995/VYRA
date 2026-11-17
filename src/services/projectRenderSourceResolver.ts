@@ -60,8 +60,18 @@ async function assertStoredContentHash(blob: Blob, expectedHash: string | null):
   }
 }
 
+function mimeEssence(value: string): string {
+  return value.split(';', 1)[0].trim().toLowerCase();
+}
+
+function assertManifestMimeIdentity(declared: string | undefined, actual: string, label: string): void {
+  if (declared?.trim() && mimeEssence(declared) !== mimeEssence(actual)) {
+    throw new Error('The ' + label + ' MIME type differs from the immutable render manifest.');
+  }
+}
+
 function assertMediaKind(mimeType: string, expectedKind: ProjectRenderMediaKind): void {
-  if (!mimeType.toLowerCase().startsWith(expectedKind + '/')) {
+  if (!mimeEssence(mimeType).startsWith(expectedKind + '/')) {
     throw new Error('The render source MIME type does not match the expected ' + expectedKind + ' media type.');
   }
 }
@@ -82,6 +92,7 @@ export async function resolveProjectRenderSourceBlob(input: {
     if (record?.deletedAt) throw new Error('The Project File is pending deletion and cannot be rendered.');
     if (record?.localState === 'available') {
       assertMediaKind(record.mimeType, expectedKind);
+      assertManifestMimeIdentity(source.mimeType, record.mimeType, 'Offline Project File');
       const blob = await ports.getOfflineBlob(source.projectFileId);
       if (blob && blob.size === record.sizeBytes) {
         await assertStoredContentHash(blob, record.contentHash);
@@ -99,10 +110,12 @@ export async function resolveProjectRenderSourceBlob(input: {
 
     const cloud = await ports.getProjectCloudSource(source.projectFileId, projectId, expectedKind);
     assertMediaKind(cloud.mimeType, expectedKind);
-    if (source.mimeType && source.mimeType.toLowerCase() !== cloud.mimeType.toLowerCase()) {
-      throw new Error('The Cloud Project File MIME type differs from the immutable render manifest.');
-    }
+    assertManifestMimeIdentity(source.mimeType, cloud.mimeType, 'Cloud Project File');
     const downloaded = await ports.fetchBlob(cloud.signedUrl);
+    if (downloaded.type.trim()) {
+      assertMediaKind(downloaded.type, expectedKind);
+      assertManifestMimeIdentity(cloud.mimeType, downloaded.type, 'Downloaded Project File');
+    }
     if (downloaded.size !== cloud.sizeBytes) throw new Error('The downloaded Project File size does not match its Cloud manifest.');
     await assertStoredContentHash(downloaded, cloud.expectedSha256);
     const installedRecord = await ports.installCloudReplica({
@@ -143,11 +156,7 @@ export async function resolveProjectRenderSourceBlob(input: {
   if (!blob.size) throw new Error('The legacy Asset Version returned an empty media file.');
   const declaredMimeType = source.mimeType?.trim().toLowerCase() || '';
   const downloadedMimeType = blob.type.trim().toLowerCase();
-  const mimeEssence = (value: string) => value.split(';', 1)[0].trim();
-  if (declaredMimeType && downloadedMimeType &&
-      mimeEssence(declaredMimeType) !== mimeEssence(downloadedMimeType)) {
-    throw new Error('The downloaded legacy Asset MIME type differs from its immutable render manifest.');
-  }
+  assertManifestMimeIdentity(declaredMimeType, downloadedMimeType, 'Downloaded legacy Asset');
   const mimeType = declaredMimeType || downloadedMimeType || expectedKind + '/octet-stream';
   assertMediaKind(mimeType, expectedKind);
   if (downloadedMimeType) assertMediaKind(downloadedMimeType, expectedKind);
