@@ -172,6 +172,8 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
       if (fileSize <= 0 || restoredBytes + fileSize > passBudget) continue;
       const { data: downloaded, error: downloadError } = await db.storage.from(BUCKET).download(row.storage_path);
       if (downloadError || !downloaded) continue;
+      const expectedSize = Number(row.size_bytes);
+      if (Number.isFinite(expectedSize) && expectedSize > 0 && downloaded.size !== expectedSize) continue;
       const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
       const expectedHash = typeof metadata.sha256 === 'string' ? metadata.sha256 : null;
       await installProjectCloudFileToOfflineStorage({
