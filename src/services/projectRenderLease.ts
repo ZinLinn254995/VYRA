@@ -134,7 +134,7 @@ export function renewProjectRenderLease(input: {
     ...snapshot,
     revision: snapshot.revision + 1,
     lease: {
-      ...snapshot.lease,
+      ...lease,
       expiresAt: new Date(nowMs + input.leaseDurationMs).toISOString(),
     },
   };
