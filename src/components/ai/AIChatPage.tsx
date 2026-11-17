@@ -755,7 +755,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
       }
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
-      if (supabase && text) {
+      if (supabase && text && !storyboardId) {
         const { data: authData } = await awaitForCurrentRequest(supabase.auth.getUser());
         assertRequestCurrent();
         if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this request.', 'AbortError');
