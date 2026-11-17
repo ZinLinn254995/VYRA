@@ -276,3 +276,12 @@ This architecture gate is a design decision, not a claim that export has shipped
 - Added a source-contract regression test for Project-scoped cache keys and validation order.
 - The test is committed but has not been executed; real browser Project switching and playback still require runtime verification.
 
+## Offline replica integrity and recovery hardening (Nov 17, 2026)
+
+- Recovery no longer treats an IndexedDB metadata record marked available as proof that its OPFS/IndexedDB binary still exists.
+- The Cloud manifest reconciliation checks the local blob before skipping a download. If the binary is missing, it downloads and reinstalls the Cloud replica under the original Project File ID.
+- The Offline Storage install fast path also verifies that the existing local blob can actually be read before returning the existing record.
+- Cloud recovery rejects a downloaded blob whose byte size differs from the manifest's declared size; available SHA-256 metadata is still verified by the installer.
+- Added source-contract regression coverage for missing-binary repair, stable identity, and size validation.
+- These changes address metadata/binary divergence, including possible OPFS eviction. They are committed but not yet executed in tests or verified in a real browser/device.
+
