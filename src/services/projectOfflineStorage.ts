@@ -249,6 +249,7 @@ export async function importProjectFileToOfflineStorage(input: {
 }): Promise<{ file: ProjectOfflineFileRecord; syncOperation: ProjectOfflineSyncOperation }> {
   if (!input.projectId) throw new Error('A Project is required to import a file.');
   if (!input.file || input.file.size <= 0) throw new Error('The selected file is empty.');
+  await requestProjectOfflinePersistence();
   const capacity = await getProjectOfflineStorageEstimate();
   if (capacity.quotaBytes !== null && capacity.usageBytes !== null) {
     const availableBytes = Math.max(0, capacity.quotaBytes - capacity.usageBytes);
