@@ -81,6 +81,22 @@ test('builds a renderer-neutral schedule for scenes, image/video, audio, text an
   assert.deepEqual(plan.transitions, [{ key: 'scene-a:scene-b', effect: 'crossfade', durationSeconds: 0.75, scope: 'scene', boundarySeconds: 8, fromId: 'scene-a', toId: 'scene-b' }]);
 });
 
+test('matches scene transition boundaries with the Editor tolerance', () => {
+  const value = input();
+  value.timeline.videoTracks = [{
+    id: 'scene-edge-row', clips: [
+      { id: 'before-scene-edge', start: 0, duration: 7.9995, projectFileId: 'before-file', assetMimeType: 'video/mp4' },
+      { id: 'after-scene-edge', start: 8, duration: 2, projectFileId: 'after-file', assetMimeType: 'video/mp4' },
+    ],
+  }];
+  value.timeline.transitions = {
+    'scene-a:scene-b': { effect: 'fade', duration: 0.4 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.equal(plan.transitions[0].scope, 'scene');
+  assert.equal(plan.transitions[0].boundarySeconds, 7.9995);
+});
+
 test('maps source trims exactly and clips scene media at the scene boundary', () => {
   const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(input()));
   const sceneVideo = plan.visuals.find((item) => item.clipId === 'scene-video')!;
