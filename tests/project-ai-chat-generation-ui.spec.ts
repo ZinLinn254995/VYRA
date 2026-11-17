@@ -308,12 +308,12 @@ test('AI Director Project deletion writes a cloud tombstone instead of removing 
 
 test('Project AI Chat remains available before any optional project Storage library exists', () => {
   const projectChatStart = workspace.indexOf("storyboardEditorView === 'chat' ? (");
-  const projectChatEnd = workspace.indexOf("storyboardEditorView === 'universe' ?", projectChatStart);
+  const projectChatEnd = workspace.indexOf("storyboardEditorView === 'storage' ?", projectChatStart);
   assert.ok(projectChatStart >= 0 && projectChatEnd > projectChatStart);
   const projectChat = workspace.slice(projectChatStart, projectChatEnd);
   assert.ok(projectChat.includes('<AIChatPage'));
-  assert.ok(projectChat.includes('activeVyralId={storyboardUniverse?.id ?? null}'));
-  assert.ok(!projectChat.includes('storyboardUniverse ?'));
+  assert.ok(projectChat.includes('activeVyralId={null}'));
+  assert.ok(!projectChat.includes('storyboardUniverse'));
   assert.ok(!projectChat.includes('Preparing this Project’s Assets for AI Chat'));
 
   const legacySceneChatStart = workspace.indexOf('<aside className="h-1/2 min-h-0 w-full shrink-0 border-t');
@@ -321,8 +321,10 @@ test('Project AI Chat remains available before any optional project Storage libr
   assert.ok(legacySceneChatStart >= 0 && legacySceneChatEnd > legacySceneChatStart);
   const legacySceneChat = workspace.slice(legacySceneChatStart, legacySceneChatEnd);
   assert.ok(legacySceneChat.includes('<AIChatPage'));
-  assert.ok(legacySceneChat.includes('activeVyralId={storyboardUniverse?.id ?? null}'));
-  assert.ok(!legacySceneChat.includes('storyboardUniverse ?'));
+  assert.ok(legacySceneChat.includes('activeVyralId={null}'));
+  assert.ok(!legacySceneChat.includes('storyboardUniverse'));
   assert.ok(!workspace.includes('Preparing this Project’s Assets for AI Chat'));
-  assert.ok(!workspace.includes('className="hidden">\\n          <StoryboardUniverseTab'));
+  assert.ok(!workspace.includes('StoryboardUniverseTab'));
+  assert.ok(workspace.includes('<ProjectStorageTab'));
+  assert.ok(workspace.includes("storyboardEditorView === 'storage'"));
 });
