@@ -156,7 +156,10 @@ export function startProjectOfflineCloudSync(): () => void {
     try { await syncPendingProjectFilesToCloud(5); } catch { /* retry on next trigger */ }
     finally { running = false; }
   };
-  const onOnline = () => { void run(); };
+  const onOnline = () => {
+    void run();
+    void restoreAccountProjectsToOfflineStorage().catch(() => undefined);
+  };
   const onLocalFileReady = () => { void run(); };
   window.addEventListener('online', onOnline);
   window.addEventListener('vyra:project-offline-file-ready', onLocalFileReady);
