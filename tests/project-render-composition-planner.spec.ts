@@ -184,6 +184,39 @@ test('resolves transitions between Director scene media and uploaded visual clip
   }]);
 });
 
+test('uses nested Director videoClips instead of duplicating the parent instance in transition order', () => {
+  const value = input();
+  value.timeline.sceneInstances = [{
+    id: 'director-parent', sceneId: 'scene-a', sourceIn: 0, sourceOut: 8,
+    projectFileId: 'parent-file', assetMimeType: 'video/mp4',
+    videoClips: [{
+      id: 'nested-director-clip', start: 1, duration: 3,
+      projectFileId: 'nested-file', assetMimeType: 'video/mp4', mediaKind: 'video',
+    }],
+  }];
+  value.timeline.videoTracks = [{
+    id: 'uploaded-row', clips: [{
+      id: 'uploaded-after-director', start: 4, duration: 2,
+      projectFileId: 'uploaded-file', assetMimeType: 'video/mp4', mediaKind: 'video',
+    }],
+  }];
+  value.timeline.transitions = {
+    'nested-director-clip:uploaded-after-director': { effect: 'crossfade', duration: 0.5 },
+    'director-parent:nested-director-clip': { effect: 'wipe', duration: 0.2 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [
+    {
+      key: 'director-parent:nested-director-clip', effect: 'wipe', durationSeconds: 0.2,
+      scope: 'unresolved', boundarySeconds: null,
+    },
+    {
+      key: 'nested-director-clip:uploaded-after-director', effect: 'crossfade', durationSeconds: 0.5,
+      scope: 'video', boundarySeconds: 4, fromId: 'nested-director-clip', toId: 'uploaded-after-director',
+    },
+  ]);
+});
+
 test('uses the Editor duration tie-breaker when resolving same-start visual transitions', () => {
   const value = input();
   value.timeline.videoTracks = [{
