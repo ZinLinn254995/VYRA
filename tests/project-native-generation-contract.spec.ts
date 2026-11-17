@@ -150,6 +150,16 @@ test('Project output transfer refuses to overwrite a colliding canonical Project
 });
 
 
+
+test('interrupted Project transfer recovery matches indexed file metadata to the output record', () => {
+  const transfer = read('supabase/functions/transfer-runway-media-output/index.ts');
+  assert.ok(transfer.includes("outputRecord.storage_path !== existingPath"));
+  assert.ok(transfer.includes("!/^[a-f0-9]{64}$/.test(outputRecord.sha256)"));
+  assert.ok(transfer.includes('indexed.metadata?.sha256 !== outputRecord.sha256'));
+  assert.ok(transfer.includes('indexed.mime_type !== outputRecord.mime_type'));
+  assert.ok(transfer.includes('Number(indexed.size_bytes) !== Number(outputRecord.size_bytes)'));
+});
+
 test('Runway preflight failures are recorded as rejected before any provider request', () => {
   const submit = read('supabase/functions/submit-runway-media-job/index.ts');
   const payloadFailureIndex = submit.indexOf("p_failure_code: 'claimed_payload_invalid'");
