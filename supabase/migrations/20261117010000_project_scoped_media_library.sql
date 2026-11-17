@@ -1,10 +1,10 @@
 -- Add explicit Storyboard project scope to the generic Media Library.
 -- Existing personal and Universe-backed rows remain untouched (project_id stays NULL).
 alter table public.media_library_folders
-  add column if not exists project_id uuid references public.vyral_storyboards(id) on delete cascade;
+  add column if not exists project_id uuid references public.vyral_storyboards(id) on delete restrict;
 
 alter table public.media_library_items
-  add column if not exists project_id uuid references public.vyral_storyboards(id) on delete cascade;
+  add column if not exists project_id uuid references public.vyral_storyboards(id) on delete restrict;
 
 create index if not exists media_library_folders_owner_project_parent_idx
   on public.media_library_folders(user_id, project_id, parent_id, name);
