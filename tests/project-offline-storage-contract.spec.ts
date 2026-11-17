@@ -370,3 +370,20 @@ test('Cloud restore atomically claims a Project File ID before writing replica b
   assert.ok(install.includes("existing?.localState === 'copying'"), 'Cloud restore must not race an active local import or restore');
   assert.ok(!install.includes('await storeValue(FILE_STORE, base)'));
 });
+
+
+test('Cloud tombstone cleanup retains deletion ownership until bytes are removed and finalizes metadata atomically', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('export async function completeProjectOfflineFileDeletion');
+  const end = storage.indexOf('export async function removeProjectOfflineFile', start);
+  const deletion = storage.slice(start, end);
+  const bytes = deletion.indexOf('await directory.removeEntry(record.storageKey)');
+  const finalize = deletion.indexOf("db.transaction([FILE_STORE, SYNC_STORE], 'readwrite')");
+  assert.ok(deletion.includes('if (!record?.deletedAt) return'));
+  assert.ok(bytes >= 0 && finalize > bytes, 'the tombstone must remain while local bytes are cleaned');
+  assert.ok(deletion.includes('current.storageKey !== record.storageKey'));
+  assert.ok(deletion.includes('current.replicaRevision !== record.replicaRevision'));
+  assert.ok(deletion.includes('current.updatedAt !== record.updatedAt'));
+  assert.ok(deletion.includes("syncStore.delete(kind + ':' + projectFileId)"));
+  assert.ok(!deletion.includes('await deleteValue(FILE_STORE, projectFileId)'));
+});
