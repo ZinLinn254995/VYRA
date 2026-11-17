@@ -158,7 +158,7 @@ export const formatStoryboardDetail = (item: GlobalChatStoryboardRecord): string
 };
 
 
-export type GlobalChatNavigationTarget = 'workspace' | 'my-vyrals' | 'my-media-library';
+export type GlobalChatNavigationTarget = 'workspace' | 'my-projects' | 'my-media-library';
 
 export const extractGlobalChatNavigationTarget = (input: string): GlobalChatNavigationTarget | null => {
   const value = input.trim().toLocaleLowerCase().replace(/[.!?။]+$/g, '').trim();
