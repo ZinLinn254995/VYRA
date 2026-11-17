@@ -1,7 +1,7 @@
 # Creative Project Platform — Implementation Plan
 
 **Status:** Current direction, supersedes older Vyral/DNA-first implementation plans where they conflict.
-**Branch:** `feature/my-storyboard` only. Never merge to `main` without explicit approval.
+**Branch:** `feature/my-storyboard` is the active cleanup branch. Merge to `main` only after the user-authorized cleanup is complete, the branch is reconciled with current `main`, and required checks pass.
 
 ## Product surface
 
@@ -102,7 +102,7 @@ Important deletion finding: the current personal-library delete path calls `dele
 
 Important upload finding: generic personal uploads currently use owner-prefixed `media-library/` and `media-library-thumbnails/` object paths. Project uploads may use the same private owner namespace, but the database index must carry `project_id`; cleanup and authorization must continue to validate the owner prefix and must not infer project ownership from an untrusted Storage path.
 
-The runtime switch remains intentionally blocked until all of the above paths are implemented and tested together. Keep the current legacy Storyboard Universe behavior in place until then; do not expose a half-migrated Storage page with broken upload or destructive actions.
+The runtime switch remains intentionally blocked until all of the above paths are implemented and tested together. Do not expose Storage until every operation is verified end-to-end; retain existing safe fallback behavior where required.
 
 ## Progress update — 2026-11-17 (continued)
 
@@ -128,3 +128,14 @@ The runtime switch remains intentionally blocked until all of the above paths ar
 
 - Project-scoped AI Chat now skips the global owned-Vyral lookup, so ordinary project conversations do not depend on a selected Universe.
 - Important remaining dependency: Runway project media generation and recovery still target a Vyral/Universe ID. Generic project Storage is wired for user-managed files, but generated media handoff into project Storage is not yet migrated; do not claim full project-native AI generation until the generation-job schema, provider workflow, recovery, and asset ingestion are moved to project scope.
+
+
+## Progress update — 2026-11-17 (Project terminology cleanup)
+
+- Renamed `StoryboardUniverseTab.tsx` to `ProjectStorageTab.tsx`; the component now accepts `projectId` and no longer exposes the obsolete Universe callback or Storyboard title prop.
+- Updated Workspace to use the `storage` view key and the Project Storage component; removed the Universe state handoff and removed the Universe ID from AI Chat and Master Timeline props.
+- Renamed Workspace routing/request props from `*UniverseRequest` to `*ProjectRequest` and changed the shared AI context type to remove the obsolete `storyboardUniverse` payload.
+- Updated the AI Chat UI contract test to match Project Storage and nullable Vyral context.
+- This is a terminology and UI wiring cleanup only. The generation lifecycle still has a `targetVyralId` contract, legacy Vyral tables/functions and AI capabilities remain, and Storage runtime/migration/security checks are not yet verified.
+- The feature branch is currently divergent from `main` (compare reported 1841 commits ahead and 38 behind at the last inspection). Do not merge until the branch is reconciled and CI is green.
+- Verification: GitHub source inspection only; no test/build/browser run is available for these commits yet.
