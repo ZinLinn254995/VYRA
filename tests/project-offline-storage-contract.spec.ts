@@ -128,3 +128,11 @@ test('Editor media imports create Project File IDs locally first', () => {
   assert.ok(editor.includes('resolveProjectFilePlaybackUrl'));
   assert.ok(!editor.includes('uploadMediaLibraryFiles('));
 });
+
+
+test('device recovery paginates the complete account manifest', () => {
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(sync.includes('.range(offset, offset + pageSize - 1)'));
+  assert.ok(sync.includes('if (rows.length < pageSize) break'));
+  assert.ok(sync.includes('if (projects.length < pageSize) break'));
+});
