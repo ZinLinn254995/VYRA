@@ -173,6 +173,35 @@ async function claimProjectFileRestore(
   });
 }
 
+async function markProjectFileRestoreFailedIfOwned(
+  expected: ProjectOfflineFileRecord,
+  failed: ProjectOfflineFileRecord,
+): Promise<boolean> {
+  const db = await openDatabase();
+  const transaction = db.transaction(FILE_STORE, 'readwrite');
+  const store = transaction.objectStore(FILE_STORE);
+  const request = store.get(expected.id);
+  let claimed = false;
+  request.onsuccess = () => {
+    const current = request.result as ProjectOfflineFileRecord | undefined;
+    if (!current || current.projectId !== expected.projectId ||
+      current.replicaRevision !== expected.replicaRevision ||
+      current.updatedAt !== expected.updatedAt || current.deletedAt ||
+      current.localState !== 'copying') {
+      transaction.abort();
+      return;
+    }
+    store.put(failed);
+    claimed = true;
+  };
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not record the failed Cloud restore.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('The Project file changed before restore failure could be recorded.'));
+  });
+  return claimed;
+}
+
 async function storeValuesAtomically(
   entries: Array<{ storeName: string; value: unknown }>,
   deletions: Array<{ storeName: string; key: IDBValidKey }> = [],
@@ -512,22 +541,30 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     // A newer import, restore, or delete owns this logical file now. Never let
     // an older restore overwrite its state or clean up its binary.
     if (latest?.replicaRevision === base.replicaRevision && latest.updatedAt === base.updatedAt && !latest.deletedAt) {
-      try {
-        if (storageBackend === 'opfs') {
-          const cleanupDirectory = await getOpfsDirectory();
-          if (cleanupDirectory) {
-            try { await cleanupDirectory.removeEntry(storageKey); } catch (cleanupError) {
-              if (!(cleanupError && typeof cleanupError === 'object' && 'name' in cleanupError && cleanupError.name === 'NotFoundError')) throw cleanupError;
+      const failed: ProjectOfflineFileRecord = {
+        ...base,
+        storageBackend,
+        localState: 'failed',
+        updatedAt: new Date().toISOString(),
+      };
+      let ownsFailure = false;
+      try { ownsFailure = await markProjectFileRestoreFailedIfOwned(base, failed); } catch { /* preserve original error */ }
+      if (ownsFailure) {
+        try {
+          if (storageBackend === 'opfs') {
+            const cleanupDirectory = await getOpfsDirectory();
+            if (cleanupDirectory) {
+              try { await cleanupDirectory.removeEntry(storageKey); } catch (cleanupError) {
+                if (!(cleanupError && typeof cleanupError === 'object' && 'name' in cleanupError && cleanupError.name === 'NotFoundError')) throw cleanupError;
+              }
             }
+          } else {
+            await deleteValue(BLOB_STORE, storageKey);
           }
-        } else {
-          await deleteValue(BLOB_STORE, storageKey);
+        } catch {
+          // Failed metadata remains available for later recovery/cleanup.
         }
-      } catch {
-        // Keep failed metadata so a later recovery pass can identify this replica.
       }
-      const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
-      try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
     }
     throw error instanceof Error ? error : new Error('Could not restore the Cloud file into Offline Storage.');
   }
