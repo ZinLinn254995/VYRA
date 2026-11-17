@@ -184,6 +184,24 @@ test('resolves transitions between Director scene media and uploaded visual clip
   }]);
 });
 
+test('uses the Editor duration tie-breaker when resolving same-start visual transitions', () => {
+  const value = input();
+  value.timeline.videoTracks = [{
+    id: 'same-start-row', clips: [
+      { id: 'a-long', start: 0, duration: 4, projectFileId: 'long-file', assetMimeType: 'video/mp4' },
+      { id: 'z-short', start: 0, duration: 2, projectFileId: 'short-file', assetMimeType: 'video/mp4' },
+    ],
+  }];
+  value.timeline.transitions = {
+    'z-short:a-long': { effect: 'wipe', duration: 0.3 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'z-short:a-long', effect: 'wipe', durationSeconds: 0.3,
+    scope: 'video', boundarySeconds: 2, fromId: 'z-short', toId: 'a-long',
+  }]);
+});
+
 test('preserves transition metadata but marks stale keys unresolved', () => {
   const value = input();
   value.timeline.transitions = {
