@@ -183,6 +183,17 @@ export async function recoverRunwayProjectFiles(db: Db, projectId: string, jobId
     .select('id,status,provider_output_count,target_project_id')
     .eq('id', jobId).eq('user_id', auth.user.id).eq('target_project_id', projectId).maybeSingle();
   if (jobError || !job) throw jobError ?? new Error('This generation job does not belong to the selected Project.');
+  if (job.status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+  if (job.status === 'submitted' || job.status === 'processing') {
+    const polled = record(await invoke(db, 'poll-runway-media-job', { jobId }, signal), 'The Project job status response is invalid.');
+    if (polled.throttled === true) return { status: 'submitted_pending' as const, jobId };
+    const polledJob = record(polled.job, 'The Project job status response has no job.');
+    if (polledJob.status === 'unknown') return { status: 'reconciliation_required' as const, jobId };
+    if (polledJob.status === 'failed' || polledJob.status === 'cancelled') return { status: String(polledJob.status), jobId };
+    if (polledJob.status !== 'succeeded') return { status: 'submitted_pending' as const, jobId };
+    job.status = 'succeeded';
+    job.provider_output_count = polledJob.outputCount;
+  }
   if (job.status !== 'succeeded' || !Number.isInteger(Number(job.provider_output_count)) ||
       Number(job.provider_output_count) < 1 || Number(job.provider_output_count) > 16) {
     throw new Error('Only a successful Project generation job with saved outputs can be recovered.');
