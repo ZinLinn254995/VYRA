@@ -7,8 +7,7 @@ import { Button } from '../ui/Button';
 import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
-import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
-import { evaluateSceneStateProposal } from '../../services/universeSceneStateRuntime';
+import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
@@ -52,7 +51,6 @@ type AIChatPageProps = {
   onShotSequenceReady?: (sequence: RunwayProjectShotSequenceReady) => void;
   onShotRepairHistory?: (entry: { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number }) => void;
   workspaceContext?: WorkspaceAiContext | null;
-  onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void;
   storyboardId?: string;
   activeVyralId?: string | null;
   embedded?: boolean;
@@ -213,7 +211,7 @@ const getSceneVisualBaselineRevision = async (
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, onShotSequenceReady, onShotRepairHistory, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, onShotSequenceReady, onShotRepairHistory, workspaceContext, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
   const workspaceContextRef = useRef(workspaceContext);
   workspaceContextRef.current = workspaceContext;
   const [draft, setDraft] = useState('');
@@ -1345,75 +1343,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (activeRequestControllerRef.current !== requestController) return;
       let assistantResponseContent = result.status === 'error' && streamedText
         ? streamedText + '\n\n' + result.content : result.content;
-      if (result.status === 'success' && workspaceContext?.page === 'scene-editor'
-          && workspaceContext.activeSceneId && workspaceContext.continuityRuntime
-          && workspaceContext.continuityRuntime.ledger && onSceneStateProposal) {
-        const runtimeContext = workspaceContext.continuityRuntime;
-        const evaluateResponse = (response: string, attempt = 0) => evaluateSceneStateProposal({
-          response,
-          expectedSceneId: workspaceContext.activeSceneId!,
-          ledger: runtimeContext.ledger,
-          scenes: runtimeContext.sceneIds.map((sceneId) => ({ id: sceneId })),
-          ...(runtimeContext.initialEntryState ? { initialEntryState: runtimeContext.initialEntryState } : {}),
-          attempt,
-        });
-        let proposalResponse = result.content;
-        let evaluated = evaluateResponse(proposalResponse);
-
-        // Give the model at most two deterministic repair attempts. Each retry
-        // receives only evaluator findings; no proposed state is promoted to canon.
-        for (let repairAttempt = 0; evaluated.ok && evaluated.runtime.retry.allowed && repairAttempt < 2; repairAttempt += 1) {
-          const repairDetails = evaluated.runtime.repairInstructions
-            .map((item) => '- ' + item.path + ': ' + item.instruction)
-            .join('\n');
-          if (!repairDetails) break;
-          const repairResult = await aiService.generateResponse({
-            messages: [
-              ...nextMessages.map(({ role, content }) => ({ role, content })),
-              { role: 'assistant', content: proposalResponse },
-              { role: 'user', content: [
-                'Continuity evaluator found deterministic issues in the Scene-state proposal. Repair the Scene narrative and its final <vyra-scene-state> JSON block.',
-                'Keep all unrelated narrative and state unchanged. Do not invent events, facts, or creator approvals. Do not claim canon has changed.',
-                'Apply only these evaluator corrections:',
-                repairDetails,
-                'Return the complete corrected Scene narrative followed by exactly one valid structured Scene-state block, with evidence excerpts copied exactly from the corrected narrative. No text may follow the block.',
-              ].join('\n') },
-            ],
-            conversationId: chatSessionId,
-            ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
-            ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
-            ...(accessToken ? { accessToken } : {}),
-            signal: requestController.signal,
-            idempotencyKey: 'scene-continuity-repair-' + makeId(),
-          });
-          assertRequestCurrent();
-          if (repairResult.status !== 'success' || !repairResult.content) break;
-          proposalResponse = repairResult.content;
-          evaluated = evaluateResponse(proposalResponse, repairAttempt + 1);
-        }
-
-        if (evaluated.ok) {
-          onSceneStateProposal({
-            id: makeId(),
-            storyboardId: runtimeContext.storyboardId,
-            sceneId: workspaceContext.activeSceneId,
-            ledger: evaluated.runtime.ledger,
-            evaluatedAgainstLedger: runtimeContext.ledger,
-            validationStatus: evaluated.runtime.evaluation.status,
-            violations: evaluated.runtime.evaluation.violations.map(({ path, kind, reason }) => ({ path, kind, reason })),
-            capturedAt: new Date().toISOString(),
-          });
-          const proposalStart = proposalResponse.indexOf('<vyra-scene-state>');
-          assistantResponseContent = (proposalStart >= 0 ? proposalResponse.slice(0, proposalStart).trim() : proposalResponse)
-            + (evaluated.runtime.evaluation.status === 'consistent'
-              ? '\n\nScene continuity checks passed. The proposal is in Workspace for creator approval.'
-              : '\n\nAutomatic repair reached its limit. The remaining continuity findings are in Workspace for creator review; no canon was changed.');
-        } else if (proposalResponse.includes('<vyra-scene-state>') || result.content.includes('<vyra-scene-state>')) {
-          const proposalStart = proposalResponse.indexOf('<vyra-scene-state>');
-          assistantResponseContent = (proposalStart >= 0 ? proposalResponse.slice(0, proposalStart).trim() : proposalResponse)
-            + '\n\nScene continuity could not be evaluated: ' + evaluated.reason + ' No canon was changed.';
-        }
-      }
       const completedMessage: ChatMessage = {
         id: streamingAssistantId ?? makeId(),
         role: 'assistant',
