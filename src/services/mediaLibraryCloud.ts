@@ -519,11 +519,13 @@ export async function moveMediaLibraryFolder(folderId: string, parentId: string 
   mediaLibraryFolderCache.delete(folderCacheKey(userId, universeId, projectId));
 }
 
-export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null, universeId?: string | null): Promise<void> {
+export async function moveMediaLibraryItems(itemIds: string[], folderId: string | null, universeId?: string | null, projectId?: string | null): Promise<void> {
   if (!itemIds.length) return;
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   if (universeId) {
     const { data: selected, error: selectedError } = await applyUniverseScope(db.from('media_library_items').select('id,source_asset_id')
       .in('id', itemIds).eq('user_id', userId), universeId);
@@ -535,15 +537,17 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
       .in('id', assetIds).eq('vyral_id', universeId).eq('user_id', userId);
     if (assetMoveError) throw new Error('Could not move the canonical Universe Assets: ' + assetMoveError.message);
   }
-  const { error } = await applyUniverseScope(db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
-    .in('id', itemIds).eq('user_id', userId), universeId);
+  const { error } = await applyMediaLibraryScope(db.from('media_library_items').update({ folder_id: folderId, updated_at: new Date().toISOString() })
+    .in('id', itemIds).eq('user_id', userId), universeId, projectId);
   if (error) throw new Error('Could not move selected files: ' + error.message);
 }
 
-export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null): Promise<void> {
+export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   const cleanName = SAFE_NAME(fileName);
   if (!cleanName) throw new Error('Enter a file name.');
   if (universeId) {
@@ -554,15 +558,17 @@ export async function renameMediaLibraryItem(itemId: string, fileName: string, u
       .eq('id', row.source_asset_id).eq('vyral_id', universeId).eq('user_id', userId);
     if (assetError) throw new Error('Could not rename the canonical Universe Asset: ' + assetError.message);
   }
-  const { error } = await applyUniverseScope(db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
-    .eq('id', itemId).eq('user_id', userId), universeId);
+  const { error } = await applyMediaLibraryScope(db.from('media_library_items').update({ file_name: cleanName, updated_at: new Date().toISOString() })
+    .eq('id', itemId).eq('user_id', userId), universeId, projectId);
   if (error) throw new Error('Could not rename file: ' + error.message);
 }
 
-export async function deleteMediaLibraryItems(itemIds: string[], universeId?: string | null): Promise<{ deletedCount: number; cleanupPending: boolean; masterDnaStatus?: 'ready' | 'pending' | 'empty' }> {
+export async function deleteMediaLibraryItems(itemIds: string[], universeId?: string | null, projectId?: string | null): Promise<{ deletedCount: number; cleanupPending: boolean; masterDnaStatus?: 'ready' | 'pending' | 'empty' }> {
   if (!itemIds.length) return { deletedCount: 0, cleanupPending: false };
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  if (projectId) throw new Error('Project file deletion is temporarily disabled until its atomic Storage cleanup operation is installed.');
   if (universeId) {
     await assertStoryboardUniverse(db, userId, universeId);
     const { data: rows, error: rowsError } = await applyUniverseScope(db.from('media_library_items')
