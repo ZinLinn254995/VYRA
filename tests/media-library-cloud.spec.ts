@@ -508,3 +508,22 @@ test('Project Editor playback resolves real Project file IDs without synthesizin
   assert.ok(!resolver.includes('assetId') && !resolver.includes('assetVersionId'), 'Project file IDs must never be disguised as legacy Asset or Version IDs.');
   assert.ok(resolver.includes('matchesKind'), 'The requested media kind must match the stored MIME type.');
 });
+
+
+test('Master Timeline accepts Project file references for image, video and audio playback', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  const videoPlan = read('src/server/masterTimelineVideoPlayback.ts');
+  const audioPlan = read('src/server/masterTimelineAudioPlayback.ts');
+  const videoEngine = read('src/server/masterTimelineVideoPlaybackEngine.ts');
+  const audioEngine = read('src/server/masterTimelineAudioPlaybackEngine.ts');
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  assert.ok(editor.includes('projectFileId?: string'), 'Timeline clips must store a first-class Project file reference.');
+  assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(activeImageClip.projectFileId'), 'Image preview must resolve Project files directly.');
+  assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(clip.projectFileId, projectId || \'\', \'audio\')'), 'Audio preview must resolve Project files directly.');
+  assert.ok(editor.includes('uploadMediaLibraryFiles('), 'New Editor uploads must be stored in Project Storage.');
+  assert.ok(videoPlan.includes('projectFileId?: string') && videoPlan.includes('projectFileId: clip.projectFileId'), 'Video scheduling must preserve Project file identity.');
+  assert.ok(audioPlan.includes('projectFileId?: string') && audioPlan.includes('projectFileId: clip.projectFileId'), 'Audio scheduling must preserve Project file identity.');
+  assert.ok(videoEngine.includes('resolveProjectFileUrl'), 'Video playback must resolve Project file sources without Asset IDs.');
+  assert.ok(audioEngine.includes('resolveProjectFileUrl'), 'Audio playback must resolve Project file sources without Asset IDs.');
+  assert.ok(workspace.includes('projectId={activeStoryboard.id}'), 'The active Project identity must be passed into the Editor.');
+});
