@@ -191,3 +191,13 @@ This document is the source of truth for the Local-first Project Storage rebuild
 ## 14. Project-native generation contract
 
 The detailed server/client contract, output lifecycle, legacy compatibility boundary, and rollout gates are defined in [PROJECT_NATIVE_GENERATION.md](./PROJECT_NATIVE_GENERATION.md). New Project generation must create canonical Project Files directly; it must not fabricate or require Vyral Asset IDs. The Project-native generation path remains disabled until the client, reservation Edge Function, transfer worker, completion worker, and recovery path are all switched and verified together.
+
+
+## Editor → Project Storage reuse (Nov 17, 2026)
+
+- The Editor can browse the current Project's canonical `media_library_items` rows together with the device's Offline Storage records.
+- Selecting an existing Video, Image, or Audio reuses its existing `projectFileId`; it never creates a second logical file or a Vyral Asset identity.
+- If the selected file is already local, Editor uses the Offline Storage blob immediately. If it is Cloud-only, Editor downloads it on demand, installs the same Project File ID into Offline Storage, then adds that ID to the timeline.
+- Existing direct device-file import remains local-first and creates one canonical Project File before background Cloud sync.
+- Historical Asset-backed timeline records remain readable during the migration window; they are not rewritten or deleted by this picker.
+- Remaining verification: compile/typecheck, runtime selection and playback for each media kind, multi-track placement, trim/edit/render/export, and offline playback after app reload.
