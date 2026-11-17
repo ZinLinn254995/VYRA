@@ -633,3 +633,39 @@ A read-only Development catalog preflight was performed against the nine ordered
 - Do not run hosted `db push`, migration repair, manual DDL, or selective replay. Continue with the local migration-chain verification gate before designing or applying the Project Render Job persistence migration.
 
 No Development or Production database schema, data, migration ledger, Vault secret, or deployment was changed during this preflight.
+
+
+## 22. Project/Runway SQL cross-migration invariant review — November 18, 2026
+
+A second static review traced the destination and output lifecycle functions across the full ordered migration set. This remains source-only; no SQL was executed against Development or Production.
+
+### Confirmed lifecycle ordering
+
+- 20261116100000_runway_media_submission_claim.sql adds the provider submission claim boundary before polling is introduced. The claim marks the provider outcome unknown before the network request, preventing an automatic second billable submission after an ambiguous timeout.
+- 20261116110000_runway_media_task_polling.sql creates the private output-reference table and polling snapshot functions. Its RLS and grants keep temporary provider output URLs service-role-only.
+- 20261116130000_runway_project_asset_destination.sql introduces the legacy Project Assets Vyral destination and its owner-checked reservation wrapper.
+- 20261116140000_runway_output_ingestion_state.sql adds retryable transfer state and the original Asset-ingestion RPC.
+- 20261117010000_project_scoped_media_library.sql adds Project scope to generic Media Library records and installs owner/scope/parent-cycle checks.
+- 20261117020000_project_scoped_media_library_cleanup.sql deletes only standalone Project files and queues their private Storage objects for cleanup; canonical Asset-backed rows are rejected.
+- 20261117030000_project_native_generation_jobs.sql adds the canonical Storyboard Project destination and owner-scoped foreign key.
+- 20261117040000_project_media_generation_output.sql adds Project File identity and replaces the transfer RPC with the Project-native output handoff while retaining the separate legacy Asset-ingestion RPC.
+
+### Cross-destination invariant gap found
+
+The migration sequence currently has two destination columns on generation_jobs: target_vyral_id for the earlier Project Assets Vyral path, and target_project_id for the newer canonical Project path.
+
+The newer create_runway_media_job_for_project wrapper rejects an idempotency key already bound to a legacy Vyral destination. However, the earlier create_runway_media_job_for_project_asset wrapper is not replaced after target_project_id is introduced and does not check that column. As written, an idempotency replay through the older wrapper could attempt to attach a Vyral destination to a job already bound to a Project. The newer wrapper prevents the reverse direction, but the database does not yet enforce mutual exclusion between the two destination columns.
+
+**Required source correction before migration-chain approval:** add an idempotent database CHECK constraint to generation_jobs requiring target_vyral_id IS NULL OR target_project_id IS NULL (both NULL remains valid for historical jobs). Confirm there are no conflicting rows in the disposable local chain, then validate the constraint. This central database invariant is safer than relying only on the two wrapper implementations. Do not patch a hosted database or rewrite an already-applied migration.
+
+### Remaining static-review boundaries
+
+- The output table is created before transfer-state columns and before Project File identity, matching the later function dependencies.
+- The final Project transfer RPC checks that the indexed Media Library item belongs to the same user and Project, has the expected Storage path/MIME/size, and carries the matching generation job/output metadata and SHA-256.
+- The temporary output URL remains a service-role-only reference; customer-facing download URLs are not persisted in the output table.
+- The Project Media Library folder/item triggers reject mixed Project/Universe scope and cross-owner or cross-scope parent/file references. Folder moves include a recursive descendant check to prevent cycles.
+- These conclusions are static source analysis only. Function execution, trigger behavior, lock/race behavior, and clean migration replay still require a disposable local Supabase reset plus SQL and application tests.
+
+### Gate decision
+
+The nine-file chain is **not yet approved for execution** because the mutual-exclusion invariant above needs a source correction and then a clean local reset test. Keep the hosted Development and Production schemas and migration ledgers unchanged. Do not merge, deploy, db push, repair migration history, or selectively replay migrations as part of this audit.
