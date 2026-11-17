@@ -19,10 +19,10 @@ function VyraApp() {
   const profileLabel = isGuestSession ? 'Temporary Guest Session' : user?.email ?? null;
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [universeEditorOpen, setUniverseEditorOpen] = useState(false);
-  const [createUniverseRequest, setCreateUniverseRequest] = useState(0);
-  const [openUniverseRequest, setOpenUniverseRequest] = useState<{ storyboardId: string; requestId: number } | null>(null);
-  const universeOpenRequestId = useRef(0);
+  const [projectWorkspaceOpen, setProjectWorkspaceOpen] = useState(false);
+  const [createProjectRequest, setCreateProjectRequest] = useState(0);
+  const [openProjectRequest, setOpenProjectRequest] = useState<{ storyboardId: string; requestId: number } | null>(null);
+  const projectOpenRequestId = useRef(0);
   const [activeSection, setActiveSection] = useState<MainSection>('workspace');
   const navigationKey = profileOpen && user ? 'profile' : activeSection;
   const previousNavigationKeyRef = useRef<string>('workspace');
@@ -187,11 +187,11 @@ function VyraApp() {
             </ErrorBoundary>
           </div>
         )}
-        <div hidden={!universeEditorOpen} aria-hidden={!universeEditorOpen} style={!universeEditorOpen ? { display: "none" } : undefined} className="min-h-0 flex-1 overflow-hidden">
+        <div hidden={!projectWorkspaceOpen} aria-hidden={!projectWorkspaceOpen} style={!projectWorkspaceOpen ? { display: "none" } : undefined} className="min-h-0 flex-1 overflow-hidden">
           <ErrorBoundary>
             <WorkspacePage
               storageKey={workspaceStorageKey}
-              isAuthenticated={hasPermanentAccount} isActive={universeEditorOpen} createUniverseRequest={createUniverseRequest} openUniverseRequest={openUniverseRequest} onEditorExit={() => setUniverseEditorOpen(false)} onLoginRequired={() => requestAuth('login')}
+              isAuthenticated={hasPermanentAccount} isActive={projectWorkspaceOpen} createProjectRequest={createProjectRequest} openProjectRequest={openProjectRequest} onEditorExit={() => setProjectWorkspaceOpen(false)} onLoginRequired={() => requestAuth('login')}
               onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } setWorkspaceAiContext({ page, pageLabel: page === 'my-vyrals' ? 'Projects / Assets' : 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage(page); setProfileOpen(true); }}
               onAiContextChange={setWorkspaceAiContext}
               pendingSceneStateProposal={pendingSceneStateProposal}
@@ -202,7 +202,7 @@ function VyraApp() {
             />
           </ErrorBoundary>
         </div>
-        {!profileOpen && !universeEditorOpen && <MyProjectsHome onCreateProject={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setUniverseEditorOpen(true); setCreateUniverseRequest((current) => current + 1); }} onOpenProject={(storyboardId) => { setOpenUniverseRequest({ storyboardId, requestId: ++universeOpenRequestId.current }); setUniverseEditorOpen(true); }} />}
+        {!profileOpen && !projectWorkspaceOpen && <MyProjectsHome onCreateProject={() => { if (!hasPermanentAccount) { requestAuth("login"); return; } setProjectWorkspaceOpen(true); setCreateProjectRequest((current) => current + 1); }} onOpenProject={(storyboardId) => { setOpenProjectRequest({ storyboardId, requestId: ++projectOpenRequestId.current }); setProjectWorkspaceOpen(true); }} />}
       </div>
       <AuthDialog open={authDialogOpen} initialMode={authMode} onClose={() => setAuthDialogOpen(false)} />
     </div>
