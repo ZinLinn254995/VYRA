@@ -741,3 +741,17 @@ The current Render Job implementation is a validated, immutable domain model, no
 - Final video composition/encoding remains a separate missing runtime capability. The current composition planner describes a deterministic render plan; it does not encode or mux a video.
 
 **Next implementation gate:** validate the existing migration chain in a disposable local Supabase environment; then design the dedicated Render Job persistence schema/RPC and worker orchestration against the verified database contract. No hosted database, migration ledger, deployment, or billing/runtime setting was changed.
+
+
+## 25. Project Render input resolution boundary — November 18, 2026
+
+`projectRenderInputResolver.ts` now connects the deterministic composition plan to the immutable byte resolver without introducing UI or persistence side effects.
+
+- It derives the required media kind from each visual/audio layer, deduplicates the plan's pinned source inventory, and rejects missing, unused, duplicate, cross-kind, or conflicting-identity source declarations.
+- It resolves at most three sources concurrently by default (configurable from one to six) to avoid unbounded browser memory and storage pressure for large Projects.
+- Every resolver result is checked again for Project ID, stable source key, non-empty bytes, media-kind MIME, and pinned MIME essence before it is returned to a future renderer.
+- MIME essence normalization intentionally ignores codec parameters while preserving the declared media type.
+- Focused contract tests cover media-kind routing, Project boundaries, source inventory integrity, concurrency bounds, and resolver-result identity/MIME checks.
+- This is an input-preparation boundary only. It does not create a Render Job, persist a job, schedule a worker, encode/mux media, upload output, or expose an export action in the UI. The editor is not yet wired to this service.
+
+**Next implementation gate:** define and test a renderer adapter that consumes the resolved Blob inventory and the pinned composition plan, with explicit support/limitations for the browser runtime. Durable job persistence and worker orchestration remain gated on clean disposable local Supabase migration-chain validation. No hosted database, migration ledger, deployment, or billing/runtime setting was changed.
