@@ -1667,18 +1667,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
             };
           }
           const legacyClip = clipById.get(instance.id);
-          if (!legacyClip || !instance.assetId || !instance.assetVersionId || !instance.assetMimeType) return instance;
+          const projectFileId = instance.projectFileId || legacyClip?.projectFileId;
+          const assetId = instance.assetId || legacyClip?.assetId;
+          const assetVersionId = instance.assetVersionId || legacyClip?.assetVersionId;
+          const assetMimeType = instance.assetMimeType || legacyClip?.assetMimeType;
+          if (!legacyClip || (!projectFileId && (!assetId || !assetVersionId)) || !assetMimeType) return instance;
           return {
             ...instance,
             videoClips: [{
               ...legacyClip,
               start: legacyClip.start - sceneStart,
-              sourceIn: instance.videoSourceIn ?? 0,
-              sourceOut: instance.videoSourceOut ?? legacyClip.duration,
-              assetId: instance.assetId,
-              assetVersionId: instance.assetVersionId,
-              assetMimeType: instance.assetMimeType,
-              mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
+              sourceIn: instance.videoSourceIn ?? legacyClip.sourceIn ?? 0,
+              sourceOut: instance.videoSourceOut ?? legacyClip.sourceOut ?? legacyClip.duration,
+              ...(projectFileId ? { projectFileId } : { assetId, assetVersionId }),
+              assetMimeType,
+              mediaKind: assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
             }],
           };
         });
@@ -2350,18 +2353,21 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         };
       }
       const legacyClip = clipById.get(instance.id);
-      if (!legacyClip || !instance.assetId || !instance.assetVersionId || !instance.assetMimeType) return instance;
+      const projectFileId = instance.projectFileId || legacyClip?.projectFileId;
+      const assetId = instance.assetId || legacyClip?.assetId;
+      const assetVersionId = instance.assetVersionId || legacyClip?.assetVersionId;
+      const assetMimeType = instance.assetMimeType || legacyClip?.assetMimeType;
+      if (!legacyClip || (!projectFileId && (!assetId || !assetVersionId)) || !assetMimeType) return instance;
       return {
         ...instance,
         videoClips: [{
           ...legacyClip,
           start: legacyClip.start - sceneStart,
-          sourceIn: instance.videoSourceIn ?? 0,
-          sourceOut: instance.videoSourceOut ?? legacyClip.duration,
-          assetId: instance.assetId,
-          assetVersionId: instance.assetVersionId,
-          assetMimeType: instance.assetMimeType,
-          mediaKind: instance.assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
+          sourceIn: instance.videoSourceIn ?? legacyClip.sourceIn ?? 0,
+          sourceOut: instance.videoSourceOut ?? legacyClip.sourceOut ?? legacyClip.duration,
+          ...(projectFileId ? { projectFileId } : { assetId, assetVersionId }),
+          assetMimeType,
+          mediaKind: assetMimeType.toLowerCase().startsWith('image/') ? 'image' as const : 'video' as const,
         }],
       };
     });
