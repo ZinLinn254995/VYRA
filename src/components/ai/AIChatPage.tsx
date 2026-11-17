@@ -1276,8 +1276,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       // preferred; Cloud is a recovery source, and any downloaded copy is installed
       // under the same Project File ID before Vision receives it.
       if (storyboardId && supabase) {
-        const attachmentRefs = nextMessages.flatMap((message) => message.projectFiles ?? []);
-        const uniqueRefs = [...new Map(attachmentRefs.map((file) => [file.projectFileId, file])).values()];
+        const attachmentRefs = nextMessages.slice(-12).flatMap((message) => message.projectFiles ?? []);
+        const uniqueRefs = [...new Map(attachmentRefs.map((file) => [file.projectFileId, file])).values()].slice(-4);
         const currentVisionIds = new Set(visionImages.map((image) => image.assetId));
         const historicalText = new Map<string, string>();
         for (const attachment of uniqueRefs) {
@@ -1302,16 +1302,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             }
           }
           if (!blob) continue;
+          if (blob.size > 64 * 1024 * 1024) continue;
+          if (visionImages.length >= 8) break;
           if (attachment.mimeType.startsWith('image/') && !currentVisionIds.has(attachment.projectFileId)) {
             const preview = await createVisionImagePreview(blob);
             visionImages.push({ ...preview, assetId: attachment.projectFileId, assetName: attachment.name });
             currentVisionIds.add(attachment.projectFileId);
           } else if (attachment.mimeType.startsWith('video/') && !currentVisionIds.has(attachment.projectFileId)) {
-            const frames = await extractSelectedVideoFrames(blob, attachment.projectFileId, attachment.name, 4);
+            const frames = await extractSelectedVideoFrames(blob, attachment.projectFileId, attachment.name, Math.min(4, 8 - visionImages.length));
             visionImages.push(...frames);
             currentVisionIds.add(attachment.projectFileId);
           } else if ((attachment.mimeType.startsWith('text/') || /\\.(txt|md|csv|json|xml|ya?ml)$/i.test(attachment.name)) && blob.size <= 1024 * 1024) {
-            historicalText.set(attachment.projectFileId, await blob.text());
+            if ([...historicalText.values()].reduce((total, value) => total + value.length, 0) < 512 * 1024) {
+              historicalText.set(attachment.projectFileId, (await blob.text()).slice(0, 512 * 1024));
+            }
           }
         }
       }
