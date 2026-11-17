@@ -650,27 +650,7 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
     window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
     return { deletedCount: assetIds.length, cleanupPending: false, masterDnaStatus };
   }
-  const { data: personalRows, error: personalRowsError } = await applyMediaLibraryScope(db.from('media_library_items')
-    .select('id').eq('user_id', userId).in('id', itemIds), null, null);
-  if (personalRowsError || !personalRows || personalRows.length !== itemIds.length) throw new Error('One or more selected files are not in your personal Media Library.');
-  // The RPC atomically queues standalone originals/thumbnails and deletes the
-  // Library index rows. Vyral-backed canonical binaries are never queued.
-  const { data, error } = await db.rpc('delete_media_library_items_and_queue_storage_cleanup', {
-    p_item_ids: itemIds,
-  });
-  if (error) throw new Error('Could not safely delete the selected files: ' + error.message);
-
-  // Try immediately for a responsive experience; failed removals remain durable
-  // and receive bounded exponential retry delays on later Library visits.
-  try {
-    await processMediaLibraryStorageCleanup(8);
-  } catch {
-    // The index deletion and cleanup queue are already committed; keep the
-    // successful delete result and report the durable cleanup as pending.
-  }
-  const { count, error: queueError } = await db.from('media_library_storage_cleanup_jobs')
-    .select('id', { count: 'exact', head: true });
-  return { deletedCount: typeof data === 'number' ? data : 0, cleanupPending: Boolean(queueError) || (count ?? 0) > 0 };
+  throw new Error('A Project or legacy Universe scope is required for file deletion.');
 }
 
 async function createMediaThumbnail(file: File): Promise<Blob | null> {
