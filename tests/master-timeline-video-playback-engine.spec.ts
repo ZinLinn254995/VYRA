@@ -135,7 +135,9 @@ test('Master Timeline shares one AudioContext clock for Audio and Scene Video tr
   assert.match(editor, /videoHandle\?\.resume\(\)/);
   assert.match(editor, /contextStart = handle\?\.startTime \?\? \(context\.currentTime \+ 0\.05\)/);
   assert.match(editor, /createVyralVideoPlaybackUrl\(supabase, \{ assetId, versionId: assetVersionId \}\)/);
-  assert.match(editor, /ref=\{masterVideoPreviewRef\}/);
+  const workspace = readFileSync(resolve(process.cwd(), 'src/components/workspace/WorkspacePage.tsx'), 'utf8');
+  assert.match(workspace, /ref=\{masterTimelineVideoPreviewRef\}/);
+  assert.match(workspace, /videoPreviewRef=\{masterTimelineVideoPreviewRef\}/);
 });
 
 test('does not retry a browser-blocked autoplay request on every animation frame', async () => {
