@@ -428,6 +428,12 @@ A source-level audit reviewed the four Runway lifecycle migrations, the submissi
 
 This is a static source audit only. It does **not** prove provider behavior, SQL execution, concurrent-worker safety, Edge Function type correctness, or schema-cache compatibility. The complete ordered migration chain still requires a clean local Supabase reset and tests before any Development rollout. No database, secret, provider, or deployment configuration was changed.
 
+### Completed-output recovery integrity follow-up — November 18, 2026
+
+The Project output-transfer recovery path was tightened after reviewing the already-ingested fast path. It now requires the canonical output row to remain in `ingested` state and match the claimed Project File ID, then cross-checks the Media Library row against the immutable output record for owner, Project, null Universe/Asset identity, storage bucket/path, MIME type, byte size, generation job ID, output index, and SHA-256. A mismatch fails closed rather than returning a possibly unrelated Project File. A contract test covers these identity checks.
+
+The latest GitHub Actions CI run for this change completed successfully, including TypeScript, all contract-test steps, Supabase Edge Function type-check, and Production build. This is CI evidence for the source contracts only; it does not replace the blocked local migration reset, hosted schema validation, or concurrent storage/DB integration test.
+
 ### Persistence boundary
 
 A dedicated `project_render_jobs` table is required. Reusing `generation_jobs` is rejected: that table represents provider generation/credit reservation and has different lifecycle states, billing fields, and ownership semantics. A timeline render is a separate job, even when its output is ultimately ingested as a Project File.
