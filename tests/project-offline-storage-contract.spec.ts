@@ -463,3 +463,11 @@ test('Failed restore cleanup first atomically claims its exact copying revision'
   assert.ok(restore.includes('markProjectFileRestoreFailedIfOwned(base, failed)'));
   assert.ok(restore.includes('if (ownsFailure)'));
 });
+
+
+test('Offline eviction uses a stable per-Project-File Web Lock across tabs', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  assert.ok(storage.includes("locks.request('vyra-project-offline-file:' + projectFileId, operation)"));
+  assert.ok(storage.includes('return withProjectFileLock(projectFileId, () => performRemoveProjectOfflineFile(projectFileId))'));
+  assert.ok(storage.includes('current.replicaRevision !== record.replicaRevision'));
+});
