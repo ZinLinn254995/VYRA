@@ -134,6 +134,7 @@ export function connectVoiceChangerGraph(
   if (settings.robot > 0) {
     const depth = context.createGain();
     depth.gain.value = settings.robot * 0.42;
+    output.gain.value = 0;
     const carrier = context.createOscillator();
     carrier.type = 'square';
     carrier.frequency.value = 34 + settings.robot * 92;
