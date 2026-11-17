@@ -171,3 +171,55 @@ export async function generateRunwayProjectFiles(db: Db, request: {
   request.onProgress?.({ stage: 'ready', jobId, files });
   return { status: 'ready' as const, quote, jobId, files };
 }
+
+
+/** Recover a Project job that already succeeded at the provider. This never
+ * submits or polls a new provider task; it only reconciles saved output rows. */
+export async function recoverRunwayProjectFiles(db: Db, projectId: string, jobId: string, signal?: AbortSignal) {
+  if (!UUID.test(projectId) || !UUID.test(jobId)) throw new Error('A valid Project and generation job are required.');
+  const { data: auth, error: authError } = await db.auth.getUser();
+  if (authError || !auth.user?.id) throw new Error('Sign in before recovering Project media.');
+  const { data: job, error: jobError } = await db.from('generation_jobs')
+    .select('id,status,provider_output_count,target_project_id')
+    .eq('id', jobId).eq('user_id', auth.user.id).eq('target_project_id', projectId).maybeSingle();
+  if (jobError || !job) throw jobError ?? new Error('This generation job does not belong to the selected Project.');
+  if (job.status !== 'succeeded' || !Number.isInteger(Number(job.provider_output_count)) ||
+      Number(job.provider_output_count) < 1 || Number(job.provider_output_count) > 16) {
+    throw new Error('Only a successful Project generation job with saved outputs can be recovered.');
+  }
+  const files: ProjectGeneratedFile[] = [];
+  for (let outputIndex = 0; outputIndex < Number(job.provider_output_count); outputIndex++) {
+    if (signal?.aborted) throw new DOMException('Generation recovery cancelled.', 'AbortError');
+    const transferred = record(await invoke(db, 'transfer-runway-media-output', { jobId, outputIndex }, signal),
+      'The saved Project output could not be recovered.');
+    if (transferred.status !== 'stored' || transferred.targetProjectId !== projectId ||
+        !UUID.test(String(transferred.projectFileId ?? '')) || typeof transferred.storagePath !== 'string' ||
+        typeof transferred.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(transferred.sha256) ||
+        typeof transferred.mimeType !== 'string' || !Number.isSafeInteger(transferred.sizeBytes) ||
+        Number(transferred.sizeBytes) <= 0 || typeof transferred.fileName !== 'string') {
+      throw new Error('A saved generation output is not yet available as a verified Project File.');
+    }
+    const file: ProjectGeneratedFile = {
+      projectFileId: transferred.projectFileId, projectId, fileName: transferred.fileName,
+      mimeType: transferred.mimeType, sizeBytes: Number(transferred.sizeBytes),
+      sha256: transferred.sha256, storagePath: transferred.storagePath,
+    };
+    const { data: signed, error: signError } = await db.storage.from('vyral-assets').createSignedUrl(file.storagePath, 300);
+    if (!signed?.signedUrl || signError) throw new Error('The recovered Project File could not be opened.');
+    const response = await fetch(signed.signedUrl, { cache: 'no-store', redirect: 'error', signal });
+    if (!response.ok) throw new Error('The recovered Project File could not be downloaded.');
+    const blob = await response.blob();
+    if (blob.size !== file.sizeBytes) throw new Error('The recovered Project File size failed verification.');
+    await installProjectCloudFileToOfflineStorage({
+      projectId, projectFileId: file.projectFileId, fileName: file.fileName,
+      mimeType: file.mimeType, blob, expectedSha256: file.sha256,
+    });
+    const completed = record(await invoke(db, 'complete-runway-media-output', { jobId, outputIndex }, signal),
+      'The recovered Project output completion response is invalid.');
+    if (completed.status !== 'ingested' || completed.projectFileId !== file.projectFileId) {
+      throw new Error('The recovered Project File still needs completion reconciliation.');
+    }
+    files.push(file);
+  }
+  return { status: 'ready' as const, jobId, files };
+}
