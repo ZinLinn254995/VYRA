@@ -568,7 +568,25 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
   const db = getDb();
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
-  if (projectId) throw new Error('Project file deletion is temporarily disabled until its atomic Storage cleanup operation is installed.');
+  if (projectId) {
+    await assertStoryboardProject(db, userId, projectId);
+    const { data: projectRows, error: projectRowsError } = await applyProjectScope(db.from('media_library_items')
+      .select('id,source_asset_id').eq('user_id', userId).in('id', itemIds), projectId);
+    if (projectRowsError || !projectRows || projectRows.length !== itemIds.length
+      || projectRows.some((row: { source_asset_id: string | null }) => row.source_asset_id !== null)) {
+      throw new Error('Only standalone files belonging to this project can be deleted here.');
+    }
+    const { data, error } = await db.rpc('delete_project_media_library_items_and_queue_storage_cleanup', {
+      p_project_id: projectId,
+      p_item_ids: itemIds,
+    });
+    if (error) throw new Error('Could not safely delete the selected project files: ' + error.message);
+    try { await processMediaLibraryStorageCleanup(8); } catch { /* durable cleanup queue retries later */ }
+    const { count, error: queueError } = await db.from('media_library_storage_cleanup_jobs')
+      .select('id', { count: 'exact', head: true }).eq('user_id', userId);
+    window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
+    return { deletedCount: typeof data === 'number' ? data : 0, cleanupPending: Boolean(queueError) || (count ?? 0) > 0 };
+  }
   if (universeId) {
     await assertStoryboardUniverse(db, userId, universeId);
     const { data: rows, error: rowsError } = await applyUniverseScope(db.from('media_library_items')
