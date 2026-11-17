@@ -7,9 +7,9 @@ const workspace = readFileSync(new URL('../src/components/workspace/WorkspacePag
 const storageTab = readFileSync(new URL('../src/components/workspace/ProjectStorageTab.tsx', import.meta.url), 'utf8');
 const editor = readFileSync(new URL('../src/components/workspace/MasterTimelineEditor.tsx', import.meta.url), 'utf8');
 
-test('Project workspace exposes only AI Chat, Editor and Storage', () => {
+test('Project workspace exposes only Storage, Chat and Editor', () => {
   assert.match(workspace, /useState<'master' \| 'chat' \| 'storage'>\('chat'\)/);
-  assert.match(workspace, />AI Chat<\/button>/);
+  assert.match(workspace, />Chat<\/button>/);
   assert.match(workspace, />Editor<\/button>/);
   assert.match(workspace, />Storage<\/button>/);
   assert.doesNotMatch(workspace, /StoryboardUniverseTab|storyboardUniverse|My Universes/);
