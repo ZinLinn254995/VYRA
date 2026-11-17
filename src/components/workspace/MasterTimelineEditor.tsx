@@ -207,10 +207,10 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
   const resolveProjectFilePlaybackUrl = async (
     projectFileId: string,
     expectedKind: 'video' | 'image' | 'audio',
-  ): Promise<string> => {
+  ): Promise<{ signedUrl: string }> => {
     if (!projectId) throw new Error('A Project is required to open this media file.');
     const cachedUrl = projectFileObjectUrlsRef.current.get(projectFileId);
-    if (cachedUrl) return cachedUrl;
+    if (cachedUrl) return { signedUrl: cachedUrl };
     const localRecord = await getProjectOfflineFile(projectFileId);
     if (localRecord?.projectId === projectId && localRecord.localState === 'available') {
       const localBlob = await getProjectOfflineFileBlob(projectFileId);
@@ -222,11 +222,11 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         if (!matchesKind) throw new Error('The local Project file is not a valid ' + expectedKind + ' source.');
         const objectUrl = URL.createObjectURL(localBlob);
         projectFileObjectUrlsRef.current.set(projectFileId, objectUrl);
-        return objectUrl;
+        return { signedUrl: objectUrl };
       }
     }
     const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, expectedKind);
-    return source.signedUrl;
+    return { signedUrl: source.signedUrl };
   };
 
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
@@ -1002,7 +1002,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       Boolean(clip.projectFileId || (clip.assetId && clip.assetVersionId)));
   useEffect(() => {
     let cancelled = false;
-    if (!supabase || !activeImageClip || (!activeImageClip.projectFileId && (!activeImageClip.assetId || !activeImageClip.assetVersionId))) {
+    if (!activeImageClip || (!activeImageClip.projectFileId && (!activeImageClip.assetId || !activeImageClip.assetVersionId))) {
       setImagePreviewUrl(null);
       return;
     }
@@ -1019,6 +1019,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     void resolveLocalMediaUrl(imageAssetId, imageVersionId).then((localImageUrl) => {
       if (cancelled) return;
       if (localImageUrl) { setImagePreviewUrl(localImageUrl); return; }
+      if (!supabase) { setImagePreviewUrl(null); return; }
       void createVyralImagePlaybackUrl(supabase, { assetId: imageAssetId, versionId: imageVersionId })
         .then((result) => { if (!cancelled) setImagePreviewUrl(result.signedUrl); })
         .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
@@ -1065,12 +1066,15 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
 
   const launchMasterTimelinePlayback = async (requestedStart?: number) => {
     masterPlaybackSeekPendingRef.current = false;
-    if (!supabase) { setMasterPlaybackError('Private Vyral Asset Storage is not configured.'); return; }
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) { setMasterPlaybackError('This browser does not support multi-track Audio playback.'); return; }
     const timelineStart = Math.max(0, Math.min(totalDuration, requestedStart ?? ((scrollRef.current?.scrollLeft ?? 0) / pixelsPerSecondRef.current)));
     const audioPlan = buildMasterTimelineAudioPlaybackPlan({ audioTracks: value?.audioTracks || [] }, timelineStart);
     const videoPlan = buildMasterTimelineVideoPlaybackPlan(orderedScenes, value?.sceneInstances, timelineStart, value?.videoTracks || []);
+    const hasLegacyAssetRefs = [...(value?.audioTracks || []), ...(value?.videoTracks || [])]
+      .some((track) => track.clips.some((clip) => !clip.projectFileId && Boolean(clip.assetId && clip.assetVersionId)))
+      || (value?.sceneInstances || []).some((instance) => Boolean(instance.assetId && instance.assetVersionId));
+    if (!supabase && hasLegacyAssetRefs) { setMasterPlaybackError('Connect to Cloud to play legacy Asset clips. Project Files stored offline remain available.'); return; }
     if (!audioPlan.length && !videoPlan.length) {
       setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
       setMasterPlaybackState('idle');
@@ -1097,6 +1101,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           const localUrl = await resolveLocalMediaUrl(assetId, assetVersionId);
           if (localUrl) return localUrl;
+          if (!supabase) throw new Error('Cloud is required to open this legacy Audio Asset.');
           const result = await createVyralAudioPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           return result.signedUrl;
@@ -1128,6 +1133,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
             const localUrl = await resolveLocalMediaUrl(assetId, assetVersionId);
             if (localUrl) return localUrl;
+            if (!supabase) throw new Error('Cloud is required to open this legacy Video Asset.');
             const result = await createVyralVideoPlaybackUrl(supabase, { assetId, versionId: assetVersionId });
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
             return result.signedUrl;
@@ -1427,7 +1433,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       setAudioPreviewError('This clip has no verified Project media source.');
       return;
     }
-    if (!supabase) { setAudioPreviewError('Private Audio Storage is not configured.'); return; }
+    if (!supabase && !clip.projectFileId) { setAudioPreviewError('Cloud is required to open this legacy Audio Asset.'); return; }
     setAudioPreviewError('');
     if (audioPreviewClipKey === selectedAudioClipKey && audio.src) {
       if (audio.paused) {
@@ -1443,9 +1449,13 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
-      const playbackUrl = clip.projectFileId
-        ? (await resolveProjectFilePlaybackUrl(clip.projectFileId, 'audio')).signedUrl
-        : (await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId!, versionId: clip.assetVersionId! })).signedUrl;
+      let playbackUrl: string;
+      if (clip.projectFileId) {
+        playbackUrl = (await resolveProjectFilePlaybackUrl(clip.projectFileId, 'audio')).signedUrl;
+      } else {
+        if (!supabase) throw new Error('Cloud is required to open this legacy Audio Asset.');
+        playbackUrl = (await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId!, versionId: clip.assetVersionId! })).signedUrl;
+      }
       audio.src = playbackUrl;
       audio.load();
       setAudioPreviewClipKey(selectedAudioClipKey);
