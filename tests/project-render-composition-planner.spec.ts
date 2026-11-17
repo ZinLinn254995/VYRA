@@ -262,3 +262,26 @@ test('preserves transition metadata but marks stale keys unresolved', () => {
     scope: 'unresolved', boundarySeconds: null,
   }]);
 });
+
+test('non-visual, placeholder and unsupported clips do not interrupt visual transition adjacency', () => {
+  const value = input();
+  value.timeline.sceneInstances = [];
+  value.timeline.videoTracks = [{
+    id: 'mixed-row',
+    clips: [
+      { id: 'visual-before', start: 0, duration: 2, projectFileId: 'visual-before-file', assetMimeType: 'video/mp4' },
+      { id: 'audio-interloper', start: 2, duration: 5, projectFileId: 'audio-file', assetMimeType: 'audio/mpeg', mediaKind: 'audio' },
+      { id: 'placeholder-interloper', start: 2, duration: 5, isPlaceholder: true },
+      { id: 'document-interloper', start: 2, duration: 5, projectFileId: 'document-file', assetMimeType: 'application/pdf' },
+      { id: 'visual-after', start: 2, duration: 3, projectFileId: 'visual-after-file', assetMimeType: 'video/mp4' },
+    ],
+  }];
+  value.timeline.transitions = {
+    'visual-before:visual-after': { effect: 'crossfade', duration: 0.25 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'visual-before:visual-after', effect: 'crossfade', durationSeconds: 0.25,
+    scope: 'video', boundarySeconds: 2, fromId: 'visual-before', toId: 'visual-after',
+  }]);
+});
