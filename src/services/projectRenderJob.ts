@@ -232,16 +232,28 @@ export function transitionProjectRenderJob(job: ProjectRenderJob, event: Project
   const hasOutput = typeof job.outputProjectFileId === 'string' && Boolean(job.outputProjectFileId.trim());
   const hasCancelRequest = typeof job.cancelRequestedAt === 'string' && Boolean(job.cancelRequestedAt);
   const hasCompletion = typeof job.completedAt === 'string' && Boolean(job.completedAt);
-  const hasError = Boolean(job.error && typeof job.error.code === 'string' && job.error.code.trim() &&
-    typeof job.error.message === 'string' && job.error.message.trim());
-  if ((job.status === 'completed' && (!hasOutput || !hasCompletion || job.progress !== 100 || hasCancelRequest || hasError)) ||
+  const hasError = job.error !== null && typeof job.error === 'object' &&
+    typeof job.error.code === 'string' && Boolean(job.error.code.trim()) &&
+    typeof job.error.message === 'string' && Boolean(job.error.message.trim());
+  const validError = hasError && job.error!.code.length <= 100 && job.error!.message.length <= 1000;
+  if ((job.status === 'completed' && (!hasOutput || !hasCompletion || job.progress !== 100 || hasCancelRequest || job.error !== null)) ||
       (job.status !== 'completed' && (hasOutput || hasCompletion)) ||
       ((job.status === 'cancel_requested' || job.status === 'cancelled') !== hasCancelRequest) ||
-      (job.status === 'failed' !== hasError)) {
+      (job.status === 'failed' ? !validError : job.error !== null)) {
     throw new Error('The render job snapshot contains inconsistent lifecycle fields.');
   }
-  if (hasCancelRequest) assertTimestamp(job.cancelRequestedAt as string);
-  if (hasCompletion) assertTimestamp(job.completedAt as string);
+  if (hasCancelRequest) {
+    assertTimestamp(job.cancelRequestedAt as string);
+    if (Date.parse(job.cancelRequestedAt as string) > Date.parse(job.updatedAt)) {
+      throw new Error('The cancellation timestamp cannot follow the last job update.');
+    }
+  }
+  if (hasCompletion) {
+    assertTimestamp(job.completedAt as string);
+    if (Date.parse(job.completedAt as string) > Date.parse(job.updatedAt)) {
+      throw new Error('The completion timestamp cannot follow the last job update.');
+    }
+  }
   if (job.status === 'completed' || job.status === 'cancelled') throw new Error('A terminal render job cannot be changed.');
   if (Date.parse(event.at) < Date.parse(job.updatedAt)) throw new Error('Render job events cannot move the update timestamp backwards.');
   if (job.revision === Number.MAX_SAFE_INTEGER) throw new Error('The render job revision limit has been reached.');
@@ -274,7 +286,7 @@ export function transitionProjectRenderJob(job: ProjectRenderJob, event: Project
     if (!event.outputProjectFileId.trim()) throw new Error('A completed render must reference its canonical Project File ID.');
     next.status = 'completed';
     next.progress = 100;
-    next.outputProjectFileId = event.outputProjectFileId;
+    next.outputProjectFileId = event.outputProjectFileId.trim();
     next.completedAt = event.at;
     next.error = null;
   } else if (event.type === 'fail') {
