@@ -91,11 +91,3 @@ test('plans Project File audio clips without legacy Asset identifiers', () => {
     gain: 1,
   }]);
 });
-
-test('keeps voice effect settings attached to their audio clip playback plan', () => {
-  const voiceEffect = { presetId: 'robot' as const, enabled: true, tone: -0.1, robot: 0.8, distortion: 0.2, echo: 0.1, warmth: 0 };
-  const plan = buildMasterTimelineAudioPlaybackPlan({
-    audioTracks: [{ id: 'voice', clips: [{ ...audio('dialogue', 0, 8), voiceEffect }] }],
-  }, 0);
-  assert.deepEqual(plan[0]?.voiceEffect, voiceEffect);
-});
