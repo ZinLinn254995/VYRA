@@ -446,7 +446,7 @@ export async function listProjectOfflineFiles(projectId: string): Promise<Projec
 export async function listPendingProjectOfflineSyncOperations(limit = 20): Promise<ProjectOfflineSyncOperation[]> {
   const operations = await getAllValues<ProjectOfflineSyncOperation>(SYNC_STORE);
   return operations
-    .filter((operation) => operation.state === 'queued' || operation.state === 'failed')
+    .filter((operation) => operation.state === 'queued' || operation.state === 'failed' || operation.state === 'uploading')
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(0, Math.max(1, Math.min(100, Math.floor(limit) || 20)));
 }
