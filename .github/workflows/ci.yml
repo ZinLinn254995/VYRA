@@ -61,6 +61,8 @@ jobs:
         run: npm run test:project-render-composition-planner
       - name: Durable Project render job lifecycle tests
         run: npm run test:project-render-job
+      - name: Project render worker lease fencing tests
+        run: npm run test:project-render-lease
       - name: Master Timeline Text overlay tests
         run: npm run test:master-timeline-text-overlay
       - name: Workspace secure Video preview tests
