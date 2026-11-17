@@ -13,10 +13,9 @@ type ProjectRecord = {
 
 type ProjectRow = {
   id: string;
-  name: string | null;
+  title: string;
   updated_at?: string | null;
   created_at?: string | null;
-  metadata?: Record<string, unknown> | null;
 };
 
 type MyProjectsHomeProps = {
@@ -56,10 +55,9 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
       setLoading(true);
       setError('');
       const { data, error: queryError } = await supabase
-        .from('vyrals')
-        .select('id,name,updated_at,created_at,metadata')
+        .from('vyral_storyboards')
+        .select('id,title,updated_at,created_at')
         .eq('user_id', user.id)
-        .contains('metadata', { universe_scope: 'storyboard' })
         .order('updated_at', { ascending: false, nullsFirst: false });
       if (cancelled) return;
       if (queryError) {
@@ -68,18 +66,12 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
       } else {
         const records = ((data || []) as ProjectRow[])
           .map((row) => {
-            const metadata = row.metadata || {};
-            const storyboardId = typeof metadata.storyboard_id === 'string' ? metadata.storyboard_id : '';
-            if (!storyboardId) return null;
-            const thumbnail = typeof metadata.thumbnail_url === 'string'
-              ? metadata.thumbnail_url
-              : typeof metadata.cover_image_url === 'string' ? metadata.cover_image_url : null;
             return {
               id: row.id,
-              name: row.name?.trim() || 'Untitled Project',
+              name: row.title?.trim() || 'Untitled Project',
               updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
-              storyboardId,
-              thumbnailUrl: thumbnail,
+              storyboardId: row.id,
+              thumbnailUrl: null,
             } satisfies ProjectRecord;
           })
           .filter((item): item is ProjectRecord => Boolean(item));
