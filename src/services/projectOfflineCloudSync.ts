@@ -153,14 +153,22 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
 export async function restoreAccountProjectsToOfflineStorage(): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
-  const { data: projects, error } = await db.from('vyral_storyboards')
-    .select('id')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-  if (error) throw new Error('Could not load the account Project list for Offline recovery: ' + error.message);
+  const pageSize = 100;
+  let offset = 0;
   let restored = 0;
-  for (const project of projects ?? []) {
-    restored += await restoreProjectOfflineFilesFromCloud(project.id, 200);
+  while (true) {
+    const { data: projects, error } = await db.from('vyral_storyboards')
+      .select('id')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error('Could not load the account Project list for Offline recovery: ' + error.message);
+    if (!projects?.length) break;
+    for (const project of projects) {
+      restored += await restoreProjectOfflineFilesFromCloud(project.id, 200);
+    }
+    if (projects.length < pageSize) break;
+    offset += projects.length;
   }
   return restored;
 }
