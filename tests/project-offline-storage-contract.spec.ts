@@ -22,6 +22,9 @@ test('Project offline storage is a durable local replica, not a disposable cache
   assert.ok(service.includes("cloudState: 'queued'"));
   assert.ok(service.includes('listPendingProjectOfflineSyncOperations'));
   assert.ok(service.includes('getProjectOfflineFileAsFile'));
+  assert.ok(service.includes('installProjectCloudFileToOfflineStorage'));
+  assert.ok(service.includes('expectedSha256'));
+  assert.ok(service.includes('The downloaded Cloud file failed its SHA-256 integrity check.'));
 });
 
 test('Project offline storage preserves one logical Project File identity across replicas', () => {
@@ -40,6 +43,8 @@ test('Project architecture documents account recovery and two-way background syn
   for (const requirement of [
     'Device → Offline → Cloud',
     'Device onboarding and account recovery',
+    'installProjectCloudFileToOfflineStorage',
+    'Working branch: `feature/project-core-hybrid-rebuild`',
     'Two-way synchronization',
     'One logical Project File',
     'Cloud upload/download and reconciliation run in the background',
