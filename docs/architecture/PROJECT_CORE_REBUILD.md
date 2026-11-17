@@ -150,7 +150,29 @@ Before declaring the rebuild complete, verify:
 - existing Project data and timeline compatibility;
 - UI regression, typecheck, build, unit/integration tests, and relevant RLS/security checks.
 
-## 12. Implementation order
+## 12. Current implementation status
+
+Completed on the working branch:
+
+- OPFS-first / IndexedDB-fallback local binary storage with durable file metadata and sync queue.
+- Stable Project File IDs across local import and Cloud replicas.
+- Project Storage upload now copies to Offline Storage first and renders the local item immediately.
+- Project Storage previews prefer the local binary and remain usable when Cloud metadata reads fail.
+- Folder relationships are retained in local records and synchronized to the Cloud media row.
+- Background Cloud upload remains outside the visible upload progress UI.
+- Local imports check available browser storage and request persistent storage where supported.
+- Background device recovery is bounded by available quota and per-pass download budgets.
+- Contract tests cover local-first upload wiring and capacity guards.
+
+Still pending:
+
+- Project Chat attachments and generation must use Project File IDs directly.
+- Editor playback and timeline clips must resolve Project File IDs while preserving historical Asset/version references.
+- Offline rename/move/delete operations need durable local mutation records and Cloud reconciliation.
+- Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
+- Full typecheck, build, runtime, browser, RLS, and multi-device tests have not yet been run.
+
+## 13. Implementation order
 
 1. Preserve UI and audit current service dependencies.
 2. Define canonical Project File and replica contracts.
