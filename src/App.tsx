@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
-import { AppHeader } from './components/marketplace/MarketplaceHeader';
+import { AppHeader } from './components/common/AppHeader';
 import { ProfilePage } from './components/profile/ProfilePage';
 import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
