@@ -63,6 +63,9 @@ test('builds a renderer-neutral schedule for scenes, image/video, audio, text an
   assert.deepEqual(plan.scenes.map((scene) => [scene.sceneId, scene.startSeconds, scene.endSeconds]), [
     ['scene-a', 0, 8], ['scene-b', 8, 14],
   ]);
+  assert.equal(plan.visuals.find((item) => item.clipId === 'scene-video')?.layer, 0);
+  assert.equal(plan.visuals.find((item) => item.clipId === 'image-clip')?.layer, 1);
+  assert.equal(plan.visuals.find((item) => item.clipId === 'video-clip')?.layer, 1);
   assert.deepEqual(plan.visuals.map((item) => [item.kind, item.clipId, item.startSeconds, item.endSeconds]), [
     ['video', 'scene-video', 1, 5],
     ['image', 'image-clip', 2, 5],
