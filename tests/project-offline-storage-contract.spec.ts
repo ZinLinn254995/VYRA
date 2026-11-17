@@ -118,3 +118,13 @@ test('Editor resolves Project File IDs from Offline Storage before Cloud', () =>
   assert.ok(editor.includes('Project Files stored offline remain available'));
   assert.ok(editor.includes('projectFileObjectUrlsRef.current.values()'));
 });
+
+
+test('Editor media imports create Project File IDs locally first', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes('importProjectFileToOfflineStorage({'));
+  assert.ok(editor.includes('const projectFileId = imported.file.id'));
+  assert.ok(editor.includes('projectFileId,'));
+  assert.ok(editor.includes('resolveProjectFilePlaybackUrl'));
+  assert.ok(!editor.includes('uploadMediaLibraryFiles('));
+});
