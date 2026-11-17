@@ -114,8 +114,10 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
   const [renameTarget, setRenameTarget] = useState<Entry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
-  const previewObjectUrlRef = useRef<string | null>(null);
-  useEffect(() => () => { if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current); previewObjectUrlRef.current = null; }, [previewItem]);
+  useEffect(() => {
+    const previewUrl = previewItem?.signed_url;
+    return () => { if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl); };
+  }, [previewItem?.signed_url]);
   useEffect(() => {
     if (!previewItem && !renameTarget) return;
     const handleModalKeyDown = (event: KeyboardEvent) => {
@@ -550,7 +552,6 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     try {
       const localBlob = await getProjectOfflineFileBlob(entry.item.id);
       const signedUrl = localBlob ? URL.createObjectURL(localBlob) : entry.item.signed_url ?? await getMediaLibraryItemSignedUrl(entry.item.id, null, projectId);
-      if (localBlob) previewObjectUrlRef.current = signedUrl;
       modalReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPreviewItem({ ...entry.item, signed_url: signedUrl });
     } catch (cause) {
