@@ -692,12 +692,16 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
   };
   const downloadPreviewOriginal = () => {
     if (!previewItem?.signed_url) return;
-    const downloadUrl = new URL(previewItem.signed_url);
-    downloadUrl.searchParams.set('download', previewItem.file_name);
     const anchor = document.createElement('a');
-    anchor.href = downloadUrl.toString();
-    anchor.target = '_blank';
-    anchor.rel = 'noopener noreferrer';
+    anchor.href = previewItem.signed_url;
+    anchor.download = previewItem.file_name;
+    if (!previewItem.signed_url.startsWith('blob:')) {
+      const downloadUrl = new URL(previewItem.signed_url);
+      downloadUrl.searchParams.set('download', previewItem.file_name);
+      anchor.href = downloadUrl.toString();
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+    }
     anchor.click();
   };
 
