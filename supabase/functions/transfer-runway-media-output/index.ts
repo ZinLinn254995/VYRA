@@ -185,18 +185,26 @@ Deno.serve(async (request: Request) => {
     }
     const existingPath = typeof claim.storage_path === 'string' ? claim.storage_path : '';
     if (existingPath) {
+      const { data: outputRecord, error: outputRecordError } = await context.supabaseAdmin
+        .from('media_generation_job_outputs')
+        .select('transfer_status,storage_path,sha256,mime_type,size_bytes')
+        .eq('job_id', body.jobId).eq('output_index', outputIndex).maybeSingle();
       const { data: indexed, error: indexedError } = await context.supabaseAdmin.from('media_library_items')
         .select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')
         .eq('id', projectFileId).eq('user_id', userId).eq('project_id', targetProjectId)
         .is('universe_id', null).maybeSingle();
-      if (indexedError || !indexed || indexed.id !== projectFileId || indexed.user_id !== userId ||
+      if (outputRecordError || !outputRecord || outputRecord.storage_path !== existingPath ||
+          typeof outputRecord.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(outputRecord.sha256) ||
+          typeof outputRecord.mime_type !== 'string' || !Number.isSafeInteger(outputRecord.size_bytes) ||
+          Number(outputRecord.size_bytes) <= 0 ||
+          indexedError || !indexed || indexed.id !== projectFileId || indexed.user_id !== userId ||
           indexed.project_id !== targetProjectId || indexed.universe_id !== null ||
           indexed.source_asset_id !== null || indexed.source_kind !== 'generated' || indexed.bucket_id !== BUCKET ||
           indexed.storage_path !== existingPath || indexed.metadata?.generation_job_id !== body.jobId ||
           Number(indexed.metadata?.output_index) !== Number(outputIndex) ||
-          typeof indexed.metadata?.sha256 !== 'string' ||
-          typeof indexed.mime_type !== 'string' || !Number.isSafeInteger(indexed.size_bytes) ||
-          Number(indexed.size_bytes) <= 0) {
+          indexed.metadata?.sha256 !== outputRecord.sha256 ||
+          indexed.mime_type !== outputRecord.mime_type ||
+          Number(indexed.size_bytes) !== Number(outputRecord.size_bytes)) {
         return json({ error: 'The previously stored Project output could not be recovered safely.' }, 503);
       }
       const { data: recovered, error: recoveryError } = await context.supabaseAdmin.rpc('record_runway_project_output_transfer', {
