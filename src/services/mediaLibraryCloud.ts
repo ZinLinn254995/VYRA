@@ -107,7 +107,7 @@ function isSafeOwnerStoragePath(path: unknown, ownerId: string, allowedRoots: st
 async function getOwnerId(): Promise<string> {
   const db = getDb();
   const { data, error } = await db.auth.getUser();
-  if (error || !data.user?.id) throw new Error('Sign in to use My Media Library.');
+  if (error || !data.user?.id) throw new Error('Sign in to use Project Storage.');
   return data.user.id;
 }
 
@@ -1067,11 +1067,11 @@ export async function registerVyralAssetInMediaLibrary(input: {
       } else {
         const { error: cleanupError } = await db.storage.from('vyral-assets').remove([thumbnailPath]);
         if (cleanupError) {
-          throw new Error('Could not add this Asset to My Media Library (' + error.message + ') and thumbnail cleanup could not be queued or completed (' + cleanupError.message + ').');
+          throw new Error('Could not add this legacy Asset to its Storage index (' + error.message + ') and thumbnail cleanup could not be queued or completed (' + cleanupError.message + ').');
         }
       }
     }
-    throw new Error('Could not add this Asset to My Media Library: ' + error.message);
+    throw new Error('Could not add this legacy Asset to its Storage index: ' + error.message);
   }
   window.dispatchEvent(new CustomEvent('vyra:media-library-changed'));
   if (!indexed?.id) throw new Error('Asset was saved but its Media Library index could not be confirmed.');
