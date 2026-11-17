@@ -11,6 +11,7 @@ test('Project Chat has no selected-Vyral Asset handoff or DNA inventory tools', 
   const chat = read('src/components/ai/AIChatPage.tsx');
   const edge = read('supabase/functions/vyra-openai-chat/index.ts');
   const registry = read('src/server/vyraAiCapabilityRegistry.ts');
+  const actions = read('src/services/globalChatActions.ts');
 
   for (const source of [app, workspace, chat]) {
     assert.doesNotMatch(source, /VyralChatAssetContext|initialSelectedAssets|onSelectedAssetsChange|pendingChatAssets|selectedAssets/);
