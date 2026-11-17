@@ -35,8 +35,18 @@ export async function resolveProjectRenderCompositionInputs(
   }
 
   const expectedKinds = new Map<string, ProjectRenderMediaKind>();
+  const sourceDescriptors = new Map<string, string>();
+  const describeSource = (source: ProjectRenderSource) => source.kind === 'project-file'
+    ? JSON.stringify({ kind: source.kind, projectFileId: source.projectFileId, mimeType: source.mimeType ?? '' })
+    : JSON.stringify({ kind: source.kind, assetId: source.assetId, assetVersionId: source.assetVersionId, mimeType: source.mimeType ?? '' });
   const registerUsage = (source: ProjectRenderSource, kind: ProjectRenderMediaKind) => {
     const key = getProjectRenderSourceKey(source);
+    const descriptor = describeSource(source);
+    const priorDescriptor = sourceDescriptors.get(key);
+    if (priorDescriptor && priorDescriptor !== descriptor) {
+      throw new Error('A render source has conflicting immutable identity or MIME metadata in the composition plan.');
+    }
+    sourceDescriptors.set(key, descriptor);
     const existing = expectedKinds.get(key);
     if (existing && existing !== kind) {
       throw new Error('A render source cannot be used as both ' + existing + ' and ' + kind + ' media.');
@@ -52,6 +62,9 @@ export async function resolveProjectRenderCompositionInputs(
     const key = getProjectRenderSourceKey(source);
     if (uniqueSources.has(key)) throw new Error('The composition plan contains a duplicate required render source.');
     if (!expectedKinds.has(key)) throw new Error('The composition plan contains an unused required render source.');
+    if (sourceDescriptors.get(key) !== describeSource(source)) {
+      throw new Error('A required render source does not match its pinned layer identity or MIME metadata.');
+    }
     uniqueSources.set(key, source);
   }
   for (const key of expectedKinds.keys()) {
@@ -78,8 +91,13 @@ export async function resolveProjectRenderCompositionInputs(
           source,
           expectedKind: expectedKinds.get(sourceKey)!,
         });
-        if (result.projectId !== projectId || result.sourceKey !== sourceKey || !result.blob.size) {
-          throw new Error('A resolved render source does not match its pinned Project identity or contains no bytes.');
+        const expectedKind = expectedKinds.get(sourceKey)!;
+        const actualMime = result.mimeType.split(';', 1)[0].trim().toLowerCase();
+        const declaredMime = source.mimeType?.split(';', 1)[0].trim().toLowerCase();
+        if (result.projectId !== projectId || result.sourceKey !== sourceKey || !result.blob.size ||
+            !actualMime.startsWith(expectedKind + '/') ||
+            (declaredMime && actualMime !== declaredMime)) {
+          throw new Error('A resolved render source does not match its pinned Project identity, MIME type, or byte requirements.');
         }
         resolved[index] = result;
       } catch (error) {
