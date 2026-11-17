@@ -908,7 +908,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       if (authError || !authData.user) {
         deletedStoryboardIdsRef.current.delete(item.id);
-        setCloudSyncMessage('Sign in again before deleting this Storyboard.');
+        setCloudSyncMessage('Sign in again before deleting this Project.');
         setIsDeletingStoryboard(false);
         return;
       }
@@ -924,7 +924,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       if (storyboardStorageKeyRef.current !== ownerStorageKey) return;
       if (deleteError) {
         deletedStoryboardIdsRef.current.delete(item.id);
-        setCloudSyncMessage('Could not delete this Storyboard from the cloud. Please try again.');
+        setCloudSyncMessage('Could not delete this Project from the cloud. Please try again.');
         setIsDeletingStoryboard(false);
         return;
       }
@@ -976,7 +976,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     if (!activeStoryboard) return;
     const confirmed: Storyboard = {
       ...activeStoryboard,
-      title: activeStoryboard.title.trim() || 'Untitled Storyboard',
+      title: activeStoryboard.title.trim() || 'Untitled Project',
       topic: activeStoryboard.topic.trim(),
       updatedAt: new Date().toISOString(),
     };
@@ -1315,7 +1315,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                   {sceneContinuityContext?.previousSceneId === null && (
                     <div className="space-y-2 rounded-lg border border-[var(--vyra-border)] p-3">
                       <label className="block space-y-1">
-                        <span className="text-xs font-semibold text-[var(--vyra-text-primary)]">Storyboard starting conditions</span>
+                        <span className="text-xs font-semibold text-[var(--vyra-text-primary)]">Scene starting conditions</span>
                         <textarea
                           value={sceneStartingContextDraft}
                           onChange={(event) => setSceneStartingContextDraft(event.target.value)}
@@ -1656,18 +1656,18 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
       <section ref={storyboardBarRef} className="sticky top-0 z-40 -mx-4 mb-2 flex items-center justify-between gap-3 bg-[var(--vyra-bg-canvas)] px-4 py-3 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Storyboards</h2>
+          <h2 className="text-lg font-bold tracking-tight text-[var(--vyra-text-primary)] sm:text-xl">My Projects</h2>
           <p className="mt-1 text-sm leading-6 text-[var(--vyra-text-secondary)]">Your stories, organized in one place.</p>
         {storyboardAiMessage && <p role="status" className="mt-1 text-[11px] text-[var(--vyra-text-muted)]">{storyboardAiMessage}</p>}
         </div>
-        <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Storyboard</span><span className="sm:hidden">Create</span></Button>
+        <Button onClick={createDefaultStoryboard} className="shrink-0" startIcon={<Plus size={16} />}><span className="hidden sm:inline">Create Project</span><span className="sm:hidden">Create</span></Button>
       </section>
 
       {storyboards.length ? (
-        <section aria-label="Your storyboards" className="grid grid-cols-1 gap-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Your Projects" className="grid grid-cols-1 gap-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
           {storyboards.map((item) => (
             <Card key={item.id} padding="none" className="relative overflow-hidden">
-              <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open storyboard: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
+              <button type="button" onClick={() => openStoryboardEditor(item)} aria-label={`Open Project: ${item.title}`} className="block w-full text-left transition hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
               <div className="flex aspect-[16/9] items-center justify-center border-b border-[var(--vyra-border-subtle)] bg-[radial-gradient(circle_at_50%_35%,rgba(99,102,241,.20),transparent_48%),linear-gradient(135deg,var(--vyra-bg-surface),var(--vyra-bg-hover))]"><Film size={34} className="text-[var(--vyra-accent-primary)]" strokeWidth={1.5} /></div>
               <div className="p-4">
                 <h2 className="truncate text-sm font-semibold text-[var(--vyra-text-primary)]">{item.title}</h2>
@@ -1679,7 +1679,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setStoryboardToDelete(item); }}
                 aria-label={`Delete storyboard: ${item.title}`}
-                title="Delete storyboard"
+                title="Delete Project"
                 className="absolute right-3 top-3 grid size-9 place-items-center rounded-full border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/95 text-[var(--vyra-text-secondary)] shadow-sm backdrop-blur transition hover:border-[var(--vyra-danger)] hover:bg-[var(--vyra-danger)] hover:text-white focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]"
               >
                 <Trash2 size={16} />
@@ -1690,14 +1690,14 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       ) : (
         <section className="flex min-h-[min(52vh,440px)] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)]/40 px-6 py-12 text-center">
           <div className="grid size-14 place-items-center rounded-2xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] text-[var(--vyra-accent-primary)]"><Clapperboard size={25} /></div>
-          <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No storyboards yet</h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first storyboard to start organizing scenes and shaping your next video.</p>
+          <h2 className="mt-5 text-base font-semibold text-[var(--vyra-text-primary)]">No Projects yet</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--vyra-text-secondary)]">Create your first Project to start creating.</p>
         </section>
       )}
 
       <ConfirmationDialog
         open={Boolean(storyboardToDelete)}
-        title="Delete storyboard?"
+        title="Delete Project?"
         description={storyboardToDelete
           ? <>“{storyboardToDelete.title}” will be permanently deleted. This action cannot be undone.</>
           : null}
