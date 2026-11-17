@@ -3223,11 +3223,8 @@ async function executeSharedProposalCapability(
   userId: string,
   sessionId: string | null,
   capabilityId: ProposalCapabilityId,
-  input: Record<string, unknown>,
+  rawArguments: string,
   toolCallId: string,
-  activeVyralId: string | null,
-  uploadAttachment: { clientDraftId: string; fileName: string; mimeType: string; sizeBytes: number } | null,
-  storyboardUniverseLocked = false,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
@@ -3235,22 +3232,9 @@ async function executeSharedProposalCapability(
     isOwnerOrAdmin: false,
     verifyApproval: async () => false,
     verifyOwner: async (ownerId, parameters) => {
-      if (ownerId !== userId) return false;
-      if (capabilityId === 'vyral.propose_create') return true;
-      if (capabilityId === 'asset.propose_restore' || capabilityId === 'asset.propose_archive' || capabilityId === 'asset.propose_relationship_add' || capabilityId === 'asset.propose_relationship_remove') {
-        if (!activeVyralId) return false;
-        const { data, error } = await admin.from('vyrals').select('id').eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
-        return !error && Boolean(data);
-      }
-      if (capabilityId === 'asset.propose_upload') {
-        if (!isUuid(parameters.vyral_id) || (storyboardUniverseLocked && parameters.vyral_id !== activeVyralId)) return false;
-        const { data, error } = await admin.from('vyrals').select('id')
-          .eq('id', parameters.vyral_id).eq('user_id', ownerId).maybeSingle();
-        return !error && Boolean(data);
-      }
-      if (!isUuid(parameters.storyboard_id)) return false;
-      const { data, error } = await admin.from('vyral_storyboards').select('id')
-        .eq('id', parameters.storyboard_id).eq('user_id', ownerId).maybeSingle();
+      if (ownerId !== userId || !isUuid(parameters.storyboard_id)) return false;
+      const { data, error } = await admin.from('vyral_storyboards')
+        .select('id').eq('id', parameters.storyboard_id).eq('user_id', ownerId).maybeSingle();
       return !error && Boolean(data);
     },
     audit: async (event) => {
@@ -3266,11 +3250,12 @@ async function executeSharedProposalCapability(
       if (error) throw new Error('AI Operator proposal audit could not be persisted.');
     },
   };
+  const parsed = JSON.parse(rawArguments || '{}');
   const result = await executeAiCapability(
-    { capabilityId, userId, requestId, input },
+    { capabilityId, userId, requestId, input: isPlainRecord(parsed) ? parsed : {} },
     authority,
     new Date(),
-    { admin, sessionId, toolCallId, activeVyralId, uploadAttachment },
+    { admin, sessionId, toolCallId },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -3283,7 +3268,6 @@ async function executeSharedReadCapability(
   capabilityId: ReadCapabilityId,
   input: Record<string, unknown>,
   toolCallId: string,
-  activeVyralId: string | null,
 ): Promise<Record<string, unknown>> {
   const requestId = ('aiop-' + toolCallId).slice(0, 120);
   const authority: AiCapabilityExecutionAuthority = {
@@ -3292,14 +3276,7 @@ async function executeSharedReadCapability(
     verifyApproval: async () => false,
     verifyOwner: async (ownerId, parameters) => {
       if (ownerId !== userId) return false;
-      if (capabilityId === 'storyboard.list' || capabilityId === 'vyral.list') return true;
-      if (capabilityId === 'asset.list' || capabilityId === 'asset.read' ||
-          capabilityId === 'asset.relationships.read' || capabilityId === 'vyral.read') {
-        if (!activeVyralId) return false;
-        const { data, error } = await admin.from('vyrals').select('id')
-          .eq('id', activeVyralId).eq('user_id', ownerId).maybeSingle();
-        return !error && Boolean(data);
-      }
+      if (capabilityId === 'storyboard.list') return true;
       if (capabilityId === 'storyboard.read') {
         const title = String(parameters.title ?? '').trim();
         if (!title) return false;
@@ -3329,7 +3306,7 @@ async function executeSharedReadCapability(
     { capabilityId, userId, requestId, input },
     authority,
     new Date(),
-    { admin, activeVyralId },
+    { admin },
   );
   if (!result.ok) return safeToolError(result.message);
   return isPlainRecord(result.data) ? result.data : { ok: true, data: result.data };
@@ -3642,13 +3619,12 @@ Deno.serve(async (request: Request) => {
           })();
           const toolResult = readCapabilityId
             ? parsedToolArguments
-              ? await executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsedToolArguments, call.id, null)
+              ? await executeSharedReadCapability(context.supabaseAdmin, userId, conversationId, readCapabilityId, parsedToolArguments, call.id)
               : safeToolError('Invalid tool arguments.')
             : proposalCapabilityId
               ? parsedToolArguments
                 ? await executeSharedProposalCapability(
                     context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id,
-                    null, null, false,
                   )
                 : safeToolError('Invalid tool arguments.')
               : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state'].includes(call.function.name)
