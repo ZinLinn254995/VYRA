@@ -591,7 +591,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
     const pageRequestId = ++loadMoreRequestRef.current;
     setLoadingMoreItems(true);
     try {
-      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100, null, projectId });
+      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100, projectId });
       if (requestId !== libraryRequestRef.current || pageRequestId !== loadMoreRequestRef.current) return;
       setItems((previous) => {
         const known = new Set(previous.map((item) => item.id));
