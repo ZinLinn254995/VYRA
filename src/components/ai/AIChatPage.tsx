@@ -8,10 +8,8 @@ import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
 import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
-import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
+import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
 import { mergeWorkspaceStoryboards } from '../../services/workspaceStoryboards.ts';
-import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset, VyralAssetIngestionError } from '../../services/vyralAssetIngestion.ts';
-import { registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
 import { generateRunwayProjectMedia, generateRunwayProjectShotSequence, listRunwayProjectMediaRecovery, recoverRunwayProjectMediaJob, type RunwayProjectRecoveryJob, type RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGeneration';
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
@@ -328,7 +326,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [historyError, setHistoryError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingAttachmentFilesRef = useRef(new Map<string, File>());
 
 
   // Keep conversation data mounted across navigation, but dismiss transient chat overlays.
@@ -623,7 +620,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
-    pendingAttachmentFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     
@@ -642,7 +638,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setIsLocked(Boolean(session.locked));
-    pendingAttachmentFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     
@@ -668,8 +663,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let visionImages: Array<VisionImage & { assetId: string; assetName: string }> = [];
     
     const attachedFile = selectedFile;
-    const uploadClientDraftId = attachedFile ? crypto.randomUUID() : null;
-    if (attachedFile && uploadClientDraftId) pendingAttachmentFilesRef.current.set(uploadClientDraftId, attachedFile);
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
@@ -1238,7 +1231,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
-        ...(attachedFile ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         signal: requestController.signal,
@@ -1259,85 +1251,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
       });
       assertRequestCurrent();
-      let assetUploadCompletionText = '';
-      const operatorAction = result.operatorAction;
-      if (operatorAction?.type === 'asset-upload-approved') {
-        const actionId = typeof operatorAction.actionId === 'string' ? operatorAction.actionId : '';
-        const clientDraftId = typeof operatorAction.clientDraftId === 'string' ? operatorAction.clientDraftId : '';
-        const vyralId = typeof operatorAction.vyralId === 'string' ? operatorAction.vyralId : '';
-        const vyralName = typeof operatorAction.vyralName === 'string' ? operatorAction.vyralName : '';
-        const fileName = typeof operatorAction.fileName === 'string' ? operatorAction.fileName : '';
-        const assetName = typeof operatorAction.assetName === 'string' ? operatorAction.assetName : '';
-        const mimeType = typeof operatorAction.mimeType === 'string' ? operatorAction.mimeType : '';
-        const sizeBytes = typeof operatorAction.sizeBytes === 'number' ? operatorAction.sizeBytes : -1;
-        const sourceFile = pendingAttachmentFilesRef.current.get(clientDraftId);
-        const reportUploadFailure = async () => {
-          // Never acknowledge an old account's upload action using a newly signed-in session.
-          if (historyOwnerRef.current !== requestOwnerId ||
-              activeRequestControllerRef.current !== requestController) return;
-          if (supabase && actionId) {
-            await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
-              body: { conversationId: chatSessionId, assetUploadCompletion: { actionId, failed: true } },
-            }));
-          }
-        };
-        if (!supabase || !actionId || !/^[0-9a-f-]{36}$/i.test(clientDraftId) ||
-            !/^[0-9a-f-]{36}$/i.test(vyralId) || !sourceFile ||
-            sourceFile.name !== fileName || sourceFile.size !== sizeBytes ||
-            (sourceFile.type || 'application/octet-stream').toLowerCase() !== mimeType.toLowerCase()) {
-          await reportUploadFailure();
-          throw new Error('The approved upload no longer matches the exact file attached in this chat. Nothing was transferred. Please attach the file again and prepare a fresh preview.');
-        }
-        try {
-          const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
-          assertRequestCurrent();
-          if (authData.user?.id !== requestOwnerId) throw new DOMException('The signed-in account changed. Please retry this action.', 'AbortError');
-          if (authError || !authData.user) throw new Error('Sign in again before transferring this Asset.');
-          const { data: destination, error: destinationError } = await awaitForCurrentRequest(supabase.from('vyrals')
-            .select('id,name').eq('id', vyralId).eq('user_id', authData.user.id).maybeSingle());
-          assertRequestCurrent();
-          if (destinationError || !destination || destination.name !== vyralName || (storyboardId && destination.id !== storyboardUniverseId)) {
-            throw new Error('The destination Vyral could not be re-verified for your account. No file was transferred.');
-          }
-          const ingested = await ingestVyralAsset(createSupabaseVyralAssetIngestionPort(supabase), {
-            vyralId: destination.id, userId: authData.user.id, file: sourceFile, assetName,
-            signal: requestController.signal,
-            metadata: { upload_source: 'creator_workspace', origin: storyboardId ? 'storyboard_ai_chat' : 'global_ai_chat', ...(storyboardId ? { storyboard_id: storyboardId } : {}), chat_upload_draft_id: clientDraftId },
-          });
-          let mediaLibraryMessage = '';
-          try {
-            await awaitForCurrentRequest(registerVyralAssetInMediaLibrary({
-              assetId: ingested.assetId, userId: authData.user.id, fileName: sourceFile.name,
-              mimeType: ingested.mimeType, sizeBytes: ingested.sizeBytes, storagePath: ingested.storagePath,
-              sourceKind: 'vyral_asset', universeId: storyboardId ? destination.id : undefined, thumbnailSource: sourceFile,
-            }));
-            mediaLibraryMessage = storyboardId ? '\n**Storyboard Universe:** Added automatically.' : '\n**My Media Library:** Added automatically.';
-          } catch {
-            mediaLibraryMessage = storyboardId ? '\n**Storyboard Universe:** Sync is pending; the Asset is safely stored in this Universe.' : '\n**My Media Library:** Sync is pending; the Asset is safely stored in its Universe.';
-          }
-          assertRequestCurrent();
-          const { data: completion, error: completionError } = await awaitForCurrentRequest(supabase.functions.invoke('vyra-openai-chat', {
-            body: {
-              conversationId: chatSessionId,
-              assetUploadCompletion: { actionId, clientDraftId, assetId: ingested.assetId, versionId: ingested.versionId },
-            },
-          }));
-          assertRequestCurrent();
-          if (completionError || completion?.status !== 'completed') {
-            throw new Error('The Asset file was saved, but the server could not finalize the approved upload audit. Refresh the Universe before retrying.');
-          }
-          pendingAttachmentFilesRef.current.delete(clientDraftId);
-          assetUploadCompletionText = '\n\n**Asset saved to Universe:** ' + destination.name +
-            '\n**Asset name:** ' + assetName +
-            '\n**Original file:** ' + sourceFile.name +
-            '\n**Asset ID:** ' + ingested.assetId +
-            '\n**Status:** Ready' + mediaLibraryMessage;
-        } catch (uploadError) {
-          await reportUploadFailure();
-          throw uploadError;
-        }
-      }
-
+      // Chat attachments are metadata-only until generic Project-file access is available.
       // A provider response or post-response Asset transfer may finish after sign-out.
       // Never publish that old request's completion into the next account's chat.
       if (activeRequestControllerRef.current !== requestController) return;
@@ -1348,7 +1262,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         role: 'assistant',
         content: result.cancelled
           ? (streamedText ? streamedText + '\n\nGeneration stopped.' : 'Generation stopped before a response was received.')
-          : assistantResponseContent + assetUploadCompletionText,
+          : assistantResponseContent,
         status: result.cancelled ? 'cancelled' : result.status,
         providerLabel: [result.providerName, result.modelName].filter(Boolean).join(' · '),
       };
@@ -1375,24 +1289,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       } else {
         const lastAssistantAction = [...messages].reverse().find((item) => item.role === 'assistant')?.action;
         const naturalApprovalAttempt = isNaturalChatApproval(text) || isStoryboardDeleteConfirmation(text) ||
-          isStoryboardUpdateConfirmation(text) || isVyralAssetUploadConfirmation(text) ||
+          isStoryboardUpdateConfirmation(text) ||
           isStoryboardCreateConfirmation(text);
-        const preservedUpload = lastAssistantAction?.type === 'vyral-asset-upload-draft' &&
-          naturalApprovalAttempt && error instanceof VyralAssetIngestionError && error.preservedForRecovery;
-        if (preservedUpload && lastAssistantAction?.type === 'vyral-asset-upload-draft') {
-          pendingAttachmentFilesRef.current.delete(lastAssistantAction.draft.id);
-        }
-        const retryDraftAction = preservedUpload || !naturalApprovalAttempt ||
-          !lastAssistantAction || ![
-            'storyboard-delete-draft', 'storyboard-update-draft', 'storyboard-create-draft',
-            'vyral-asset-upload-draft',
-          ].includes(lastAssistantAction.type)
-          ? undefined
-          : lastAssistantAction;
+        const retryDraftAction = !naturalApprovalAttempt || !lastAssistantAction || ![
+          'storyboard-delete-draft', 'storyboard-update-draft', 'storyboard-create-draft',
+        ].includes(lastAssistantAction.type) ? undefined : lastAssistantAction;
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
-          content: preservedUpload ? message + ' The source Asset was preserved for recovery; open Project Storage and retry recovery. Asset ID: ' + (error instanceof VyralAssetIngestionError ? error.assetId ?? 'not returned' : 'unknown') : message,
+          content: message,
           status: 'error',
           ...(retryDraftAction ? { action: retryDraftAction } : {}),
         }]);
@@ -2036,7 +1941,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
-    pendingAttachmentFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     
@@ -2069,7 +1973,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     setDraft('');
     setActiveSessionId(null);
     setIsLocked(false);
-    pendingAttachmentFilesRef.current.clear();
     setSelectedFile(null);
     setSelectedFileStatus(null);
     
