@@ -65,7 +65,7 @@ function mimeEssence(value: string): string {
 }
 
 function assertManifestMimeIdentity(declared: string | undefined, actual: string, label: string): void {
-  if (declared?.trim() && mimeEssence(declared) !== mimeEssence(actual)) {
+  if (declared?.trim() && actual.trim() && mimeEssence(declared) !== mimeEssence(actual)) {
     throw new Error('The ' + label + ' MIME type differs from the immutable render manifest.');
   }
 }
