@@ -162,7 +162,7 @@ function VyraApp() {
         userEmail={profileLabel} creditBalance={creditBalance} creditLoading={creditLoading}
         onWorkspaceRequest={() => { resetMainHeaderVisibility(); setProfileOpen(false); setActiveSection('workspace'); }}
         onAuthRequest={requestAuth}
-        onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileInitialPage(null); setProfileOpen(true); }}
+        onProfileClick={() => { resetMainHeaderVisibility(); setProfileReturnSection(activeSection); setProfileOpen(true); }}
       />
       <div aria-hidden="true" className="vyra-global-header-spacer w-full shrink-0" style={{ height: 'calc(var(--vyra-global-header-height, 64px) - var(--vyra-header-spacer-collapse, 0px))', transition: 'height 180ms ease-out' }} />
       <div className={`min-h-0 flex-1 ${(profileOpen && user) || activeSection === 'workspace' ? "flex flex-col overflow-hidden" : ""}`}>
