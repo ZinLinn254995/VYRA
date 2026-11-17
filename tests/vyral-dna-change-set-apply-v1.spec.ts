@@ -43,7 +43,7 @@ test('application is idempotent',()=>{
  assert.ok(edge.includes('dnaChanged:!reused'));
  assert.ok(edge.includes('no additional revision was created'));
 });
-test('AI Chat exposes explicit apply command',()=>{
- assert.ok(chat.includes('const applyDnaChangeSet'));
- assert.ok(chat.includes("action:'apply_change_set'"));
+test('AI Chat does not expose a manual DNA change-set apply command',()=>{
+ assert.ok(!chat.includes('const applyDnaChangeSet'));
+ assert.ok(!chat.includes("action:'apply_change_set'"));
 });
