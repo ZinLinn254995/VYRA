@@ -455,9 +455,9 @@ export async function getProjectOfflineFileAsFile(projectFileId: string): Promis
   return new File([blob], record.fileName, { type: record.mimeType, lastModified: record.lastModified });
 }
 
-export async function listProjectOfflineFiles(projectId: string): Promise<ProjectOfflineFileRecord[]> {
+export async function listProjectOfflineFiles(projectId: string, includeDeleted = false): Promise<ProjectOfflineFileRecord[]> {
   const files = await getAllValues<ProjectOfflineFileRecord>(FILE_STORE);
-  return files.filter((file) => file.projectId === projectId && file.localState === 'available' && !file.deletedAt);
+  return files.filter((file) => file.projectId === projectId && file.localState === 'available' && (includeDeleted || !file.deletedAt));
 }
 
 export async function listPendingProjectOfflineSyncOperations(limit = 20): Promise<ProjectOfflineSyncOperation[]> {
