@@ -17,8 +17,12 @@ Deno.serve(async (request: Request) => {
     return json({ error: 'A valid quote ID is required.' }, 400);
   if (typeof body.idempotencyKey !== 'string' || !/^[A-Za-z0-9_-]{16,160}$/.test(body.idempotencyKey))
     return json({ error: 'A valid generation idempotency key is required.' }, 400);
-  if (typeof body.targetVyralId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.targetVyralId))
-    return json({ error: 'A valid Project Assets destination is required.' }, 400);
+  const isProjectTarget = typeof body.targetProjectId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(body.targetProjectId);
+  const isLegacyVyralTarget = typeof body.targetVyralId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(body.targetVyralId);
+  if (isProjectTarget === isLegacyVyralTarget)
+    return json({ error: 'Provide exactly one valid Project destination.' }, 400);
   const { data: quote, error: quoteError } = await context.supabaseAdmin.from('media_generation_quotes')
     .select('id,status,task,quality,provider,provider_model_id,approved_max_credit_units,credit_approval_confirmed_at,pricing_policy_id,expires_at')
     .eq('id', body.quoteId).eq('user_id', userId).maybeSingle();
@@ -27,16 +31,22 @@ Deno.serve(async (request: Request) => {
       !Number.isSafeInteger(Number(quote.approved_max_credit_units)) || Number(quote.approved_max_credit_units) <= 0)
     return json({ error: 'Explicit maximum-credit approval is required before creating a generation job.' }, 409);
   if (quote.status !== 'used' && Date.parse(quote.expires_at) <= Date.now()) return json({ error: 'Quote expired. Request a new estimate.' }, 410);
-  const { data: job, error: jobError } = await context.supabaseAdmin.rpc('create_runway_media_job_for_project_asset', {
-    p_user_id: userId, p_quote_id: body.quoteId, p_idempotency_key: body.idempotencyKey,
-    p_approved_max_credit_units: Number(quote.approved_max_credit_units),
-    p_target_vyral_id: body.targetVyralId,
-  });
+  const { data: job, error: jobError } = isProjectTarget
+    ? await context.supabaseAdmin.rpc('create_runway_media_job_for_project', {
+      p_user_id: userId, p_quote_id: body.quoteId, p_idempotency_key: body.idempotencyKey,
+      p_approved_max_credit_units: Number(quote.approved_max_credit_units),
+      p_target_project_id: body.targetProjectId,
+    })
+    : await context.supabaseAdmin.rpc('create_runway_media_job_for_project_asset', {
+      p_user_id: userId, p_quote_id: body.quoteId, p_idempotency_key: body.idempotencyKey,
+      p_approved_max_credit_units: Number(quote.approved_max_credit_units),
+      p_target_vyral_id: body.targetVyralId,
+    });
   if (jobError || !job || !isRecord(job)) {
     const message = jobError?.message ?? '';
     const status = message.includes('CREDIT_PRICING_POLICY_CHANGED') || message.includes('Explicit customer credit approval') ||
       message.includes('Project-scoped Assets Vyral') || message.includes('another Project') ||
-      message.includes('destination conflicts') ? 409 :
+      message.includes('destination conflicts') || message.includes('Project destination') ? 409 :
       message.toLowerCase().includes('expired') ? 410 :
       message.toLowerCase().includes('insufficient') ? 402 :
       message.includes('idempotency key was reused') ? 409 :
@@ -61,6 +71,9 @@ Deno.serve(async (request: Request) => {
   } catch { /* telemetry must never block a safely reserved job */ }
 
   return json({ job: { id: job.id, status: job.status, quoteId: body.quoteId,
-      targetVyralId: job.target_vyral_id, reservedCreditUnits: quote.approved_max_credit_units },
-    message: 'Generation job and Project Assets destination are bound atomically. Approved maximum credits are reserved; no provider task has been submitted yet.' });
+      ...(isProjectTarget ? { targetProjectId: job.target_project_id } : { targetVyralId: job.target_vyral_id }),
+      reservedCreditUnits: quote.approved_max_credit_units },
+    message: isProjectTarget
+      ? 'Generation job and Project destination are bound atomically. Approved maximum credits are reserved; no provider task has been submitted yet.'
+      : 'Generation job and legacy Project Assets destination are bound atomically. Approved maximum credits are reserved; no provider task has been submitted yet.' });
 });
