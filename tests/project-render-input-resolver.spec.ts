@@ -23,9 +23,9 @@ function plan(overrides: Record<string, unknown> = {}): ProjectRenderComposition
   } as ProjectRenderCompositionPlan;
 }
 
-function resolved(sourceKey: string, projectId = 'project-1'): ProjectRenderResolvedSource {
+function resolved(sourceKey: string, projectId = 'project-1', mimeType = 'video/mp4'): ProjectRenderResolvedSource {
   return {
-    sourceKey, projectId, mimeType: 'video/mp4', fileName: 'source', sizeBytes: 1,
+    sourceKey, projectId, mimeType, fileName: 'source', sizeBytes: 1,
     blob: new Blob(['x']), replica: 'offline',
   };
 }
@@ -37,7 +37,7 @@ test('resolves each pinned source once with its actual media kind', async () => 
       ? 'project-file:' + input.source.projectFileId
       : 'legacy-asset:' + input.source.assetId + ':' + input.source.assetVersionId;
     calls.push({ key, kind: input.expectedKind });
-    return resolved(key);
+    return resolved(key, 'project-1', input.expectedKind === 'audio' ? 'audio/mpeg' : 'video/mp4');
   });
   assert.deepEqual(calls, [
     { key: 'project-file:video-1', kind: 'video' },
@@ -111,6 +111,34 @@ test('bounds source resolution concurrency and rejects invalid limits', async ()
   );
 });
 
+
+test('rejects inconsistent MIME declarations for the same source identity', async () => {
+  const conflicting = plan({
+    visuals: [
+      { kind: 'video', trackId: 'v', clipId: 'v1', layer: 0, startSeconds: 0, endSeconds: 4, sourceInSeconds: 0, sourceOutSeconds: 4, source: video },
+      { kind: 'video', trackId: 'v', clipId: 'v2', layer: 0, startSeconds: 4, endSeconds: 8, sourceInSeconds: 0, sourceOutSeconds: 4, source: { ...video, mimeType: 'video/webm' } },
+    ],
+    audio: [],
+    requiredSources: [video],
+  });
+  await assert.rejects(
+    () => resolveProjectRenderCompositionInputs({ projectId: 'project-1', compositionPlan: conflicting }),
+    /conflicting immutable identity or MIME metadata/,
+  );
+});
+
+test('rejects a resolver result whose MIME type conflicts with the pinned source', async () => {
+  await assert.rejects(
+    () => resolveProjectRenderCompositionInputs({ projectId: 'project-1', compositionPlan: plan() }, async (input) => {
+      const key = input.source.kind === 'project-file'
+        ? 'project-file:' + input.source.projectFileId
+        : 'legacy-asset:' + input.source.assetId + ':' + input.source.assetVersionId;
+      return resolved(key, 'project-1', 'application/octet-stream');
+    }),
+    /does not match its pinned Project identity, MIME type, or byte requirements/,
+  );
+});
+
 test('rejects a resolver result whose source identity or bytes do not match', async () => {
   await assert.rejects(
     () => resolveProjectRenderCompositionInputs({ projectId: 'project-1', compositionPlan: plan() }, async () => resolved('project-file:other')),
@@ -119,6 +147,7 @@ test('rejects a resolver result whose source identity or bytes do not match', as
   await assert.rejects(
     () => resolveProjectRenderCompositionInputs({ projectId: 'project-1', compositionPlan: plan() }, async (input) => ({
       ...resolved(input.source.kind === 'project-file' ? 'project-file:' + input.source.projectFileId : 'legacy-asset:' + input.source.assetId + ':' + input.source.assetVersionId),
+      mimeType: input.expectedKind === 'audio' ? 'audio/mpeg' : 'video/mp4',
       blob: new Blob([]),
     })),
     /contains no bytes/,
