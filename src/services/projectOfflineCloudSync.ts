@@ -60,7 +60,7 @@ export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number>
         user_id: userId,
         project_id: record.projectId,
         universe_id: null,
-        folder_id: null,
+        folder_id: record.folderId,
         source_kind: 'upload',
         source_asset_id: null,
         bucket_id: BUCKET,
@@ -98,7 +98,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
   const db = getDb();
   const userId = await getOwnerId();
   const { data: rows, error } = await db.from('media_library_items')
-    .select('id,project_id,file_name,mime_type,size_bytes,storage_path,bucket_id,updated_at,metadata')
+    .select('id,project_id,folder_id,file_name,mime_type,size_bytes,storage_path,bucket_id,updated_at,metadata')
     .eq('user_id', userId)
     .eq('project_id', projectId)
     .is('universe_id', null)
@@ -119,6 +119,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
     await installProjectCloudFileToOfflineStorage({
       projectId,
       projectFileId: row.id,
+      folderId: row.folder_id ?? null,
       fileName: row.file_name,
       mimeType: row.mime_type,
       lastModified: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
