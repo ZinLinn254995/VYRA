@@ -1169,7 +1169,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     };
     setSelectedSceneIds([]);
     setActiveSceneId(null);
-    setStoryboardUniverse(null);
+    
     setActiveStoryboard(storyboard);
     setActiveStoryboardConfirmed(true);
     setStoryboardDetailsExpanded(false);
@@ -1182,7 +1182,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
 
   const cancelStoryboardDraft = () => {
     setActiveStoryboard(null);
-    setStoryboardUniverse(null);
+    
     setActiveStoryboardConfirmed(false);
     setStoryboardDetailsExpanded(true);
     setStoryboardEditorView('chat');
@@ -1677,7 +1677,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
       root.classList.remove('is-header-dragging');
       window.dispatchEvent(new CustomEvent('vyra:main-header-progress', { detail: 0 }));
       setActiveStoryboard(null);
-      setStoryboardUniverse(null);
+      
       setActiveStoryboardConfirmed(false);
       setStoryboardDetailsExpanded(true);
       setStoryboardEditorView('chat');
@@ -1702,7 +1702,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
               <div className="profile-storyboard-view-tabs order-first flex shrink-0 items-center gap-1 bg-[var(--vyra-bg-surface)]" aria-label="Project navigation">
                 <button type="button" onClick={() => setStoryboardEditorView('chat')} aria-pressed={storyboardEditorView === 'chat'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'chat' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>AI Chat</button>
                 <button type="button" onClick={() => setStoryboardEditorView('master')} aria-pressed={storyboardEditorView === 'master'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'master' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Editor</button>
-                <button type="button" onClick={() => setStoryboardEditorView('storage')} aria-pressed={storyboardEditorView === 'storage'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'universe' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Storage</button>
+                <button type="button" onClick={() => setStoryboardEditorView('storage')} aria-pressed={storyboardEditorView === 'storage'} className={'border-b-2 px-4 py-2.5 text-xs font-semibold transition ' + (storyboardEditorView === 'storage' ? 'border-[var(--vyra-accent-primary)] text-[var(--vyra-text-primary)]' : 'border-transparent text-[var(--vyra-text-muted)] hover:text-[var(--vyra-text-primary)]')}>Storage</button>
               </div>
               {storyboardEditorView === 'master' && (
                 <>
@@ -1843,8 +1843,8 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                         <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} initialSelectedAssets={initialSelectedAssets} onSelectedAssetsChange={onSelectedAssetsChange} storyboardId={activeStoryboard.id} activeVyralId={storyboardUniverse?.id ?? null} embedded />
                       </div>
                     ) : null}
-                    <div className={storyboardEditorView === 'universe' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
-                      <StoryboardUniverseTab storyboardId={activeStoryboard.id} storyboardTitle={activeStoryboard.title} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={storyboardEditorView === 'universe'} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} onUniverseReady={setStoryboardUniverse} />
+                    <div className={storyboardEditorView === 'storage' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
+                      <ProjectStorageTab storyboardId={activeStoryboard.id} isActive={Boolean(isActive && activeStoryboard)} renderLibrary={storyboardEditorView === 'storage'} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired}  />
                     </div>
                 </div>
               );
