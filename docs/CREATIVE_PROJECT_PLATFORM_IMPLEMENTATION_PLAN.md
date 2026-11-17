@@ -283,3 +283,12 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Replaced the Workspace's dependency on `vyralAiDetails.ts` with a small generic `projectDetailSuggestions.ts` parser. It keeps only safe, bounded structured-value parsing for optional Project detail suggestions.
 - Deleted the old Vyral AI details engine, including Asset-scoped suggestion/merge/staleness helpers, and removed its Vyral-specific test suite. Added focused tests for generic Project detail parsing and unsafe-key rejection.
 - This does not change the Project details UI or storage schema. No test/build/typecheck execution has been performed.
+
+
+## Cleanup progress — 2026-11-17 (remove unreachable Personal Storage runtime)
+
+- Removed the obsolete Personal Storage delete fallback from `mediaLibraryCloud.ts`. The shared service now rejects unscoped operations and has no client call to the old personal-delete RPC; Project deletion continues through the project-owner-checked cleanup RPC.
+- Removed stale npm test scripts that referenced already-deleted test files, so the package scripts no longer advertise commands that cannot run.
+- Renamed remaining sign-in and legacy Asset-index errors so they no longer tell users to open a Personal Media Library.
+- Added regression assertions that Project Storage is required and that Project deletion uses the project-scoped cleanup RPC.
+- This is a runtime/UI cleanup only. Historical personal rows, binaries, database columns, and deployed migration history remain untouched for data safety. No test/build/typecheck or database execution has yet been run.
