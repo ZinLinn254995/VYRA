@@ -243,3 +243,28 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 - Corrected the Scene-level video MIME validation expression so valid video/* MIME types are accepted by the Project File playback path.
 - Playback error text now describes both Project Files and historical Asset sources.
 - These are source-level regression additions only. The test suites have not yet been executed in this environment; browser playback, seeking, and sync still require runtime verification.
+
+## Project File final render/export architecture gate (Nov 17, 2026)
+
+The Master Timeline playback engine is a preview transport only. A final export must be a separate deterministic pipeline; it must not record the preview element or assume that a signed playback URL is a durable source.
+
+### Required export contract
+
+- Snapshot the timeline at export start, including ordered tracks, clip IDs, stable Project File IDs (or immutable legacy Asset/version pairs), source-in/source-out, timeline placement, gain, mute/visibility, text overlays, transitions, frame rate, output dimensions, and audio sample rate.
+- Resolve every Project File from this Project's Offline Storage first. If absent, download the owner- and Project-scoped Cloud replica, verify its available integrity metadata, and install it using the same Project File ID before rendering. Legacy Asset/version sources remain a read-only compatibility input.
+- Pin the source manifest for the export job. Editing the live timeline after export begins must not mutate the in-flight render.
+- Validate that every referenced source exists, is readable, and has a supported codec before allocating a render. Missing media must fail with a recoverable source-specific error; never silently omit a clip.
+- Render video frames and audio on a shared timeline clock. Apply source trims, placement, track visibility/mute, gain, text overlays, and transitions from the snapshot. Preview-only playback state and temporary object URLs are not export inputs.
+- Persist the rendered result as a new canonical Project File ID, then install it into Offline Storage and enqueue normal background Cloud sync. The output is not a legacy Vyral Asset unless a separate explicit compatibility operation is requested.
+- Track export job state and cancellation independently from preview playback. A cancelled/failed export must not delete source files or corrupt the editable timeline.
+- Keep historical Asset-backed timelines readable. Do not migrate or rewrite their source IDs as part of export.
+
+### Implementation gate / current status
+
+- No complete renderer or Project File-aware export endpoint is present in the inspected MasterTimelineEditor path. Existing Audio/Video engines provide synchronized preview playback only.
+- Do not add a fake Export button, MediaRecorder-based screen capture, or claim that preview playback is a finished render.
+- Before implementation, select and validate a rendering runtime that supports the required browser/device targets and codecs, and decide whether rendering is local, server-side, or hybrid. Then implement a versioned render manifest, source resolver, render worker/job, output ingestion, cancellation/recovery, and end-to-end fixtures.
+- Required acceptance tests: exact clip trim and placement, multi-track A/V sync, seek-independent deterministic output, text/transition composition, offline source hydration, Cloud upload and reopen by stable output ID, cancellation, and historical Asset-backed timeline regression.
+
+This architecture gate is a design decision, not a claim that export has shipped. No production schema or deployment changes are authorized by this work.
+
