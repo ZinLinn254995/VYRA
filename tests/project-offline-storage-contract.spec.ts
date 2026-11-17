@@ -21,6 +21,7 @@ test('Project offline storage is a durable local replica, not a disposable cache
   assert.ok(service.includes("operationId: 'upload:' + projectFileId"));
   assert.ok(service.includes("cloudState: 'queued'"));
   assert.ok(service.includes('listPendingProjectOfflineSyncOperations'));
+  assert.ok(service.includes("operation.state === 'uploading'"));
   assert.ok(service.includes('getProjectOfflineFileAsFile'));
   assert.ok(service.includes('installProjectCloudFileToOfflineStorage'));
   assert.ok(service.includes('expectedSha256'));
@@ -63,4 +64,14 @@ test('Project Cloud sync reuses the canonical Project File ID for upload and dev
   assert.ok(sync.includes('installProjectCloudFileToOfflineStorage'));
   assert.ok(sync.includes("window.addEventListener('online'"));
   assert.ok(sync.includes("window.addEventListener('vyra:project-offline-file-ready'"));
+});
+
+test('account login starts background sync and automatic Cloud-to-device recovery', () => {
+  const app = read('src/App.tsx');
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  assert.ok(app.includes('startProjectOfflineCloudSync'));
+  assert.ok(app.includes('restoreAccountProjectsToOfflineStorage'));
+  assert.ok(app.includes('if (!user?.id || isGuestSession) return'));
+  assert.ok(sync.includes('restoreAccountProjectsToOfflineStorage'));
+  assert.ok(sync.includes("window.addEventListener('online'"));
 });
