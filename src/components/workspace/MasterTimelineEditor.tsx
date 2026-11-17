@@ -106,7 +106,7 @@ type Props = {
   onSceneDelete: (sceneId: string) => void;
   onSelectionChange?: (selection: { kind: 'scene' | 'transition' | 'text-clip' | 'audio-clip'; id: string; trackId?: string; label?: string } | null) => void;
   onImagePreviewChange?: (preview: { url: string; alt: string } | null) => void;
-  videoPreviewRef?: React.RefObject<HTMLVideoElement>;
+  videoPreviewRef?: React.RefObject<HTMLVideoElement | null>;
   onTextPreviewOverlaysChange?: (overlays: MasterTimelineTextOverlay[]) => void;
 };
 
