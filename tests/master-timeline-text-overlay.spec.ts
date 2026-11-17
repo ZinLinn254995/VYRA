@@ -46,6 +46,9 @@ test('Master Editor renders Text overlays against the shared playback clock', ()
   const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
   assert.match(editor, /buildMasterTimelineTextOverlay\(textTracks, currentTime\)/);
   assert.match(editor, /masterPreviewTextSignatureRef\.current/);
-  assert.match(editor, /masterPreviewTextOverlays\.map\(\(overlay\)/);
-  assert.match(editor, /ref=\{masterVideoPreviewRef\}/);
+  const workspace = readFileSync(resolve(process.cwd(), 'src/components/workspace/WorkspacePage.tsx'), 'utf8');
+  assert.match(editor, /onTextPreviewOverlaysChange\?\.\(masterPreviewTextOverlays\)/);
+  assert.match(workspace, /masterTimelineTextPreviewOverlays\.map\(\(overlay\)/);
+  assert.match(workspace, /onTextPreviewOverlaysChange=\{handleMasterTimelineTextPreviewChange\}/);
+  assert.match(workspace, /ref=\{masterTimelineVideoPreviewRef\}/);
 });
