@@ -726,3 +726,18 @@ A cross-migration review of the Project-native output path found two correctness
 The Project transfer Edge Function now passes the claim token when recording success/failure. Its interrupted-upload recovery path revalidates the existing canonical Media Library row and re-records the stored state under the newly claimed token before returning it. The legacy Asset transfer recorder remains unchanged.
 
 **Verification boundary:** GitHub source was re-read after edits and the changed call sites were inspected. No PostgreSQL migration execution, concurrent-worker test, Edge Function typecheck, or integration test was run in this workspace. The new migration is pending and must be included in the full ordered local Supabase reset test before hosted rollout. No Development/Production database, migration ledger, deployment, or billing/runtime setting was changed.
+
+
+## 24. Project Render Job persistence boundary — November 18, 2026
+
+The current Render Job implementation is a validated, immutable domain model, not yet a durable job service.
+
+- `projectRenderJob.ts` defines the lifecycle state machine, pins the manifest and deterministic composition plan, derives a canonical SHA-256 input digest, and verifies deserialized job input integrity.
+- `projectRenderLease.ts` defines pure lease claim, reclaim, renewal, release, revision checks, and worker ownership fencing. Its own contract explicitly requires a future database adapter to enforce revision compare-and-swap atomically.
+- The repository currently has no Project Render Job persistence adapter, transactional claim/renew/commit RPC, durable worker queue, scheduler, or encoder worker. The existence of the pure state machine and lease tests must not be represented as persistent job execution.
+- The Runway media-generation jobs are a separate lifecycle and must not be reused as the render-job record. Render jobs need their own durable schema and idempotency scope, with owner + Project constraints, immutable manifest/plan snapshots, digest, status/progress/revision/attempt, lease token/generation/expiry, cancellation state, output Project File identity, and bounded failure details.
+- Worker-originated progress, cancellation acknowledgement, retries, and output completion must be fenced by the current lease and expected revision inside the same database transaction. A client-side check or pure helper is not sufficient.
+- Do not add or apply the Render Job persistence migration until the eleven-file Project/Runway migration chain passes a clean disposable local Supabase reset and SQL/application tests. That gate remains blocked in this workspace because a local Docker/Supabase CLI environment is unavailable.
+- Final video composition/encoding remains a separate missing runtime capability. The current composition planner describes a deterministic render plan; it does not encode or mux a video.
+
+**Next implementation gate:** validate the existing migration chain in a disposable local Supabase environment; then design the dedicated Render Job persistence schema/RPC and worker orchestration against the verified database contract. No hosted database, migration ledger, deployment, or billing/runtime setting was changed.
