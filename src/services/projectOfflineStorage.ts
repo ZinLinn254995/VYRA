@@ -12,6 +12,7 @@ export type ProjectCloudReplicaState = 'not_queued' | 'queued' | 'uploading' | '
 export type ProjectOfflineFileRecord = {
   id: string;
   projectId: string;
+  folderId: string | null;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -241,6 +242,7 @@ function emitOfflineStorageChanged(projectFileId: string): void {
  */
 export async function importProjectFileToOfflineStorage(input: {
   projectId: string;
+  folderId?: string | null;
   file: File;
   projectFileId?: string;
   onProgress?: ProjectLocalCopyProgress;
@@ -256,6 +258,7 @@ export async function importProjectFileToOfflineStorage(input: {
   const initialRecord: ProjectOfflineFileRecord = {
     id: projectFileId,
     projectId: input.projectId,
+    folderId: input.folderId ?? null,
     fileName: input.file.name,
     mimeType: input.file.type || 'application/octet-stream',
     sizeBytes: input.file.size,
@@ -344,6 +347,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
   const base: ProjectOfflineFileRecord = {
     id: input.projectFileId,
     projectId: input.projectId,
+    folderId: existing?.folderId ?? null,
     fileName: input.fileName,
     mimeType: input.mimeType || 'application/octet-stream',
     sizeBytes: input.blob.size,
