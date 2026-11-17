@@ -24,11 +24,14 @@ export type ProjectOfflineFileRecord = {
   contentHash: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
 };
 
 export type ProjectOfflineSyncOperation = {
   operationId: string;
-  kind: 'upload';
+  kind: 'upload' | 'rename' | 'move' | 'delete';
+  fileName?: string;
+  folderId?: string | null;
   projectFileId: string;
   projectId: string;
   state: 'queued' | 'uploading' | 'failed';
@@ -46,7 +49,7 @@ export type ProjectLocalCopyProgress = (progress: {
 }) => void;
 
 const DATABASE_NAME = 'vyra-project-offline';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const FILE_STORE = 'projectFiles';
 const BLOB_STORE = 'fallbackBlobs';
 const SYNC_STORE = 'syncOperations';
@@ -428,7 +431,7 @@ export async function getProjectOfflineFile(projectFileId: string): Promise<Proj
 
 export async function getProjectOfflineFileBlob(projectFileId: string): Promise<File | Blob | null> {
   const record = await getProjectOfflineFile(projectFileId);
-  if (!record || record.localState !== 'available') return null;
+  if (!record || record.deletedAt || record.localState !== 'available') return null;
   if (record.storageBackend === 'opfs') {
     const directory = await getOpfsDirectory();
     if (!directory) return null;
@@ -454,7 +457,7 @@ export async function getProjectOfflineFileAsFile(projectFileId: string): Promis
 
 export async function listProjectOfflineFiles(projectId: string): Promise<ProjectOfflineFileRecord[]> {
   const files = await getAllValues<ProjectOfflineFileRecord>(FILE_STORE);
-  return files.filter((file) => file.projectId === projectId && file.localState === 'available');
+  return files.filter((file) => file.projectId === projectId && file.localState === 'available' && !file.deletedAt);
 }
 
 export async function listPendingProjectOfflineSyncOperations(limit = 20): Promise<ProjectOfflineSyncOperation[]> {
@@ -489,6 +492,63 @@ export async function updateProjectOfflineCloudState(
       });
     }
   }
+}
+
+
+/** Apply metadata locally and persist a Cloud operation. Delete retains bytes until Cloud confirms. */
+export async function queueProjectOfflineFileMutation(input: {
+  projectFileId: string;
+  kind: 'rename' | 'move' | 'delete';
+  fileName?: string;
+  folderId?: string | null;
+}): Promise<ProjectOfflineFileRecord> {
+  const record = await getProjectOfflineFile(input.projectFileId);
+  if (!record || record.deletedAt || record.localState !== 'available') throw new Error('This Project file is not available in Offline Storage.');
+  if (input.kind === 'rename' && !input.fileName?.trim()) throw new Error('A file name is required.');
+  const now = new Date().toISOString();
+  const updated: ProjectOfflineFileRecord = {
+    ...record,
+    ...(input.kind === 'rename' ? { fileName: input.fileName!.trim().replace(/\s+/g, ' ').slice(0, 180) } : {}),
+    ...(input.kind === 'move' ? { folderId: input.folderId ?? null } : {}),
+    ...(input.kind === 'delete' ? { deletedAt: now } : {}),
+    updatedAt: now,
+    cloudState: 'queued',
+  };
+  const operation: ProjectOfflineSyncOperation = {
+    operationId: input.kind + ':' + input.projectFileId,
+    kind: input.kind,
+    projectFileId: input.projectFileId,
+    projectId: record.projectId,
+    ...(input.kind === 'rename' ? { fileName: updated.fileName } : {}),
+    ...(input.kind === 'move' ? { folderId: updated.folderId } : {}),
+    state: 'queued',
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+    lastError: null,
+  };
+  await storeValue(FILE_STORE, updated);
+  if (input.kind === 'delete') {
+    await deleteValue(SYNC_STORE, 'upload:' + input.projectFileId);
+    await storeValue(SYNC_STORE, operation);
+  } else {
+    await storeValue(SYNC_STORE, operation);
+  }
+  emitOfflineStorageChanged(input.projectFileId);
+  return updated;
+}
+
+export async function completeProjectOfflineFileDeletion(projectFileId: string): Promise<void> {
+  const record = await getProjectOfflineFile(projectFileId);
+  if (!record?.deletedAt) return;
+  if (record.storageBackend === 'opfs') {
+    const directory = await getOpfsDirectory();
+    try { await directory?.removeEntry(record.storageKey); } catch { /* idempotent cleanup */ }
+  } else {
+    await deleteValue(BLOB_STORE, record.storageKey);
+  }
+  await deleteValue(FILE_STORE, projectFileId);
+  for (const kind of ['delete', 'upload', 'rename', 'move']) await deleteValue(SYNC_STORE, kind + ':' + projectFileId);
 }
 
 export async function removeProjectOfflineFile(projectFileId: string): Promise<void> {
