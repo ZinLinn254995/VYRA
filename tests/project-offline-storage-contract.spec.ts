@@ -362,5 +362,6 @@ test('Cloud restore atomically claims a Project File ID before writing replica b
   assert.ok(claim.includes('transaction.abort()'));
   assert.ok(claim.includes('store.put(next)'));
   assert.ok(install.includes('await claimProjectFileRestore(existing, base)'));
+  assert.ok(install.includes("existing?.localState === 'copying'"), 'Cloud restore must not race an active local import or restore');
   assert.ok(!install.includes('await storeValue(FILE_STORE, base)'));
 });
