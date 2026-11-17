@@ -2,7 +2,6 @@ import { createSupabaseContext } from 'npm:@supabase/server@1.9.2';
 import { corsHeaders } from 'jsr:@supabase/supabase-js@2/cors';
 import { addMasterTimelineTextClip, cloneMasterTimelineClip, deleteMasterTimelineClip, moveMasterTimelineClip, splitMasterTimelineClip, trimMasterTimelineClip, updateMasterTimelineClipText, updateMasterTimelineTransition, type MasterTimelineData, type TimelineResult } from './masterTimelineOperations.ts';
 import { executeAiCapability, registerAiCapabilityAdapter, type AiCapabilityExecutionAuthority } from '../../../src/server/aiCapabilityExecutor.ts';
-import { buildSceneStateProposalInstruction, buildSceneVisualContinuityInstruction } from '../../../src/services/universeSceneStatePrompt.ts';
 import { CREATIVE_DIRECTOR_SYSTEM_INSTRUCTION } from '../../../src/services/creativeDirectorIntelligence.ts';
 import { CREATIVE_PRODUCTION_PLANNING_INSTRUCTION, validateCreativeProductionPlan, type CreativeProductionPlan } from '../../../src/services/creativeProductionPlanning.ts';
 
