@@ -372,14 +372,16 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
 }
 
 /** Load only the newly changed Library rows; used for incremental UI updates after uploads. */
-export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?: string | null): Promise<MediaLibraryItem[]> {
+export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?: string | null, projectId?: string | null): Promise<MediaLibraryItem[]> {
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, ownerId, universeId);
-  let itemQuery = applyUniverseScope(db.from('media_library_items')
-    .select('id,user_id,universe_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
-    .eq('user_id', ownerId), universeId);
+  if (projectId) await assertStoryboardProject(db, ownerId, projectId);
+  let itemQuery = applyMediaLibraryScope(db.from('media_library_items')
+    .select('id,user_id,universe_id,project_id,folder_id,source_kind,source_asset_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata,created_at,updated_at')
+    .eq('user_id', ownerId), universeId, projectId);
   itemQuery = itemIds.length === 1 ? itemQuery.eq('id', itemIds[0]) : itemQuery.in('id', itemIds);
   const { data, error } = await itemQuery;
   if (error) throw new Error('Could not load the updated Media Library files: ' + error.message);
@@ -406,14 +408,16 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
 }
 
 /** Create a short-lived original-file URL only when the owner opens or downloads an item. */
-export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null): Promise<string> {
+export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null, projectId?: string | null): Promise<string> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  const { data, error } = await applyUniverseScope(db.from('media_library_items')
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  const { data, error } = await applyMediaLibraryScope(db.from('media_library_items')
     .select('bucket_id,storage_path')
     .eq('id', itemId)
-    .eq('user_id', userId), universeId).maybeSingle();
+    .eq('user_id', userId), universeId, projectId).maybeSingle();
   if (error || !data) throw new Error('This file is unavailable or you no longer have access to it.');
   if (data.bucket_id !== 'vyral-assets' || !isSafeOwnerStoragePath(data.storage_path, userId)) {
     throw new Error('This file has an invalid private storage location.');
