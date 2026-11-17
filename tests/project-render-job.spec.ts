@@ -124,6 +124,19 @@ test('rejects stale lifecycle events whose timestamps precede the last accepted 
   }), /update timestamp backwards/);
 });
 
+test('rejects malformed persisted snapshots and unknown lifecycle events', () => {
+  const job = makeJob();
+  assert.throws(() => transitionProjectRenderJob({ ...job, revision: 0 } as never, {
+    type: 'request_cancel', at: '2026-11-17T12:00:01.000Z',
+  }), /invalid identity or lifecycle values/);
+  assert.throws(() => transitionProjectRenderJob({ ...job, updatedAt: 'not-a-date' } as never, {
+    type: 'request_cancel', at: '2026-11-17T12:00:01.000Z',
+  }), /valid render-job timestamp/);
+  assert.throws(() => transitionProjectRenderJob(job, {
+    type: 'resume' as never, at: '2026-11-17T12:00:01.000Z',
+  }), /event type is unsupported/);
+});
+
 test('failed jobs retry with the same input identity and an incremented attempt', () => {
   let job = makeJob();
   job = transitionProjectRenderJob(job, { type: 'advance', status: 'preparing', progress: 10, at });
