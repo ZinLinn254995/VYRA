@@ -26,7 +26,7 @@ export const ProjectStorageTab: React.FC<Props> = ({
   return (
     <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
       <div className="mx-auto w-full max-w-6xl">
-        <MyMediaLibraryPage
+        <ProjectStoragePage
           key={projectId}
           isActive={isActive}
           projectId={projectId}
