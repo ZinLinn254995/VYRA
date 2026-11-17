@@ -387,3 +387,34 @@ test('Cloud tombstone cleanup retains deletion ownership until bytes are removed
   assert.ok(deletion.includes("syncStore.delete(kind + ':' + projectFileId)"));
   assert.ok(!deletion.includes('await deleteValue(FILE_STORE, projectFileId)'));
 });
+
+
+test('Local Offline eviction claims a deleting replica before byte cleanup and blocks Cloud restore races', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const removeStart = storage.indexOf('export async function removeProjectOfflineFile');
+  const removeEnd = storage.indexOf('export async function installProjectCloudFileToOfflineStorage', removeStart);
+  const remove = storage.slice(removeStart, removeEnd);
+  const restoreStart = storage.indexOf('export async function installProjectCloudFileToOfflineStorage');
+  const restoreEnd = storage.indexOf('export async function getProjectOfflineFile', restoreStart);
+  const restore = storage.slice(restoreStart, restoreEnd);
+  assert.ok(storage.includes("'failed' | 'deleting'"));
+  assert.ok(remove.includes("localState: 'deleting'"));
+  assert.ok(remove.includes("db.transaction(FILE_STORE, 'readwrite')"));
+  assert.ok(remove.includes("db.transaction([FILE_STORE, SYNC_STORE], 'readwrite')"));
+  assert.ok(remove.includes("current.localState !== 'deleting'"));
+  assert.ok(remove.includes("current.cloudState !== 'synced'"));
+  assert.ok(restore.includes("existing?.localState === 'copying' || existing?.localState === 'deleting'"));
+  assert.ok(storage.includes('current.localState === expected.localState'));
+  assert.ok(remove.indexOf("localState: 'deleting'") < remove.indexOf('await directory.removeEntry(deletingRecord.storageKey)'));
+  assert.ok(remove.indexOf('await directory.removeEntry(deletingRecord.storageKey)') < remove.indexOf('files.delete(projectFileId)'));
+});
+
+test('Local Offline eviction can retry cleanup while a replica remains claimed as deleting', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('export async function removeProjectOfflineFile');
+  const end = storage.indexOf('export async function installProjectCloudFileToOfflineStorage', start);
+  const remove = storage.slice(start, end);
+  assert.ok(remove.includes("(current.localState !== 'available' && current.localState !== 'deleting')"));
+  assert.ok(remove.includes("localState: 'deleting'"));
+  assert.ok(remove.includes('replicaRevision: createId()'));
+});
