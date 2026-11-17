@@ -158,7 +158,7 @@ Completed on the working branch:
 - Stable Project File IDs across local import and Cloud replicas.
 - Project Storage upload now copies to Offline Storage first and renders the local item immediately.
 - Project Chat attachments are copied into the same Offline Storage before the turn; image/video attachments are inspected through AI Vision, and small text attachments are included in the prompt with their stable Project File ID.
-- Master Timeline Editor playback resolves Project File IDs from Offline Storage first for image, video, and audio; Cloud signed URLs are the fallback, and legacy Asset/version playback remains supported.
+- Master Timeline Editor imports media into Offline Storage first, creates timeline clips with the same Project File ID, and resolves local playback for image/video/audio before falling back to Cloud; legacy Asset/version playback remains supported.
 - Project Storage previews prefer the local binary and remain usable when Cloud metadata reads fail.
 - Folder relationships are retained in local records and synchronized to the Cloud media row.
 - Background Cloud upload remains outside the visible upload progress UI.
@@ -169,7 +169,7 @@ Completed on the working branch:
 Still pending:
 
 - Project Chat attachment persistence and image/video/text inspection are partially integrated; generation jobs and generic retrieval by Project File ID still need the Project-native backend path.
-- Editor upload/import paths still need to create Project File IDs directly rather than legacy Asset/version IDs; verify every timeline editing, trim, audio, and render path uses the Project File resolver.
+- Editor timeline trim/edit operations and final render/export paths still need end-to-end verification against Project File IDs; the old Asset/version resolver remains intentionally available for historical timelines.
 - Offline rename/move/delete operations need durable local mutation records and Cloud reconciliation.
 - Account recovery needs paginated manifest reconciliation, priority ordering, and robust resume checkpoints.
 - Full typecheck, build, runtime, browser, RLS, and multi-device tests have not yet been run.
