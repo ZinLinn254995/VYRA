@@ -208,3 +208,15 @@ test('Project Chat keeps attachment IDs in message history and rehydrates prior-
   assert.ok(chat.includes('promptMessages.map(({ role, content }) => ({ role, content }))'));
   assert.ok(chat.includes('message.projectFiles.map(({ projectFileId, name, mimeType })'));
 });
+
+
+test('Editor Project File IDs survive timeline state persistence and Project autosave', () => {
+  const workspace = read('src/components/workspace/WorkspacePage.tsx');
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(workspace.includes('projectId={activeStoryboard.id}'));
+  assert.ok(workspace.includes('details: { ...current.details, masterTimeline }'));
+  assert.ok(workspace.includes('const saved = { ...snapshot, updatedAt: new Date().toISOString() }'));
+  assert.ok(workspace.includes('void persistStoryboard(saved, ownerStorageKey)'));
+  assert.ok(editor.includes('projectFileId: projectFileId'));
+  assert.ok(editor.includes('resolveProjectFilePlaybackUrl'));
+});
