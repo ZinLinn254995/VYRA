@@ -357,8 +357,15 @@ export async function importProjectFileToOfflineStorage(input: {
     emitOfflineStorageChanged(projectFileId);
     return { file: readyRecord, syncOperation };
   } catch (error) {
-    const failedRecord = { ...initialRecord, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
-    try { await storeValue(FILE_STORE, failedRecord); } catch { /* preserve original error */ }
+    // A failed final metadata/queue commit must not strand a binary that has
+    // no durable Project File record. The storage key is unique to this newly
+    // created identity, so cleanup cannot remove another logical file.
+    if (storageBackend === 'opfs') {
+      try { await directory?.removeEntry(storageKey); } catch { /* best-effort orphan cleanup */ }
+    } else {
+      try { await deleteValue(BLOB_STORE, storageKey); } catch { /* best-effort orphan cleanup */ }
+    }
+    try { await deleteValue(FILE_STORE, projectFileId); } catch { /* preserve original failure */ }
     throw error instanceof Error ? error : new Error('Could not copy the file into VYRA Offline Storage.');
   }
 }
