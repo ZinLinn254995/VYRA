@@ -287,7 +287,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
       thumbnailBackfillStartedRef.current = true;
       try {
         // Backfill only once per page visit: repair a small batch only after the
-        // user opens the Library, never while another profile subpage is active.
+        // user opens this Project's Storage, never while another Workspace view is active.
         const generated = await backfillMediaLibraryThumbnails(4, null, projectId);
         if (mounted && generated > 0) await refresh(true);
       } catch {
