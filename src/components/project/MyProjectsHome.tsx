@@ -73,8 +73,7 @@ export function MyProjectsHome({ onCreateProject, onOpenProject }: MyProjectsHom
               storyboardId: row.id,
               thumbnailUrl: null,
             } satisfies ProjectRecord;
-          })
-          .filter((item): item is ProjectRecord => Boolean(item));
+          });
         setProjects(records);
       }
       setLoading(false);
