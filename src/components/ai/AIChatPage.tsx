@@ -15,6 +15,7 @@ import type { RunwayProjectOutputAsset } from '../../services/runwayProjectGener
 import type { CreativeScenePlan } from '../../services/creativeProductionPlanning';
 import { buildSceneVisualInspectionPrompt, buildSceneVisualRepairPrompt, buildSceneVisualTransitionPrompt, parseSceneVisualInspection, type SceneVisualAnchor } from '../../services/universeSceneVisualVerification';
 import type { MediaQuality } from '../../services/mediaModelSelection';
+import { importProjectFileToOfflineStorage } from '../../services/projectOfflineStorage';
 
 type PendingShotRepair = {
   scene: CreativeScenePlan;
@@ -629,8 +630,35 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let visionImages: Array<VisionImage & { assetId: string; assetName: string }> = [];
     
     const attachedFile = selectedFile;
-    const attachmentText = selectedFile
-      ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
+    let attachedProjectFileId: string | null = null;
+    let extractedAttachmentText = '';
+    if (attachedFile && storyboardId) {
+      setIsSending(true);
+      setSelectedFileStatus('Copying into Project Offline Storage…');
+      try {
+        const imported = await importProjectFileToOfflineStorage({
+          projectId: storyboardId,
+          file: attachedFile,
+          onProgress: (progress) => {
+            const percent = progress.totalBytes > 0 ? Math.round(progress.completedBytes / progress.totalBytes * 100) : 0;
+            setSelectedFileStatus('Saving to Project Offline Storage · ' + percent + '%');
+          },
+        });
+        attachedProjectFileId = imported.file.id;
+        if (/^(text\/|application\/(json|xml))/.test(attachedFile.type) || /\.(txt|md|csv|json|xml|yaml|yml)$/i.test(attachedFile.name)) {
+          if (attachedFile.size > 1024 * 1024) throw new Error('Text attachments larger than 1 MB are saved to Project Storage but are not expanded into the chat prompt.');
+          extractedAttachmentText = await attachedFile.text();
+        }
+      } catch (error) {
+        setIsSending(false);
+        setSelectedFileStatus(error instanceof Error ? error.message : 'Could not save this attachment to Project Storage.');
+        return;
+      }
+      setIsSending(false);
+    }
+    const attachmentText = attachedFile
+      ? `\n\nAttached file: ${attachedFile.name} (${attachedFile.type || 'application/octet-stream'}, ${attachedFile.size.toLocaleString()} bytes)${attachedProjectFileId ? '\\nProject File ID: ' + attachedProjectFileId : ''}${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
+        + (extractedAttachmentText ? '\\n\\nAttached text content:\\n' + extractedAttachmentText : '')
       : '';
     const userMessage: ChatMessage = retryUserIndex >= 0
       ? messages[retryUserIndex]
@@ -674,6 +702,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamingAssistantId: string | null = null;
     let streamedText = '';
     try {
+      if (attachedFile && attachedProjectFileId && attachedFile.type.startsWith('image/')) {
+        const preview = await createVisionImagePreview(attachedFile);
+        visionImages.push({ ...preview, assetId: attachedProjectFileId, assetName: attachedFile.name });
+      }
       const navigationTarget = extractGlobalChatNavigationTarget(text);
       if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
