@@ -457,3 +457,12 @@ References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/l
 - Files without a stored hash retain the existing size/MIME/Project-ownership checks. This does not claim full-file hashing for large files whose Offline Storage import intentionally omits SHA-256.
 - Regression tests cover a matching local digest, a mismatched digest, and malformed hash metadata.
 - This protects the immutable render source boundary from silently accepting locally corrupted bytes. It does not implement or enable final media rendering/export.
+
+
+## Cloud-restored render source integrity hardening (Nov 17, 2026)
+
+- The render source resolver now verifies a Cloud download against its SHA-256 metadata before writing it to Offline Storage.
+- After installation it validates the returned replica record (stable Project File ID, Project ownership, non-deleted/available state, MIME type, and byte size), then verifies the bytes read back from Offline Storage against the Cloud hash or stored record hash.
+- A malformed or mismatched hash, wrong-Project record, altered identity, or incomplete restore fails closed before the source can enter a render plan.
+- Regression tests cover invalid Cloud digest, wrong-Project installed metadata, and a valid Cloud-to-Offline restore.
+- The source integrity boundary now checks both local-first and Cloud-restored replicas. It still does not provide hashing for records whose metadata has no SHA-256, and it does not implement final encoding/render execution.
