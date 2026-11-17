@@ -410,7 +410,7 @@ A fresh read-only audit on November 17, 2026 found:
 - Development is `ACTIVE_HEALTHY` on PostgreSQL 17. Its applied migration history ends at version `20261115134317` (`storyboard_universe_media_library`).
 - Development has both `vyral_storyboards` and the older generic `projects` table. The current `media_library_items` and `media_library_folders` tables have `universe_id`, but **do not yet have `project_id`**. The Project-scoped Media Library migration `20261117010000_project_scoped_media_library.sql` is therefore still required before a render output can safely reference a Project-scoped Media Library row.
 - The active branch contains 102 migration files. The recorded Development history and current repository filenames have multiple version/name mismatches: 21 files have no exact same-name history entry, while 8 recorded entries have no exact same-name current file. Some are older applied versions of migrations that have since been renamed/re-versioned, so these counts must not be interpreted as a list of 21 safe-to-replay migrations. A timestamp-only push or name-only replay is unsafe.
-- The Development history ends before nine later migrations in the active branch: five Runway/Asset relationship migrations (`20261116100000`, `20261116110000`, `20261116130000`, `20261116140000`, and `20261116160000`) plus four Project-native migrations (`20261117010000` through `20261117040000`).
+- The active branch contains nine migration files that still require ordered local-chain validation against Development: the existing Vyral relationship uniqueness migration (`20261113150000`), four Runway submission/polling/destination/ingestion migrations (`20261116100000`, `20261116110000`, `20261116130000`, and `20261116140000`), and four Project-native migrations (`20261117010000` through `20261117040000`). The relationship migration predates the end of the Development ledger but has no matching applied ledger entry.
 - A read-only catalog query confirms the relevant missing schema pieces: `generation_jobs.target_project_id` is absent (the older `generation_jobs.project_id` is a different column), and `media_generation_job_outputs.project_file_id` is absent. These are added by the pending Project-native migrations; do not confuse the legacy provider-generation Project reference with the canonical Workspace Project destination.
 - Production is also not aligned: its migration history has a different baseline and does not include the current Media Library, Runway, or Project-native migration sequence. No Production schema was changed.
 
@@ -525,15 +525,15 @@ The read-only Development schema inspection found:
 
 The following order is derived from the SQL object references and must be preserved in a future clean local migration test:
 
-1. `20261116100000_runway_media_submission_claim.sql` — adds the durable Runway submission claim boundary to existing `generation_jobs`, quotes, provider attempts, and job events.
-2. `20261116110000_runway_media_task_polling.sql` — creates `media_generation_job_outputs` and polling RPCs; depends on the existing generation-job/event/provider schema and the preceding submission fields.
-3. `20261116130000_runway_project_asset_destination.sql` — adds the legacy Vyral destination and owner-scoped Project Assets RPC wrapper.
-4. `20261116140000_runway_output_ingestion_state.sql` — extends the output-transfer lifecycle and depends on the output table from step 2 and destination fields from step 3.
-5. `20261116160000_vyral_asset_relationship_graph.sql` — semantic relationship graph; its prerequisite relationship table/index lineage must be checked against the existing `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` before replay.
+1. `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` — adds a NULL-aware unique semantic-edge index to the existing relationship table created by `20261106200550_vyral_master_dna_persistence.sql`. It must run after that table exists.
+2. `20261116100000_runway_media_submission_claim.sql` — adds the durable Runway submission claim boundary to existing `generation_jobs`, quotes, provider attempts, and job events.
+3. `20261116110000_runway_media_task_polling.sql` — creates `media_generation_job_outputs` and polling RPCs; depends on the existing generation-job/event/provider schema and the preceding submission fields.
+4. `20261116130000_runway_project_asset_destination.sql` — adds the legacy Vyral destination and owner-scoped Project Assets RPC wrapper.
+5. `20261116140000_runway_output_ingestion_state.sql` — extends the output-transfer lifecycle and depends on the output table from step 3 and destination fields from step 4.
 6. `20261117010000_project_scoped_media_library.sql` — adds Project scope to Media Library folders/items and owner/scope integrity. It depends on the existing Media Library and `vyral_storyboards` foundations.
 7. `20261117020000_project_scoped_media_library_cleanup.sql` — adds Project-scoped deletion/cleanup behavior and depends on step 6 plus the existing Storage cleanup queue.
 8. `20261117030000_project_native_generation_jobs.sql` — adds canonical `generation_jobs.target_project_id` and the Project-native reservation wrapper; depends on `vyral_storyboards`, the generation-job schema, and step 6's Project storage foundation.
-9. `20261117040000_project_media_generation_output.sql` — adds `media_generation_job_outputs.project_file_id` and Project output transfer RPCs; depends on steps 2, 6, and 8.
+9. `20261117040000_project_media_generation_output.sql` — adds `media_generation_job_outputs.project_file_id` and Project output transfer RPCs; depends on steps 3, 6, and 8.
 
 The exact SQL must still be tested as a complete ordered chain on a disposable local database. This dependency list is not authorization to apply any migration to hosted Development or Production.
 
@@ -589,3 +589,17 @@ This follow-up is read-only. It inspects the Development migration ledger, curre
 - The complete local Supabase reset/migration test remains blocked by the absence of a local Docker/CLI execution environment in this workspace. The next safe engineering step is static dependency/schema reconciliation of the remaining migration set, then run the exact chain in a disposable local Supabase environment when available.
 
 No hosted database schema, data, Vault secret, migration ledger, Production environment, or deployment was changed during this audit.
+
+## 20. Reuse the canonical Vyral relationship graph — November 18, 2026
+
+A static migration review and read-only Development catalog inspection found that the Vyral relationship graph already exists as part of `20261106200550_vyral_master_dna_persistence.sql`. It is the canonical relationship source consumed by Master DNA validation and the AI Chat approval workflow.
+
+- The live table already has `from_kind`/`to_kind` root-or-Asset endpoints, composite owner/Vyral foreign keys, shape checks, evidence metadata, and the Master DNA-compatible relationship model.
+- The live table has existing owner-scoped SELECT/INSERT/UPDATE/DELETE policies and existing `from_idx`/`to_idx` indexes. Its schema is not the simpler replacement shape declared by the later `20261116160000_vyral_asset_relationship_graph.sql`.
+- The later migration used `CREATE TABLE IF NOT EXISTS` with a different table definition, attempted to create a policy name that already exists, and reused existing index names for different index definitions. On the actual Development schema, the policy creation would fail; the table declaration would not evolve the existing table. Its review-state fields would also not participate in the existing Master DNA snapshot validator.
+- Development currently has zero rows in `vyral_asset_relationships`; this does not make a destructive replacement safe. The table is foundational and may contain data in other environments.
+- The existing AI Chat relationship action is an approval-gated operation, and the existing Master DNA classification RPC writes canonical, owner-scoped relationship edges. A second relationship table definition is not required for the Project Core rebuild.
+
+**Source decision:** removed the unapplied `20261116160000_vyral_asset_relationship_graph.sql` from the active branch. Keep `vyral_asset_relationships` and its Master DNA contracts as the single canonical graph. The earlier `20261113150000_vyral_asset_relationship_edge_uniqueness.sql` remains in the migration chain and is now explicitly ordered after the table-creation migration. No Development or Production database object was changed.
+
+This removal is source-only and has not yet been verified by a clean local Supabase reset; the local migration test remains a required gate.
