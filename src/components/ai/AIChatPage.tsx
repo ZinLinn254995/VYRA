@@ -420,7 +420,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             content: message.content,
             ...(message.status === 'success' || message.status === 'preview' || message.status === 'error' || message.status === 'cancelled' ? { status: message.status } : {}),
             ...(typeof message.providerLabel === 'string' ? { providerLabel: message.providerLabel } : {}),
-            ...(Array.isArray(message.projectFiles) ? { projectFiles: message.projectFiles.flatMap((entry: unknown) => {\n              if (!entry || typeof entry !== 'object') return [];\n              const file = entry as Record<string, unknown>;\n              return typeof file.projectFileId === 'string' && typeof file.name === 'string' && typeof file.mimeType === 'string'\n                ? [{ projectFileId: file.projectFileId, name: file.name, mimeType: file.mimeType }] : [];\n            }) } : {}),
+            ...(Array.isArray(message.projectFiles) ? { projectFiles: message.projectFiles.flatMap((entry: unknown) => {
+              if (!entry || typeof entry !== 'object') return [];
+              const file = entry as Record<string, unknown>;
+              return typeof file.projectFileId === 'string' && typeof file.name === 'string' && typeof file.mimeType === 'string'
+                ? [{ projectFileId: file.projectFileId, name: file.name, mimeType: file.mimeType }] : [];
+            }) } : {}),
             ...(Array.isArray(message.mediaAssets) ? { mediaAssets: message.mediaAssets.flatMap((entry: unknown) => {
               if (!entry || typeof entry !== 'object') return [];
               const asset = entry as Record<string, unknown>;
