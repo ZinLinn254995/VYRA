@@ -1271,15 +1271,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
       const accessToken = await getCurrentAccessToken();
       assertRequestCurrent();
-      const canStreamText = visionImages.length === 0;
-      if (canStreamText) {
-        streamingAssistantId = makeId();
-        setMessages((previous) => [...previous, {
-          id: streamingAssistantId!,
-          role: 'assistant',
-          content: '',
-        }]);
-      }
       const promptWorkspaceContext = workspaceContext ? (({ continuityRuntime: _localRuntime, ...context }) => context)(workspaceContext) : null;
       // Rehydrate Project attachments referenced by earlier turns. Offline replicas are
       // preferred; Cloud is a recovery source, and any downloaded copy is installed
@@ -1323,20 +1314,33 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             historicalText.set(attachment.projectFileId, await blob.text());
           }
         }
-        // Text attachments remain explicitly linked to their originating turn. This
-        // fallback restores their content if an older chat message only stored an ID.
-        for (const message of nextMessages) {
-          if (!message.projectFiles?.length) continue;
-          const missingText = message.projectFiles.filter((file) => historicalText.has(file.projectFileId)
-            && !message.content.includes('Attached text content:'));
+      }
+      const promptMessages = nextMessages.map((message) => ({ ...message }));
+      if (historicalText.size) {
+        for (const message of promptMessages) {
+          const missingText = message.projectFiles?.filter((file) => historicalText.has(file.projectFileId)
+            && !message.content.includes('Attached text content:')) ?? [];
           if (missingText.length) {
             const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\\n' + historicalText.get(file.projectFileId)).join('\\n\\n');
             message.content += '\\n\\nRecovered Project attachment text:\\n' + recovered;
           }
         }
+        setMessages((previous) => previous.map((message) => {
+          const hydrated = promptMessages.find((candidate) => candidate.id === message.id);
+          return hydrated ? hydrated : message;
+        }));
+      }
+      const canStreamText = visionImages.length === 0;
+      if (canStreamText) {
+        streamingAssistantId = makeId();
+        setMessages((previous) => [...previous, {
+          id: streamingAssistantId!,
+          role: 'assistant',
+          content: '',
+        }]);
       }
       const result = await aiService.generateResponse({
-        messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        messages: promptMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
