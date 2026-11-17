@@ -84,3 +84,16 @@ test('Project Chat can recover queued, submitted, and partially ingested Project
   assert.ok(chat.includes("Project File generations"));
   assert.ok(chat.includes('recoverProjectFileGeneration(job.id)'));
 });
+
+test('Project output transfer accepts Project destinations and fences stale retry workers', () => {
+  const migration = read('supabase/migrations/20261117060000_project_output_transfer_lease_fencing.sql');
+  const transfer = read('supabase/functions/transfer-runway-media-output/index.ts');
+  assert.ok(migration.includes('v_job.target_project_id is null and v_job.target_vyral_id is null'));
+  assert.ok(migration.includes('transfer_lease_token = v_lease_token'));
+  assert.ok(migration.includes('v_output.transfer_lease_token is distinct from p_lease_token'));
+  assert.ok(migration.includes('transfer_lease_expires_at <= pg_catalog.now()'));
+  assert.ok(transfer.includes("typeof claim.lease_token === 'string'"));
+  assert.ok(transfer.includes('p_lease_token: leaseToken'));
+  const legacyTransfer = transfer.slice(transfer.indexOf('const targetVyralId ='));
+  assert.ok(!legacyTransfer.includes('p_lease_token: leaseToken'));
+});
