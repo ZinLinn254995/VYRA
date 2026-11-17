@@ -100,15 +100,28 @@ export function renewProjectRenderLease(input: {
 }): ProjectRenderLeaseSnapshot {
   const { snapshot } = input;
   const nowMs = Date.parse(input.now);
-  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== snapshot.revision) {
+  if (!snapshot || !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 1 ||
+      !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== snapshot.revision) {
     throw new Error('The render job revision is stale; reload before renewing the lease.');
   }
-  if (!snapshot.lease || snapshot.lease.token !== input.leaseToken ||
-      snapshot.lease.workerId !== input.workerId) {
+  if (!Number.isFinite(nowMs)) {
+    throw new Error('A valid timestamp is required to renew a worker lease.');
+  }
+  const lease = snapshot.lease;
+  if (!lease || typeof lease.token !== 'string' || !lease.token.trim() ||
+      typeof lease.workerId !== 'string' || !lease.workerId.trim() ||
+      !Number.isSafeInteger(lease.generation) || lease.generation < 1 ||
+      !Number.isFinite(Date.parse(lease.acquiredAt)) ||
+      !Number.isFinite(Date.parse(lease.expiresAt)) ||
+      Date.parse(lease.expiresAt) <= Date.parse(lease.acquiredAt)) {
+    throw new Error('The persisted worker lease is malformed.');
+  }
+  if (!input.workerId?.trim() || !input.leaseToken?.trim() ||
+      lease.token !== input.leaseToken || lease.workerId !== input.workerId) {
     throw new Error('Only the current lease owner may renew this render job.');
   }
-  if (!Number.isFinite(nowMs) || Date.parse(snapshot.lease.expiresAt) <= nowMs) {
-    throw new Error('An expired worker lease cannot be renewed.');
+  if (Date.parse(lease.acquiredAt) > nowMs || Date.parse(lease.expiresAt) <= nowMs) {
+    throw new Error('An expired or not-yet-active worker lease cannot be renewed.');
   }
   if (!Number.isSafeInteger(input.leaseDurationMs) || input.leaseDurationMs < 1_000 ||
       input.leaseDurationMs > 15 * 60_000) {
