@@ -285,3 +285,36 @@ test('non-visual, placeholder and unsupported clips do not interrupt visual tran
     scope: 'video', boundarySeconds: 2, fromId: 'visual-before', toId: 'visual-after',
   }]);
 });
+
+test('hidden video tracks and trimmed Director clips do not distort visible transition boundaries', () => {
+  const value = input();
+  value.timeline.sceneInstances = [{
+    id: 'director-trimmed', sceneId: 'scene-a', sourceIn: 0, sourceOut: 8,
+    videoClips: [{
+      id: 'director-trimmed-clip', start: 0, duration: 5, sourceIn: 0, sourceOut: 2,
+      projectFileId: 'director-file', assetMimeType: 'video/mp4', mediaKind: 'video',
+    }],
+  }];
+  value.timeline.videoTracks = [
+    {
+      id: 'hidden-track', visible: false, clips: [{
+        id: 'hidden-clip', start: 2, duration: 4,
+        projectFileId: 'hidden-file', assetMimeType: 'video/mp4',
+      }],
+    },
+    {
+      id: 'visible-track', clips: [{
+        id: 'visible-next', start: 2, duration: 3, sourceIn: 0, sourceOut: 1,
+        projectFileId: 'visible-file', assetMimeType: 'video/mp4',
+      }],
+    },
+  ];
+  value.timeline.transitions = {
+    'director-trimmed-clip:visible-next': { effect: 'crossfade', duration: 0.2 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'director-trimmed-clip:visible-next', effect: 'crossfade', durationSeconds: 0.2,
+    scope: 'video', boundarySeconds: 2, fromId: 'director-trimmed-clip', toId: 'visible-next',
+  }]);
+});
