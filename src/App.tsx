@@ -37,7 +37,6 @@ function VyraApp() {
   }, [profileOpen, user]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [profileReturnSection, setProfileReturnSection] = useState<MainSection>('workspace');
-  const [profileInitialPage, setProfileInitialPage] = useState<'my-media-library' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [creditBalance, setCreditBalance] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
@@ -124,20 +123,12 @@ function VyraApp() {
       if (target === 'workspace') {
         resetMainHeaderVisibility();
         setProfileOpen(false);
-        setProfileInitialPage(null);
         setActiveSection(target);
       } else if (target === 'my-projects') {
         resetMainHeaderVisibility();
         setProfileOpen(false);
-        setProfileInitialPage(null);
         setProjectWorkspaceOpen(false);
         setActiveSection('workspace');
-      } else if (target === 'my-media-library') {
-        resetMainHeaderVisibility();
-        setProfileReturnSection('workspace');
-        setProfileInitialPage('my-media-library');
-        setProfileOpen(true);
-      }
     };
     window.addEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
     return () => window.removeEventListener('vyra:global-chat-navigate', handleGlobalChatNavigation);
@@ -180,10 +171,10 @@ function VyraApp() {
               <ProfilePage
                 userEmail={profileLabel ?? ''} creditBalance={creditBalance} creditLoading={creditLoading}
                 themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode}
-                onBack={() => { setProfileOpen(false); setProfileInitialPage(null); setActiveSection(profileReturnSection); }}
+                onBack={() => { setProfileOpen(false); setActiveSection(profileReturnSection); }}
                 backLabel="Back to Workspace"
-                onSignOut={() => { void handleSignOut(); setProfileOpen(false); setProfileInitialPage(null); }}
-                onLoginRequired={() => requestAuth('login')} initialPage={profileInitialPage} isActive={profileOpen && Boolean(user)}
+                onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
+                onLoginRequired={() => requestAuth('login')} isActive={profileOpen && Boolean(user)}
               />
             </ErrorBoundary>
           </div>
@@ -193,7 +184,7 @@ function VyraApp() {
             <WorkspacePage
               storageKey={workspaceStorageKey}
               isAuthenticated={hasPermanentAccount} isActive={projectWorkspaceOpen} createProjectRequest={createProjectRequest} openProjectRequest={openProjectRequest} onEditorExit={() => setProjectWorkspaceOpen(false)} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={(page) => { if (!user) { requestAuth('login'); return; } if (page === 'my-projects') { setProfileOpen(false); setProjectWorkspaceOpen(false); setProfileInitialPage(null); setActiveSection('workspace'); return; } setWorkspaceAiContext({ page: 'my-media-library', pageLabel: 'Workspace / My Media Library', capturedAt: new Date().toISOString() }); setProfileReturnSection('workspace'); setProfileInitialPage('my-media-library'); setProfileOpen(true); }}
+              onOpenLibraryPage={() => { setProfileOpen(false); setProjectWorkspaceOpen(false); setActiveSection('workspace'); }}
               onAiContextChange={setWorkspaceAiContext}
               
             />
