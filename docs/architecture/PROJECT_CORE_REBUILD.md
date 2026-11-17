@@ -224,3 +224,12 @@ The detailed server/client contract, output lifecycle, legacy compatibility boun
 - When a conversation is reloaded, failure to find a Cloud manifest row or signed URL must not remove the structured Project File reference. Offline-only queued uploads remain attached to their original message and can still be resolved from the current device's Offline Storage on the next turn.
 - Contract assertions cover persistent IDs, local-first rehydration, Cloud fallback installation, image/video Vision reconstruction, and text recovery.
 - Remaining: OCR and PDF/document extraction, generic binary tool access, chunked processing for large documents, user-side attachment preview polish, and full runtime/permission testing.
+
+
+## Director Project File playback continuity (Nov 17, 2026)
+
+- Scene-level Director video playback plans accept a Project File ID without requiring legacy Asset/version IDs; legacy Asset/version references remain supported.
+- When the Editor converts Director track clips back into Scene Instance video clips, it now preserves the canonical Project File ID (or the exact legacy Asset/version pair), MIME type, and trimmed source ranges. This prevents a Project File-only source from being overwritten with undefined legacy identity fields.
+- Regression coverage asserts the Project File playback plan and both Director clip conversion paths preserve the source identity and trim bounds.
+- Important boundary: the current Master Timeline transport is a synchronized preview/playback engine, not a final video export renderer. The Editor source currently has no complete Project File-aware render/export pipeline. Do not describe export as supported until a separate rendering implementation and end-to-end output verification exist.
+- Remaining: execute the new and existing Editor suites; verify audio/video sync and seeking in a real browser; validate offline playback after reload; implement and verify a Project File-aware final render/export pipeline; then test legacy timeline compatibility.
