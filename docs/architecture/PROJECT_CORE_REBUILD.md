@@ -668,7 +668,7 @@ The newer create_runway_media_job_for_project wrapper rejects an idempotency key
 
 ### Gate decision
 
-The migration chain now contains ten ordered Project/Runway migrations, including the destination mutual-exclusion constraint. It remains **not approved for execution** until a clean local reset test validates the complete chain and SQL/application tests. Keep the hosted Development and Production schemas and migration ledgers unchanged. Do not merge, deploy, db push, repair migration history, or selectively replay migrations as part of this audit.
+The migration chain now contains eleven ordered Project/Runway migrations, including the destination mutual-exclusion constraint. It remains **not approved for execution** until a clean local reset test validates the complete chain and SQL/application tests. Keep the hosted Development and Production schemas and migration ledgers unchanged. Do not merge, deploy, db push, repair migration history, or selectively replay migrations as part of this audit.
 
 
 ## Project generation destination integrity — November 18, 2026
@@ -676,7 +676,7 @@ The migration chain now contains ten ordered Project/Runway migrations, includin
 - Added `20261117050000_generation_job_destination_mutual_exclusion.sql` after the Project-native generation/output migrations. A database CHECK constraint prevents one `generation_jobs` row from targeting both the legacy Vyral container (`target_vyral_id`) and the canonical Workspace Project (`target_project_id`).
 - The constraint intentionally permits both columns to be NULL so historical jobs created before explicit destination binding remain readable and recoverable. It does not force every historical row to acquire a destination.
 - This is a database-level invariant complementing the Project-generation RPC's destination checks; application-level validation alone is not the authority.
-- The pending migration sequence now has ten files requiring clean ordered local-chain validation: `20261113150000`, `20261116100000`, `20261116110000`, `20261116130000`, `20261116140000`, and `20261117010000` through `20261117050000`.
+- The pending migration sequence now has eleven files requiring clean ordered local-chain validation: `20261113150000`, `20261116100000`, `20261116110000`, `20261116130000`, `20261116140000`, and `20261117010000` through `20261117060000`.
 - No hosted database was changed. The migration has not been executed; local Supabase reset, SQL execution, typecheck, and integration tests remain unverified in this workspace.
 
 
