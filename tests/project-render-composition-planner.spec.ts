@@ -78,7 +78,7 @@ test('builds a renderer-neutral schedule for scenes, image/video, audio, text an
   assert.deepEqual(plan.text.map((item) => [item.content, item.startSeconds, item.endSeconds]), [
     ['Hello', 1, 3], ['Goodbye', 12, 14],
   ]);
-  assert.deepEqual(plan.transitions, [{ key: 'scene-a:scene-b', effect: 'crossfade', durationSeconds: 0.75 }]);
+  assert.deepEqual(plan.transitions, [{ key: 'scene-a:scene-b', effect: 'crossfade', durationSeconds: 0.75, scope: 'scene', boundarySeconds: 8, fromId: 'scene-a', toId: 'scene-b' }]);
 });
 
 test('maps source trims exactly and clips scene media at the scene boundary', () => {
