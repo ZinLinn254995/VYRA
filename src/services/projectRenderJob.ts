@@ -72,10 +72,24 @@ function canonicalRenderInput(value: unknown, ancestors = new Set<object>()): st
   }
   if (Array.isArray(value)) {
     if (ancestors.has(value)) throw new Error('Render input must not contain circular references.');
+    if (Reflect.ownKeys(value).some((key) => typeof key === 'symbol' ||
+        (key !== 'length' && (typeof key !== 'string' || !/^(0|[1-9]\\d*)$/.test(key) || Number(key) >= value.length)))) {
+      throw new Error('Render arrays must not contain symbol or custom properties.');
+    }
     ancestors.add(value);
-    const result = '[' + value.map((item) => canonicalRenderInput(item, ancestors)).join(',') + ']';
+    const items: string[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) {
+        throw new Error('Render arrays must not contain sparse elements.');
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !('value' in descriptor)) {
+        throw new Error('Render arrays must contain only data properties.');
+      }
+      items.push(canonicalRenderInput(descriptor.value, ancestors));
+    }
     ancestors.delete(value);
-    return result;
+    return '[' + items.join(',') + ']';
   }
   if (typeof value === 'object' && value !== null) {
     const record = value as Record<string, unknown>;
@@ -84,10 +98,18 @@ function canonicalRenderInput(value: unknown, ancestors = new Set<object>()): st
     }
     if (ancestors.has(value)) throw new Error('Render input must not contain circular references.');
     ancestors.add(value);
-    const keys = Object.keys(record).sort();
+    const ownKeys = Reflect.ownKeys(record);
+    if (ownKeys.some((key) => typeof key === 'symbol')) {
+      throw new Error('Render objects must not contain symbol keys.');
+    }
+    const keys = (ownKeys as string[]).sort();
     const result = '{' + keys.map((key) => {
-      if (record[key] === undefined) throw new Error('Render input must not contain undefined values.');
-      return JSON.stringify(key) + ':' + canonicalRenderInput(record[key], ancestors);
+      const descriptor = Object.getOwnPropertyDescriptor(record, key);
+      if (!descriptor?.enumerable || !('value' in descriptor)) {
+        throw new Error('Render objects must contain only enumerable data properties.');
+      }
+      if (descriptor.value === undefined) throw new Error('Render input must not contain undefined values.');
+      return JSON.stringify(key) + ':' + canonicalRenderInput(descriptor.value, ancestors);
     }).join(',') + '}';
     ancestors.delete(value);
     return result;
