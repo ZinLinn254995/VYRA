@@ -1,4 +1,5 @@
 import type { MasterTimelineAudioPlaybackItem } from './masterTimelineAudioPlayback';
+import { connectVoiceChangerGraph, type VoiceChangerGraph } from '../services/voiceChanger';
 
 export type AudioPlaybackRuntime = {
   context: AudioContext;
@@ -27,6 +28,7 @@ export function startMasterTimelineAudioPlayback(
 ): AudioPlaybackHandle {
   const sources = new Set<AudioBufferSourceNode>();
   const gains = new Set<GainNode>();
+  const effectGraphs = new Set<VoiceChangerGraph>();
   const abortController = new AbortController();
   let stopped = false;
   let scheduledStartTime: number | null = null;
@@ -52,6 +54,8 @@ export function startMasterTimelineAudioPlayback(
       try { gain.disconnect(); } catch { /* already disconnected */ }
     }
     gains.clear();
+    for (const graph of effectGraphs) graph.disconnect();
+    effectGraphs.clear();
     resolveFinished();
   };
 
@@ -91,19 +95,23 @@ export function startMasterTimelineAudioPlayback(
         const gain = runtime.context.createGain();
         source.buffer = entry.buffer;
         gain.gain.value = Math.max(0, Math.min(1, entry.item.gain));
-        source.connect(gain);
+        const startsAt = scheduledStartTime + Math.max(0, entry.item.delaySeconds);
+        const effectGraph = connectVoiceChangerGraph(runtime.context, source, gain, entry.item.voiceEffect, startsAt);
         gain.connect(runtime.context.destination);
         sources.add(source);
         gains.add(gain);
+        effectGraphs.add(effectGraph);
         source.onended = () => {
           sources.delete(source);
           gains.delete(gain);
+          effectGraphs.delete(effectGraph);
+          effectGraph.disconnect();
           try { source.disconnect(); } catch { /* already disconnected */ }
           try { gain.disconnect(); } catch { /* already disconnected */ }
           if (!sources.size) resolveFinished();
         };
         source.start(
-          scheduledStartTime + Math.max(0, entry.item.delaySeconds),
+          startsAt,
           entry.offset,
           entry.duration,
         );
