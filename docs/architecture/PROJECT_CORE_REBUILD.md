@@ -268,3 +268,11 @@ The Master Timeline playback engine is a preview transport only. A final export 
 
 This architecture gate is a design decision, not a claim that export has shipped. No production schema or deployment changes are authorized by this work.
 
+## Editor Project File playback cache isolation (Nov 17, 2026)
+
+- Local Project File object URLs are cached under a composite Project ID + Project File ID key, not the file ID alone.
+- The resolver verifies that the local metadata belongs to the active Project and validates the MIME category before returning a cached URL.
+- This prevents a still-mounted Editor that switches Projects from accidentally reusing a previous Project's local object URL, and prevents a cached URL from bypassing media-kind validation.
+- Added a source-contract regression test for Project-scoped cache keys and validation order.
+- The test is committed but has not been executed; real browser Project switching and playback still require runtime verification.
+
