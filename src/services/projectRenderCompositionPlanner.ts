@@ -216,17 +216,22 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   // with every uploaded visual clip. Build the same adjacency sequence here so
   // clip-to-clip transitions remain resolvable when either side is Director media.
   const sceneStartById = new Map(scenes.map((scene) => [scene.sceneId, scene.startSeconds]));
+  const isRenderableVisualClip = (clip: ProjectRenderClip): boolean => {
+    const source = clipSource(clip);
+    if (!source || clip.mediaKind === 'audio') return false;
+    const mime = source.mimeType?.toLowerCase() ?? '';
+    return !mime.startsWith('audio/') &&
+      (!mime || mime.startsWith('video/') || mime.startsWith('image/')) &&
+      Number.isFinite(clip.start) && clip.start >= 0 &&
+      Number.isFinite(clip.duration) && clip.duration > 0;
+  };
   const directorTransitionClips = manifest.scenes.flatMap((scene) => {
     const instance = instanceByScene.get(scene.id);
     if (!instance) return [];
     const sceneStart = sceneStartById.get(scene.id) ?? 0;
     // Match the Editor: explicit Director videoClips replace the instance's
     // top-level source in the shared Scenes row; do not count both.
-    const instanceClips = (instance.videoClips ?? []).filter((clip) => {
-      const mime = clip.assetMimeType?.toLowerCase() ?? '';
-      return Boolean(clip.projectFileId || (clip.assetId && clip.assetVersionId)) &&
-        (mime.startsWith('video/') || mime.startsWith('image/'));
-    });
+    const instanceClips = (instance.videoClips ?? []).filter(isRenderableVisualClip);
     if (instanceClips.length) {
       return instanceClips.map((clip) => ({
         id: clip.id,
@@ -247,7 +252,7 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
   });
   const orderedVideoClips = [
     ...directorTransitionClips,
-    ...manifest.videoTracks.flatMap((track) => track.clips.map((clip) => clip)),
+    ...manifest.videoTracks.flatMap((track) => track.clips.filter(isRenderableVisualClip)),
   ]
     // Match mergeTimelineVideoRows, then the Editor's stable start/duration sort.
     .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id))
