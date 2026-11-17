@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import {
-  ChevronRight, Globe2, Images, KeyRound, Library, LogOut, Monitor, Moon,
+  ChevronRight, Globe2, KeyRound, LogOut, Monitor, Moon,
   Settings2, Sun, UserRound, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { MyMediaLibraryPage } from './MyMediaLibraryPage';
 import { ApiKeySettings } from './ApiKeySettings';
 import { ProfileSubpageHeader } from './ProfileSubpageHeader';
 import { setCompactProgress, updateProfileHeaderCompact, handleHeaderWheel, handleHeaderTouchStart, handleHeaderTouchMove, handleHeaderTouchEnd } from './headerScrollMotion';
@@ -20,19 +19,15 @@ type ProfilePageProps = {
   backLabel: string;
   onSignOut: () => void;
   onLoginRequired: () => void;
-  initialPage?: 'my-media-library' | null;
   isActive?: boolean;
 };
 
-type PageKey = 'home' | 'my-media-library' | 'settings' | 'setting-appearance' | 'setting-ai';
+type PageKey = 'home' | 'settings' | 'setting-appearance' | 'setting-ai';
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>;
 type NavItem = { key: PageKey; label: string; detail: string; icon: IconComponent };
 
 const groups: { title: string; items: NavItem[] }[] = [
-  { title: 'My Space', items: [
-    { key: 'my-media-library', label: 'My Media Library', detail: 'Manage your uploaded and generated media', icon: Images },
-  ] },
   { title: 'Platform', items: [
     { key: 'setting-ai', label: 'Admin Dashboard', detail: 'Manage VYRA platform API keys', icon: KeyRound },
   ] },
@@ -42,7 +37,6 @@ const groups: { title: string; items: NavItem[] }[] = [
 ];
 
 const pageInfo: Record<Exclude<PageKey, 'home'>, { title: string; description: string; icon: IconComponent; note: string }> = {
-  'my-media-library': { title: 'My Media Library', description: 'Manage your uploaded and generated media.', icon: Images, note: 'Your media appears here.' },
   settings: { title: 'Settings', description: 'Control your VYRA experience.', icon: Settings2, note: 'Settings categories are organized below.' },
   'setting-appearance': { title: 'Language & Appearance', description: 'Choose your language and display theme.', icon: Globe2, note: 'Choose how VYRA looks on this device.' },
   'setting-ai': { title: 'Admin Dashboard', description: 'Manage VYRA platform API keys.', icon: KeyRound, note: 'Manage the API keys used by VYRA.' },
@@ -53,14 +47,9 @@ const settingsItems: { key: PageKey; label: string; detail: string; icon: Lucide
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
-  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, initialPage = null, isActive = true,
+  userEmail, creditBalance, creditLoading, themeMode, resolvedTheme, onThemeModeChange, onBack, backLabel, onSignOut, onLoginRequired, isActive = true,
 }) => {
-  const [activePage, setActivePage] = useState<PageKey>(initialPage ?? 'home');
-  const [visitedSubpages, setVisitedSubpages] = useState<Set<PageKey>>(() => new Set(initialPage ? [initialPage] : []));
-  React.useEffect(() => {
-    setVisitedSubpages((current) => current.has(activePage) ? current : new Set([...current, activePage]));
-  }, [activePage]);
-  React.useEffect(() => { setActivePage(initialPage ?? 'home'); }, [initialPage]);
+  const [activePage, setActivePage] = useState<PageKey>('home');
   React.useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     window.dispatchEvent(new CustomEvent('vyra:page-activated', { detail: { page: isActive ? 'profile:' + activePage : 'profile:inactive' } }));
@@ -81,13 +70,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   return (
     <main className={`profile-page-main w-full ${activePage === "home" ? "mx-auto max-w-[var(--vyra-content-width)] px-4 py-6 sm:px-6 sm:py-10" : "min-w-0 p-0"}`}>
-      {(activePage === 'my-media-library' || visitedSubpages.has('my-media-library')) && (
-        <div hidden={activePage !== 'my-media-library'} aria-hidden={activePage !== 'my-media-library'} style={{ display: activePage !== 'my-media-library' ? "none" : undefined }} className="profile-subpage-scroll profile-subpage-viewport">
-          <section className="profile-subpage-card">
-            <div className="profile-subpage-content p-5 sm:p-6"><MyMediaLibraryPage isActive={isActive && activePage === 'my-media-library'} /></div>
-          </section>
-        </div>
-      )}
       {activePage === 'home' ? (
         <>
           <section className="mb-7">
@@ -135,7 +117,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <Button variant="secondary" size="sm" startIcon={<LogOut size={15} />} onClick={onSignOut}>Sign Out</Button>
           </div>
         </>
-      ) : activePage === 'my-media-library' ? null : (
+      ) : (
         <div className="profile-subpage-scroll profile-subpage-viewport"><section className="profile-subpage-card">
           <ProfileSubpageHeader
             onBack={() => { if (initialPage) onBack(); else setActivePage(activePage === 'setting-appearance' || activePage === 'setting-ai' ? 'settings' : 'home'); }}
