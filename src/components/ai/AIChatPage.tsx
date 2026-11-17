@@ -65,6 +65,169 @@ const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 
 
+type VisionImage = { mimeType: 'image/jpeg'; data: string; width: number; height: number };
+type VisionVideoFrame = VisionImage & { assetId: string; assetName: string; frameTimeMs: number };
+
+const createSelectedAssetVisionPreview = async (source: Blob): Promise<VisionImage> => {
+  const bitmap = await createImageBitmap(source);
+  try {
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw new Error('Could not prepare the selected Asset for AI Vision.');
+    context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(bitmap, 0, 0, width, height);
+    let preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode selected Asset preview.')), 'image/jpeg', 0.82));
+    if (preview.size > 600 * 1024) preview = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not compress selected Asset preview.')), 'image/jpeg', 0.55));
+    if (preview.size > 600 * 1024) throw new Error('A selected image preview exceeds the AI Vision size limit.');
+    const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Could not read selected Asset preview.')); reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid selected Asset preview.')); reader.readAsDataURL(preview); });
+    const separator = dataUrl.indexOf(',');
+    if (separator < 0) throw new Error('Invalid selected Asset preview encoding.');
+    return { mimeType: 'image/jpeg', data: dataUrl.slice(separator + 1), width, height };
+  } finally { bitmap.close(); }
+};
+
+const readBlobAsBase64 = async (blob: Blob): Promise<string> => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the selected media file.'));
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid media file encoding.'));
+    reader.readAsDataURL(blob);
+  });
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) throw new Error('Invalid media file encoding.');
+  return dataUrl.slice(comma + 1);
+};
+
+const extractSelectedVideoFrames = async (
+  source: Blob,
+  assetId: string,
+  assetName: string,
+  maxFrames: number,
+): Promise<VisionVideoFrame[]> => {
+  if (maxFrames <= 0) return [];
+  const objectUrl = URL.createObjectURL(source);
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('This video format could not be opened for frame inspection.'));
+    });
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await new Promise<void>((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error('The first video frame could not be decoded.'));
+      });
+    }
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('This video has no readable duration.');
+    const frameCount = Math.min(4, maxFrames);
+    const lastSafeFrameTime = Math.max(0, duration - Math.min(0.05, duration / 10));
+    const timestamps = Array.from({ length: frameCount }, (_, index) =>
+      frameCount === 1 ? 0 : lastSafeFrameTime * index / (frameCount - 1)
+    ).filter((time, index, all) => all.indexOf(time) === index);
+    const frames: VisionVideoFrame[] = [];
+    for (const time of timestamps) {
+      if (Math.abs(video.currentTime - time) > 0.02) {
+        await new Promise<void>((resolve, reject) => {
+          const onSeeked = () => { cleanup(); resolve(); };
+          const onError = () => { cleanup(); reject(new Error('A video frame could not be decoded.')); };
+          const cleanup = () => { video.removeEventListener('seeked', onSeeked); video.removeEventListener('error', onError); };
+          video.addEventListener('seeked', onSeeked, { once: true });
+          video.addEventListener('error', onError, { once: true });
+          video.currentTime = time;
+        });
+      }
+      const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Could not prepare a video frame for AI Vision.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frameBlob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode a video frame.')), 'image/jpeg', 0.78)
+      );
+      const preview = await createSelectedAssetVisionPreview(frameBlob);
+      const minutes = Math.floor(time / 60).toString().padStart(2, '0');
+      const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+      frames.push({ ...preview, assetId, assetName: `${assetName} · ${minutes}:${seconds}`, frameTimeMs: Math.round(time * 1000) });
+    }
+    return frames;
+  } finally {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const canonicalizeAttachmentJson = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return '[' + value.map(canonicalizeAttachmentJson).join(',') + ']';
+  const record = value as Record<string, unknown>;
+  return '{' + Object.keys(record).sort().map((key) => JSON.stringify(key) + ':' + canonicalizeAttachmentJson(record[key])).join(',') + '}';
+};
+
+const collectSceneVisualAnchors = (state: Record<string, unknown>): SceneVisualAnchor[] => {
+  const anchors: SceneVisualAnchor[] = [];
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 12) throw new Error('The approved Scene state is too deeply nested for visual verification.');
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const entries = Object.entries(value as Record<string, unknown>);
+      if (!entries.length) {
+        if (path) anchors.push({ path, expectedValue: {}, scope: 'persistent', visibility: 'required' });
+        return;
+      }
+      for (const [key, child] of entries) {
+        if (!/^[A-Za-z0-9_$-]+$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key)) {
+          throw new Error('The approved Scene state contains a visual anchor with an unsupported path.');
+        }
+        visit(child, path ? path + '.' + key : key, depth + 1);
+      }
+      return;
+    }
+    if (!path) return;
+    canonicalizeAttachmentJson(value);
+    const temporary = /(^|\.)(pose|position|expression|camera|framing|lighting|motion|blocking|screenDirection|screen_direction)(\.|$)/i.test(path);
+    anchors.push({
+      path, expectedValue: value,
+      scope: temporary ? 'scene_state' : 'persistent',
+      visibility: 'required',
+    });
+    if (anchors.length > 120) throw new Error('The approved Scene state contains too many visual anchors for one shot inspection.');
+  };
+  visit(state, '', 0);
+  return anchors;
+};
+
+const getSceneVisualBaselineRevision = async (
+  context: WorkspaceAiContext | null | undefined,
+  sceneId: string,
+): Promise<string> => {
+  const continuity = context?.activeSceneId === sceneId ? context.sceneContinuity : null;
+  if (!continuity || !continuity.contextComplete || continuity.entrySnapshotStale
+    || continuity.validationStatus !== 'creator_approved' || !continuity.currentEntryState) {
+    throw new Error('A current creator-approved Scene entry state is required for visual verification.');
+  }
+  const baseline = canonicalizeAttachmentJson({
+    sceneId,
+    previousSceneId: continuity.previousSceneId,
+    currentEntryState: continuity.currentEntryState,
+    intendedChanges: continuity.intendedChanges,
+    validationStatus: continuity.validationStatus,
+  });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(baseline));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
 export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, onShotSequenceReady, onShotRepairHistory, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
   const workspaceContextRef = useRef(workspaceContext);
   workspaceContextRef.current = workspaceContext;
