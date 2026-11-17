@@ -427,7 +427,7 @@ export async function getProjectMediaLibraryItemPlaybackSource(
   itemId: string,
   projectId: string,
   expectedKind: 'video' | 'image' | 'audio',
-): Promise<{ projectFileId: string; signedUrl: string; mimeType: string; fileName: string; sizeBytes: number }> {
+): Promise<{ projectFileId: string; signedUrl: string; mimeType: string; fileName: string; sizeBytes: number; expectedSha256: string | null }> {
   const db = getDb();
   const userId = await getOwnerId();
   if (!itemId || !projectId || !['video', 'image', 'audio'].includes(expectedKind)) {
@@ -435,7 +435,7 @@ export async function getProjectMediaLibraryItemPlaybackSource(
   }
   await assertStoryboardProject(db, userId, projectId);
   const { data, error } = await db.from('media_library_items')
-    .select('id,project_id,universe_id,bucket_id,storage_path,file_name,mime_type,size_bytes')
+    .select('id,project_id,universe_id,bucket_id,storage_path,file_name,mime_type,size_bytes,metadata')
     .eq('id', itemId)
     .eq('user_id', userId)
     .eq('project_id', projectId)
@@ -459,6 +459,7 @@ export async function getProjectMediaLibraryItemPlaybackSource(
     mimeType,
     fileName: data.file_name,
     sizeBytes: Number(data.size_bytes),
+    expectedSha256: typeof data.metadata?.sha256 === 'string' ? data.metadata.sha256 : null,
   };
 }
 
