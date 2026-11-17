@@ -901,7 +901,8 @@ export async function uploadMediaLibraryFiles(
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (scope && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  if (scope && projectId) throw new Error('Choose either project Storage or legacy Universe Storage, not both.');
+  if (!scope && !projectId) throw new Error('Choose a Project before uploading files.');
   if (scope) await assertStoryboardUniverse(db, userId, scope.universeId, scope.storyboardId);
   if (projectId) await assertStoryboardProject(db, userId, projectId);
   let uploaded = 0;
