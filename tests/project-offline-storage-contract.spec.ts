@@ -143,6 +143,8 @@ test('device recovery paginates the complete account manifest', () => {
 test('Editor reuses existing Project Storage files without creating duplicate logical Assets', () => {
   const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
   assert.ok(editor.includes('loadProjectStoragePicker'));
+  assert.ok(editor.includes('for (let offset = 0; ; offset += 100)'));
+  assert.ok(editor.includes('.range(offset, offset + 99)'));
   assert.ok(editor.includes(".eq('project_id', projectId).is('universe_id', null)"));
   assert.ok(editor.includes('listProjectOfflineFiles(projectId)'));
   assert.ok(editor.includes('getProjectOfflineFileBlob(entry.id)'));
