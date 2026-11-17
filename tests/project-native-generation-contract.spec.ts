@@ -69,3 +69,18 @@ test('Project Chat sends non-Scene generation to the Project File service and pe
   assert.ok(chat.includes('File remains saved in Project Storage'));
   assert.ok(chat.includes('Scene shot sequences remain on the verified legacy continuity workflow'));
 });
+
+
+test('Project Chat can recover queued, submitted, and partially ingested Project-native jobs', () => {
+  const client = read('src/services/runwayProjectFileGeneration.ts');
+  const chat = read('src/components/ai/AIChatPage.tsx');
+  assert.ok(client.includes("if (job.status === 'queued')"));
+  assert.ok(client.includes("invoke(db, 'submit-runway-media-job'"));
+  assert.ok(client.includes("invoke(db, 'poll-runway-media-job'"));
+  assert.ok(client.includes("invoke(db, 'transfer-runway-media-output'"));
+  assert.ok(client.includes("invoke(db, 'complete-runway-media-output'"));
+  assert.ok(chat.includes('recoverRunwayProjectFiles'));
+  assert.ok(chat.includes("setProjectFileRecoveryJobs"));
+  assert.ok(chat.includes("Project File generations"));
+  assert.ok(chat.includes('recoverProjectFileGeneration(job.id)'));
+});
