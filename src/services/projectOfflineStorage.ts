@@ -555,7 +555,7 @@ export async function installProjectCloudFileToOfflineStorage(input: {
     const latest = await getProjectOfflineFile(input.projectFileId).catch(() => null);
     // A newer import, restore, or delete owns this logical file now. Never let
     // an older restore overwrite its state or clean up its binary.
-    if (latest?.replicaRevision === base.replicaRevision && latest.updatedAt === base.updatedAt && !latest.deletedAt) {
+    if (latest && latest.replicaRevision === base.replicaRevision && latest.updatedAt === base.updatedAt && !latest.deletedAt) {
       const failed: ProjectOfflineFileRecord = {
         ...base,
         storageBackend,
