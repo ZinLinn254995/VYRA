@@ -418,3 +418,29 @@ test('Local Offline eviction can retry cleanup while a replica remains claimed a
   assert.ok(remove.includes("localState: 'deleting'"));
   assert.ok(remove.includes('replicaRevision: createId()'));
 });
+
+
+test('Concurrent local eviction attempts cannot replace an active deletion claim', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('export async function removeProjectOfflineFile');
+  const end = storage.indexOf('export async function installProjectCloudFileToOfflineStorage', start);
+  const remove = storage.slice(start, end);
+  assert.ok(remove.includes('current.localState !== record.localState'));
+  assert.ok(remove.includes("(record.localState !== 'available' && record.localState !== 'deleting')"));
+  assert.ok(remove.includes('current.replicaRevision !== record.replicaRevision'));
+});
+
+test('Failed Cloud restore cleans only the binary replica still owned by its claim', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const start = storage.indexOf('export async function installProjectCloudFileToOfflineStorage');
+  const end = storage.indexOf('export async function getProjectOfflineFile', start);
+  const restore = storage.slice(start, end);
+  const catchStart = restore.indexOf('} catch (error) {');
+  const cleanup = restore.slice(catchStart);
+  assert.ok(cleanup.includes('latest?.replicaRevision === base.replicaRevision'));
+  assert.ok(cleanup.includes('latest.updatedAt === base.updatedAt'));
+  assert.ok(cleanup.includes('cleanupDirectory.removeEntry(storageKey)'));
+  assert.ok(cleanup.includes("deleteValue(BLOB_STORE, storageKey)"));
+  assert.ok(cleanup.includes("localState: 'failed' as const"));
+  assert.ok(cleanup.indexOf('latest?.replicaRevision === base.replicaRevision') < cleanup.indexOf('cleanupDirectory.removeEntry(storageKey)'));
+});
