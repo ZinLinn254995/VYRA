@@ -18,6 +18,7 @@ test('Project Chat has no selected-Vyral Asset handoff or DNA inventory tools', 
   }
   assert.doesNotMatch(edge, /VYRAL_READ_TOOLS|executeVyralReadTool|list_my_vyrals|get_my_vyral_details|activeVyralInstruction/);
   assert.doesNotMatch(registry, /define\('vyral'|define\('assets'/);
+  assert.doesNotMatch(actions, /Vyral|Universe|vyral|universe/);
   assert.doesNotMatch(edge, /'vyral\.list'|'asset\.list'|'vyral\.propose_create'|'asset\.propose_upload'/);
 });
 
