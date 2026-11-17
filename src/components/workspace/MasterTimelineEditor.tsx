@@ -21,6 +21,7 @@ import {
   Redo2,
   Scissors,
   Slash,
+  SlidersHorizontal,
   Trash2,
   Type,
   Undo2,
@@ -37,6 +38,7 @@ import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../.
 import { buildMasterTimelineVideoPlaybackPlan } from '../../server/masterTimelineVideoPlayback';
 import { startMasterTimelineVideoPlayback, type MasterTimelineVideoPlaybackHandle } from '../../server/masterTimelineVideoPlaybackEngine';
 import { buildMasterTimelineTextOverlay, type MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
+import { createVoiceChangerPreset, normalizeVoiceChangerSettings, VOICE_CHANGER_PRESETS, type VoiceChangerSettings } from '../../services/voiceChanger';
 
 export type TimelineClip = {
   id: string;
@@ -55,6 +57,8 @@ export type TimelineClip = {
   /** Local source is durable and cloud ingestion must resume after editor remount. */
   uploadPending?: boolean;
   isPlaceholder?: boolean;
+  /** Per-clip voice effect settings; omitted on older clips means original audio. */
+  voiceEffect?: Partial<VoiceChangerSettings>;
 };
 
 export type TimelineTrack = {
@@ -340,6 +344,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
   const [selectedTransitionKey, setSelectedTransitionKey] = useState<string | null>(null);
   const [selectedTextClip, setSelectedTextClip] = useState<{ trackId: string; clipId: string } | null>(null);
   const [selectedAudioClip, setSelectedAudioClip] = useState<{ trackId: string; clipId: string } | null>(null);
+  const [voiceChangerOpen, setVoiceChangerOpen] = useState(false);
   const audioPreviewRef = useRef<HTMLAudioElement>(null);
   const [audioPreviewLoading, setAudioPreviewLoading] = useState(false);
   const [audioPreviewPlaying, setAudioPreviewPlaying] = useState(false);
@@ -1431,6 +1436,24 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     ? (value?.audioTracks || []).find((track) => track.id === selectedAudioClip.trackId)?.clips.find((clip) => clip.id === selectedAudioClip.clipId) ?? null
     : null;
   const selectedAudioClipKey = selectedAudioClip ? selectedAudioClip.trackId + ':' + selectedAudioClip.clipId : null;
+  const updateSelectedVoiceEffect = (next: Partial<VoiceChangerSettings>) => {
+    if (!selectedAudioClip) return;
+    const audioTracks = (value?.audioTracks || []).map((track) => track.id !== selectedAudioClip.trackId ? track : ({
+      ...track,
+      clips: track.clips.map((clip) => clip.id !== selectedAudioClip.clipId ? clip : ({
+        ...clip,
+        voiceEffect: normalizeVoiceChangerSettings({ ...clip.voiceEffect, ...next }),
+      })),
+    }));
+    commitChange({
+      sceneRanges: value?.sceneRanges || {},
+      sceneInstances: value?.sceneInstances,
+      transitions: value?.transitions || {},
+      audioTracks,
+      videoTracks: value?.videoTracks || [],
+      textTracks: value?.textTracks || [],
+    });
+  };
   const stopAudioPreview = () => {
     const audio = audioPreviewRef.current;
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
@@ -2808,6 +2831,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           </>
         ) : selectedAudioClip ? (
           <>
+            <button type="button" title="Voice Changer" aria-label="Voice Changer" aria-pressed={voiceChangerOpen} onClick={() => setVoiceChangerOpen((open) => !open)} className={`grid size-14 shrink-0 place-items-center rounded-xl border transition-colors ${voiceChangerOpen ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]'}`}><SlidersHorizontal size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Split selected audio at playhead" aria-label="Split selected audio at playhead" onClick={runSplitSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Scissors size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Clone selected audio" aria-label="Clone selected audio" onClick={runCloneSelectedAudio} className="grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-text-secondary)]"><Copy size={22} strokeWidth={1.8} /></button>
             <button type="button" title="Delete selected audio" aria-label="Delete selected audio" onClick={runDeleteSelectedAudio} className="order-2 grid size-14 shrink-0 place-items-center rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-canvas)] text-[var(--vyra-danger)]"><Trash2 size={22} strokeWidth={1.8} /></button>
@@ -2892,6 +2916,47 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       )}
       <audio ref={audioPreviewRef} preload="none" onPlay={() => setAudioPreviewPlaying(true)} onPause={() => setAudioPreviewPlaying(false)} onEnded={() => setAudioPreviewPlaying(false)} onError={() => { setAudioPreviewPlaying(false); setAudioPreviewClipKey(null); setAudioPreviewError('The private Audio Asset could not be loaded. Tap Play to refresh the secure link.'); }} className="hidden" />
 
+      {voiceChangerOpen && selectedAudioClip && selectedAudioClipRecord && (
+        <section className="absolute bottom-20 left-2 right-2 z-[70] max-h-[58%] overflow-y-auto rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] p-3 shadow-xl" aria-label="Voice Changer controls">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div><h3 className="text-sm font-semibold text-[var(--vyra-text-primary)]">Voice Changer</h3><p className="text-[10px] text-[var(--vyra-text-muted)]">Apply a style or fine-tune this audio clip</p></div>
+            <button type="button" onClick={() => setVoiceChangerOpen(false)} className="rounded-lg border border-[var(--vyra-border)] px-3 py-1.5 text-xs text-[var(--vyra-text-secondary)]">Close</button>
+          </div>
+          <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {VOICE_CHANGER_PRESETS.map((preset) => {
+              const active = (selectedAudioClipRecord.voiceEffect?.presetId || 'clean') === preset.id;
+              return <button key={preset.id} type="button" aria-pressed={active} title={preset.description}
+                onClick={() => updateSelectedVoiceEffect(createVoiceChangerPreset(preset.id))}
+                className={`min-h-10 rounded-lg border px-2 py-2 text-[11px] font-medium transition-colors ${active ? 'border-[var(--vyra-accent-primary)] bg-[var(--vyra-accent-primary)]/15 text-[var(--vyra-text-primary)]' : 'border-[var(--vyra-border)] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]'}`}>
+                {preset.label}
+              </button>;
+            })}
+          </div>
+          {(() => {
+            const settings = normalizeVoiceChangerSettings(selectedAudioClipRecord.voiceEffect);
+            const controls: Array<{ key: 'tone' | 'robot' | 'distortion' | 'echo' | 'warmth'; label: string; min: number; max: number; step: number }> = [
+              { key: 'tone', label: 'Tone', min: -1, max: 1, step: 0.01 },
+              { key: 'robot', label: 'Robot modulation', min: 0, max: 1, step: 0.01 },
+              { key: 'distortion', label: 'Distortion', min: 0, max: 1, step: 0.01 },
+              { key: 'echo', label: 'Echo', min: 0, max: 1, step: 0.01 },
+              { key: 'warmth', label: 'Warmth', min: -1, max: 1, step: 0.01 },
+            ];
+            return <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
+              {controls.map((control) => <label key={control.key} className="block min-w-0">
+                <span className="mb-1 flex items-center justify-between text-[11px] text-[var(--vyra-text-secondary)]"><span>{control.label}</span><span className="tabular-nums">{settings[control.key].toFixed(2)}</span></span>
+                <input type="range" min={control.min} max={control.max} step={control.step} value={settings[control.key]}
+                  onChange={(event) => updateSelectedVoiceEffect({ enabled: true, presetId: 'custom', [control.key]: Number(event.target.value) })}
+                  className="w-full accent-[var(--vyra-accent-primary)]" />
+              </label>)}
+            </div>;
+          })()}
+          <div className="mt-3 flex items-center justify-between border-t border-[var(--vyra-border)] pt-2">
+            <span className="text-[10px] text-[var(--vyra-text-muted)]">Effects are saved with this clip and applied in Master Timeline playback.</span>
+            <button type="button" onClick={() => updateSelectedVoiceEffect({ presetId: 'clean', enabled: false, tone: 0, robot: 0, distortion: 0, echo: 0, warmth: 0 })}
+              className="rounded-lg px-2 py-1.5 text-[10px] text-[var(--vyra-text-secondary)] hover:bg-[var(--vyra-bg-hover)]">Reset</button>
+          </div>
+        </section>
+      )}
       {audioPreviewError && <span className="sr-only" role="status">{audioPreviewError}</span>}
       {masterPlaybackError && <span className="sr-only" role="status">{masterPlaybackError}</span>}
       <div className="relative min-h-0 w-full flex-1">
