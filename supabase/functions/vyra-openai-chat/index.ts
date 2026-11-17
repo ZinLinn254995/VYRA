@@ -100,7 +100,7 @@ const GLOBAL_READ_TOOLS = [
           destination_track_id: { type: 'string' },
           track_id: { type: 'string' },
           edge: { type: 'string', enum: ['start', 'end'] },
-          time: { type: 'number', description: 'Timeline time in seconds; absolute drop position for move, start position for add_audio, absolute trim edge or split point for trim/split.' },
+          time: { type: 'number', description: 'Timeline time in seconds; absolute drop position for move, start position for a new text clip, absolute trim edge or split point for trim/split.' },
           field: { type: 'string', enum: ['name', 'content'] },
           value: { type: 'string' },
           name: { type: 'string', description: 'Text clip display name, required for add_text.' },
@@ -1919,7 +1919,7 @@ Deno.serve(async (request: Request) => {
      }
      let finalMessages: unknown[] = baseMessages;
 
-    // Global Workspace reads are available on every page. Vyral-specific reads are added only after server-side ownership verification.
+    // Project reads are owner-scoped and available only through the registered Project capabilities.
       {
       const plannerResponse = await fetch(endpoint, {
         method: 'POST',
@@ -1944,7 +1944,7 @@ Deno.serve(async (request: Request) => {
         return json({
           error: plannerResponse.status === 429
             ? 'OpenAI rate limit or quota reached. Please try again later.'
-            : 'OpenAI could not plan this Vyral chat request. Please retry.',
+            : 'OpenAI could not plan this Project Chat request. Please retry.',
           code: plannerResponse.status === 429 ? 'OPENAI_RATE_LIMITED' : 'OPENAI_REQUEST_FAILED',
         }, plannerResponse.status === 429 ? 429 : 502);
       }
