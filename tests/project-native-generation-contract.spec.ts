@@ -145,3 +145,14 @@ test('Project output transfer refuses to overwrite a colliding canonical Project
   assert.ok(transfer.includes('project_file_identity_conflict'));
   assert.ok(transfer.indexOf('existingItemError') < transfer.indexOf('storage.from(BUCKET).upload('));
 });
+
+
+test('Runway preflight failures are recorded as rejected before any provider request', () => {
+  const submit = read('supabase/functions/submit-runway-media-job/index.ts');
+  const payloadFailure = submit.slice(submit.indexOf("p_failure_code: 'claimed_payload_invalid'"));
+  const secretFailure = submit.slice(submit.indexOf("p_failure_code: 'provider_secret_unavailable'"));
+  assert.ok(payloadFailure.includes("p_outcome: 'rejected'"));
+  assert.ok(secretFailure.includes("p_outcome: 'rejected'"));
+  assert.ok(submit.indexOf("p_failure_code: 'claimed_payload_invalid'") < submit.indexOf('submitRunwayTask({'));
+  assert.ok(submit.indexOf("p_failure_code: 'provider_secret_unavailable'") < submit.indexOf('submitRunwayTask({'));
+});
