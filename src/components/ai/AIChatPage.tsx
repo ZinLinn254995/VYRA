@@ -1610,6 +1610,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         } else {
           setMediaGenerationStatus('Generation ' + nativeResult.status + ': ' + ('error' in nativeResult ? nativeResult.error : 'Please check the generation job.'));
         }
+        await refreshProjectRecovery();
         return;
       }
       if (!storyboardUniverseId) throw new Error('This Scene still requires its existing Assets destination for visual continuity verification. Project-native Scene handoff is not enabled yet.');
