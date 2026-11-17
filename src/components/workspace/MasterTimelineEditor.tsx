@@ -211,20 +211,26 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     expectedKind: 'video' | 'image' | 'audio',
   ): Promise<{ signedUrl: string }> => {
     if (!projectId) throw new Error('A Project is required to open this media file.');
-    const cachedUrl = projectFileObjectUrlsRef.current.get(projectFileId);
-    if (cachedUrl) return { signedUrl: cachedUrl };
     const localRecord = await getProjectOfflineFile(projectFileId);
-    if (localRecord?.projectId === projectId && localRecord.localState === 'available') {
-      const localBlob = await getProjectOfflineFileBlob(projectFileId);
-      if (localBlob) {
-        const mimeType = localRecord.mimeType.toLowerCase();
-        const matchesKind = expectedKind === 'video' ? mimeType.startsWith('video/')
-          : expectedKind === 'image' ? mimeType.startsWith('image/')
-          : mimeType.startsWith('audio/');
-        if (!matchesKind) throw new Error('The local Project file is not a valid ' + expectedKind + ' source.');
-        const objectUrl = URL.createObjectURL(localBlob);
-        projectFileObjectUrlsRef.current.set(projectFileId, objectUrl);
-        return { signedUrl: objectUrl };
+    if (localRecord?.projectId === projectId) {
+      const mimeType = localRecord.mimeType.toLowerCase();
+      const matchesKind = expectedKind === 'video' ? mimeType.startsWith('video/')
+        : expectedKind === 'image' ? mimeType.startsWith('image/')
+        : mimeType.startsWith('audio/');
+      if (!matchesKind) throw new Error('The Project file is not a valid ' + expectedKind + ' source.');
+      // Scope cached object URLs to the Project as well as the stable file ID.
+      // This prevents a still-mounted Editor from reusing a previous Project's
+      // local URL after the active Project changes.
+      const cacheKey = projectId + ':' + projectFileId;
+      const cachedUrl = projectFileObjectUrlsRef.current.get(cacheKey);
+      if (cachedUrl) return { signedUrl: cachedUrl };
+      if (localRecord.localState === 'available') {
+        const localBlob = await getProjectOfflineFileBlob(projectFileId);
+        if (localBlob) {
+          const objectUrl = URL.createObjectURL(localBlob);
+          projectFileObjectUrlsRef.current.set(cacheKey, objectUrl);
+          return { signedUrl: objectUrl };
+        }
       }
     }
     const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, expectedKind);
