@@ -615,6 +615,35 @@ export async function getProjectOfflineFileAsFile(projectFileId: string): Promis
   return new File([blob], record.fileName, { type: record.mimeType, lastModified: record.lastModified });
 }
 
+/**
+ * Retry local-only evictions interrupted by a closed tab or browser process.
+ * Recovery is enabled only where Web Locks can prove no live tab owns the
+ * per-file operation; without that guarantee, leave the record for safety.
+ */
+export async function recoverInterruptedProjectOfflineEvictions(projectId: string): Promise<number> {
+  const locks = typeof navigator !== 'undefined'
+    ? (navigator as Navigator & { locks?: ProjectFileLockManager }).locks
+    : undefined;
+  if (!locks || !projectId) return 0;
+  const records = await getAllValues<ProjectOfflineFileRecord>(FILE_STORE);
+  const interrupted = records.filter((record) =>
+    record.projectId === projectId &&
+    record.localState === 'deleting' &&
+    record.cloudState === 'synced' &&
+    !record.deletedAt
+  );
+  let recovered = 0;
+  for (const record of interrupted) {
+    try {
+      await removeProjectOfflineFile(record.id);
+      recovered += 1;
+    } catch {
+      // Keep the deleting claim for a later startup/online recovery attempt.
+    }
+  }
+  return recovered;
+}
+
 export async function listProjectOfflineFiles(projectId: string, includeDeleted = false): Promise<ProjectOfflineFileRecord[]> {
   const files = await getAllValues<ProjectOfflineFileRecord>(FILE_STORE);
   return files.filter((file) => file.projectId === projectId && file.localState === 'available' && (includeDeleted || !file.deletedAt));
