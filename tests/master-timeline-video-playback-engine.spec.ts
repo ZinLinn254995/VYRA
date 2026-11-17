@@ -228,3 +228,37 @@ test('Director clip conversion preserves Project File identity and trimmed sourc
   assert.equal((editor.match(/sourceIn: instance\.videoSourceIn \?\? legacyClip\.sourceIn \?\? 0,/g) || []).length, 2);
   assert.equal((editor.match(/sourceOut: instance\.videoSourceOut \?\? legacyClip\.sourceOut \?\? legacyClip\.duration,/g) || []).length, 2);
 });
+
+ 
+test('resolves Project File video by stable ID without legacy Asset lookup', async () => {
+  const mock = createVideo();
+  const resolved: string[] = [];
+  const handle = startMasterTimelineVideoPlayback([{
+    instanceId: 'project-video-clip',
+    sceneId: 'scene-project',
+    projectFileId: 'project-file-video-1',
+    timelineStartSeconds: 0,
+    timelineEndSeconds: 4,
+    delaySeconds: 0,
+    sourceOffsetSeconds: 1.5,
+    durationSeconds: 2.5,
+    playbackStartSeconds: 0,
+    playbackEndSeconds: 2.5,
+  }], {
+    video: mock.video,
+    resolveAssetUrl: async () => { throw new Error('Legacy Asset resolver must not run'); },
+    resolveProjectFileUrl: async (projectFileId) => {
+      resolved.push(projectFileId);
+      return 'blob:project-video';
+    },
+  });
+  handle.sync(0.5);
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.video.readyState = 1;
+  mock.dispatch('loadedmetadata');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(resolved, ['project-file-video-1']);
+  assert.equal(mock.video.src, 'blob:project-video');
+  assert.equal(mock.video.currentTime, 2);
+  handle.stop();
+});
