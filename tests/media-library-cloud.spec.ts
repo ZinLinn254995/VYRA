@@ -71,7 +71,7 @@ test('Media Library service supports private cloud upload, preview, folders, mov
   assert.ok(backfill.includes('if (!couldVerifyRow) continue'), 'An unreadable row must never cause deletion of a possibly referenced thumbnail.');
   assert.ok(backfill.includes("media_library_storage_cleanup_jobs').insert"), 'Failed cleanup of an unclaimed thumbnail must be persisted for retry.');
   assert.ok(backfill.includes('if (latestRowExists && latestMetadata?.thumbnail_path == null) await scheduleRetry(row)'), 'A verified surviving row without a thumbnail must remain eligible for bounded retry.');
-  assert.ok(backfill.includes('await applyUniverseScope('), 'Thumbnail attachment and reconciliation reads must retain the active Library scope.');
+  assert.ok(backfill.includes('await applyMediaLibraryScope('), 'Thumbnail attachment and reconciliation reads must retain the active Project or Universe scope.');
   for (const snippet of [
     'MAX_FILE_BYTES = 100 * 1024 * 1024',
     "storage.from('vyral-assets').upload",
@@ -326,7 +326,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
   const deletion = service.slice(deleteStart, deleteEnd);
   assert.ok(deletion.includes("db.rpc('delete_project_media_library_items_and_queue_storage_cleanup'"), 'Index deletion and cleanup enqueueing must be atomic.');
   assert.ok(deletion.includes('await processMediaLibraryStorageCleanup(8)'), 'Deletion should attempt queued cleanup immediately.');
-  assert.ok(deletion.includes('try {\n    await processMediaLibraryStorageCleanup(8);\n  } catch {'), 'A transient cleanup worker failure must not turn a committed index deletion into a reported delete failure.');
+  assert.ok(deletion.includes('try { await processMediaLibraryStorageCleanup(8); } catch { /* durable cleanup queue retries later */ }'), 'A transient cleanup worker failure must not turn a committed index deletion into a reported delete failure.');
   assert.ok(deletion.includes('cleanupPending'), 'The UI must be able to report when secure cleanup remains queued.');
 
   const cleanupStart = service.indexOf('export async function processMediaLibraryStorageCleanup');
@@ -422,7 +422,7 @@ test('Project Storage restores cached views and reconciles mutations without ful
   assert.ok(page.includes('libraryCacheRef.current.set(key, { ...cached, items: merge(cached.items), cachedAt: Date.now() })'), 'An upload should patch the matching cached folder instead of reloading it.');
   assert.ok(page.includes('await task(); if (refreshAfter) await refresh(true)'), 'Mutation handlers must be able to opt out of a full folder refresh.');
   assert.ok(page.includes('}, undefined, false);'), 'Incremental mutations should explicitly avoid the redundant reload path.');
-  assert.ok(service.includes('importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file })'), 'Uploads should fetch only their new rows.');
+  assert.ok(page.includes('importProjectFileToOfflineStorage({ projectId, folderId: activeFolderId, file })'), 'Uploads should become local-first Project Files without waiting for a Cloud row lookup.');
   const incrementalLoad = page.slice(page.indexOf('const runUploadBatch ='), page.indexOf('const requestUploadStop ='));
   assert.ok(incrementalLoad.includes('cachedOwner !== ownerId || cachedProject !== projectId'), 'Cached uploads must remain owner- and Project-scoped.');
   assert.ok(incrementalLoad.includes('folderId !== localItem.folder_id'), 'A local upload should patch only cached views for its folder.');
@@ -517,7 +517,7 @@ test('Master Timeline accepts Project file references for image, video and audio
   const workspace = read('src/components/workspace/WorkspacePage.tsx');
   assert.ok(editor.includes('projectFileId?: string'), 'Timeline clips must store a first-class Project file reference.');
   assert.ok(editor.includes("resolveProjectFilePlaybackUrl(activeImageClip.projectFileId, 'image')"), 'Image preview must resolve Project files directly.');
-  assert.ok(editor.includes('getProjectMediaLibraryItemPlaybackSource(clip.projectFileId, projectId || \'\', \'audio\')'), 'Audio preview must resolve Project files directly.');
+  assert.ok(editor.includes("resolveProjectFilePlaybackUrl(projectFileId, 'audio')"), 'Audio playback must resolve Project files through the shared local-first Project resolver.');
   assert.ok(editor.includes('uploadMediaLibraryFiles('), 'New Editor uploads must be stored in Project Storage.');
   assert.ok(videoPlan.includes('projectFileId?: string') && videoPlan.includes('projectFileId: clip.projectFileId'), 'Video scheduling must preserve Project file identity.');
   assert.ok(audioPlan.includes('projectFileId?: string') && audioPlan.includes('projectFileId: clip.projectFileId'), 'Audio scheduling must preserve Project file identity.');
