@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPage } from '../ai/AIChatPage';
 import { ProjectStorageTab } from './ProjectStorageTab';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Images, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Clapperboard, Copy, Film, GripHorizontal, Maximize2, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ConfirmationDialog } from '../ui/ConfirmationDialog';
 import { useModalDialog } from '../../hooks/useModalDialog';
@@ -1835,17 +1835,13 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
   return (
     <main ref={workspaceScrollRef} onScroll={(event) => { preservedWorkspaceScrollTopRef.current = event.currentTarget.scrollTop; }} onWheel={handleWorkspaceWheel} onTouchStart={handleWorkspaceTouchStart} onTouchMove={handleWorkspaceTouchMove} onTouchEnd={handleWorkspaceTouchEnd} onTouchCancel={handleWorkspaceTouchEnd} className="mx-auto min-h-0 w-full max-w-[var(--vyra-content-width)] flex-1 touch-pan-x overscroll-y-contain overflow-y-auto px-4 pb-16 pt-0 sm:px-6">
       <section className="mb-7 pt-8 sm:pt-10">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-1">
           <button type="button" onClick={() => onOpenLibraryPage('my-projects')} className="group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--vyra-border)] bg-[var(--vyra-bg-surface)] px-4 py-3 text-left transition hover:border-[var(--vyra-accent-primary)] hover:bg-[var(--vyra-bg-hover)] focus-visible:outline-2 focus-visible:outline-[var(--vyra-accent-primary)]">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><ProjectIdentityIcon size={21} /></span>
             <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Projects</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your creative Projects and their Assets</span></span>
             <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
           </button>
 
-            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--vyra-bg-subtle)] text-[var(--vyra-accent-primary)]"><Images size={19} /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--vyra-text-primary)]">My Media Library</span><span className="mt-0.5 block text-xs text-[var(--vyra-text-secondary)]">Your images, videos, audio and files</span></span>
-            <ChevronRight size={16} className="shrink-0 text-[var(--vyra-text-muted)] transition group-hover:translate-x-0.5" />
-          </button>
         </div>
       </section>
 
