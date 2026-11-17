@@ -423,7 +423,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               return typeof asset.assetId === 'string' && typeof asset.name === 'string' && typeof asset.mimeType === 'string'
                 ? [{ assetId: asset.assetId, name: asset.name, mimeType: asset.mimeType }] : [];
             }) } : {}),
-            ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete', 'vyral-create-draft', 'vyral-create-complete', 'vyral-asset-upload-draft', 'vyral-asset-upload-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatAction } : {}),
+            ...(message.action && typeof message.action === 'object' && (['storyboard-create-draft', 'storyboard-create-complete', 'storyboard-update-draft', 'storyboard-update-complete', 'storyboard-delete-draft', 'storyboard-delete-complete'].includes(String((message.action as Record<string, unknown>).type))) ? { action: message.action as GlobalChatAction } : {}),
           } as ChatMessage];
         });
         const date = new Date(row.updated_at);
