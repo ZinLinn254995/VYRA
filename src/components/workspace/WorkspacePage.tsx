@@ -15,7 +15,7 @@ import { parseVyralAiSuggestions } from '../../services/vyralAiDetails';
 import { createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { MasterTimelineEditor, type MasterTimelineData } from './MasterTimelineEditor';
 import type { MasterTimelineTextOverlay } from '../../server/masterTimelineTextOverlay';
-import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
+import type { WorkspaceAiContext } from '../../types/workspaceAiContext';
 import type { RunwayProjectShotSequenceReady } from '../../services/runwayProjectGeneration';
 import { buildDirectorShotTimelineClips } from '../../services/directorShotTimeline';
 import { approveSceneContinuityState, getSceneContinuityContext, hydrateSceneContinuityLedger, invalidateSceneContinuity, setCreatorApprovedSceneStartingState, isSceneContinuityLedgerSnapshotCurrent, type SceneContinuityLedger } from '../../services/universeSceneLedger';
@@ -31,7 +31,7 @@ type SceneProjectData = { id: string; schemaVersion: 1; createdAt: string; updat
 type StoryboardScene = { id: string; title: string; description: string; duration: number; transition: string; project?: SceneProjectData };
 type Storyboard = { id: string; title: string; topic: string; createdAt: string; updatedAt: string; details?: { category?: string; style?: string; mood?: string; tags?: string[]; scenes?: StoryboardScene[]; masterTimeline?: MasterTimelineData; globalMusic?: string; globalTitle?: string; origins?: Record<string, 'ai_suggested' | 'creator_edited'>; ai_provenance?: StoryboardAiProvenance; continuityLedger?: SceneContinuityLedger } };
 type LibraryPage = 'my-projects' | 'my-media-library';
-type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createProjectRequest?: number; openProjectRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; pendingSceneStateProposal?: WorkspaceSceneStateProposalHandoff | null; onSceneStateProposalConsumed?: (id: string) => void; onSceneStateProposal?: (proposal: WorkspaceSceneStateProposalHandoff) => void };
+type Props = { storageKey: string; isAuthenticated: boolean; isActive?: boolean; createProjectRequest?: number; openProjectRequest?: { storyboardId: string; requestId: number } | null; onEditorExit?: () => void; onLoginRequired: () => void; onOpenLibraryPage: (page: LibraryPage) => void; onAiContextChange?: (context: WorkspaceAiContext) => void; };
 
 const readStoryboards = (key: string): Storyboard[] => {
   try {
@@ -68,7 +68,7 @@ const updateStoryboardHeaderCompact = (content: HTMLElement, scrollTop = content
 };
 
 
-export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createProjectRequest = 0, openProjectRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, pendingSceneStateProposal, onSceneStateProposalConsumed, onSceneStateProposal,  }) => {
+export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, isActive = true, createProjectRequest = 0, openProjectRequest = null, onEditorExit, onLoginRequired, onOpenLibraryPage, onAiContextChange, }) => {
   const [storyboards, setStoryboards] = useState<Storyboard[]>(() => readStoryboards(storageKey));
   const createDefaultStoryboardRef = useRef<() => void>(() => {});
   const lastOpenedProjectRequestRef = useRef<number | null>(null);
@@ -804,31 +804,6 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
     if (loadedStorageKey !== storageKey) return;
     try { localStorage.setItem(storageKey, JSON.stringify(storyboards)); } catch { /* Keep this session usable. */ }
   }, [storageKey, loadedStorageKey, storyboards]);
-
-  useEffect(() => {
-    const proposal = pendingSceneStateProposal;
-    if (!proposal || !activeStoryboard || proposal.storyboardId !== activeStoryboard.id ||
-        lastAppliedSceneProposalRef.current === proposal.id) return;
-    const scenes = activeStoryboard.details?.scenes || [];
-    if (!scenes.some((scene) => scene.id === proposal.sceneId)) return;
-    const currentLedger = hydrateSceneContinuityLedger(activeStoryboard.details?.continuityLedger, scenes);
-    if (!isSceneContinuityLedgerSnapshotCurrent(currentLedger, proposal.evaluatedAgainstLedger, scenes)) {
-      lastAppliedSceneProposalRef.current = proposal.id;
-      setSceneContinuityMessage('This proposal was evaluated against an older continuity snapshot. It was not applied because the Storyboard changed while AI was working. Generate the Scene proposal again.');
-      onSceneStateProposalConsumed?.(proposal.id);
-      return;
-    }
-    lastAppliedSceneProposalRef.current = proposal.id;
-    setActiveStoryboard((current) => current?.id === proposal.storyboardId ? {
-      ...current,
-      details: { ...current.details, continuityLedger: proposal.ledger as SceneContinuityLedger },
-      updatedAt: new Date().toISOString(),
-    } : current);
-    setSceneContinuityMessage(proposal.validationStatus === 'consistent'
-      ? 'AI Scene-state proposal evaluated successfully. Review it, then approve it to make it canon.'
-      : 'AI Scene-state proposal needs review. Continuity violations were found; it has not been approved.');
-    onSceneStateProposalConsumed?.(proposal.id);
-  }, [pendingSceneStateProposal, activeStoryboard?.id, activeStoryboard?.details?.scenes, onSceneStateProposalConsumed]);
 
   useEffect(() => {
     const ownerStorageKey = storageKey;
@@ -1653,7 +1628,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
             </section>
           </div>
         <aside className="h-1/2 min-h-0 w-full shrink-0 border-t border-[var(--vyra-border)] lg:h-full lg:w-[38%] lg:border-l lg:border-t-0">
-          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory}  storyboardId={activeStoryboard.id}  embedded />
+          <AIChatPage isActive={Boolean(isActive && activeStoryboard)} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onShotSequenceReady={handleShotSequenceReady} onShotRepairHistory={handleShotRepairHistory}  storyboardId={activeStoryboard.id}  embedded />
         </aside>
       </main>
     );
@@ -1839,7 +1814,7 @@ export const WorkspacePage: React.FC<Props> = ({ storageKey, isAuthenticated, is
                       </div>
                     ) : storyboardEditorView === 'chat' ? (
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext} onSceneStateProposal={onSceneStateProposal}  storyboardId={activeStoryboard.id} activeVyralId={null} embedded />
+                        <AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === 'chat')} isAuthenticated={isAuthenticated} onLoginRequired={onLoginRequired} workspaceContext={localWorkspaceAiContext}   storyboardId={activeStoryboard.id} activeVyralId={null} embedded />
                       </div>
                     ) : null}
                     <div className={storyboardEditorView === 'storage' ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'hidden'}>
