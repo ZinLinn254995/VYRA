@@ -165,20 +165,24 @@ export function createProjectRenderJob(input: {
   if (input.manifest.projectId !== input.compositionPlan.projectId) {
     throw new Error('The render manifest and composition plan must belong to the same Project.');
   }
-  const expectedPlan = buildProjectRenderCompositionPlan(input.manifest);
-  if (canonicalRenderInput(expectedPlan) !== canonicalRenderInput(input.compositionPlan)) {
+  // Detach the job snapshot from caller-owned objects before freezing it. Freezing
+  // the caller's manifest in place would create surprising cross-feature side effects.
+  const pinnedManifest = JSON.parse(canonicalRenderInput(input.manifest)) as ProjectRenderManifest;
+  const pinnedCompositionPlan = JSON.parse(canonicalRenderInput(input.compositionPlan)) as ProjectRenderCompositionPlan;
+  const expectedPlan = buildProjectRenderCompositionPlan(pinnedManifest);
+  if (canonicalRenderInput(expectedPlan) !== canonicalRenderInput(pinnedCompositionPlan)) {
     throw new Error('The composition plan does not match the pinned Project render manifest.');
   }
   const job: ProjectRenderJob = {
     schema: 'vyra.project-render-job',
     version: 1,
     id: input.id,
-    projectId: input.manifest.projectId,
+    projectId: pinnedManifest.projectId,
     ownerId: input.ownerId,
     idempotencyKey: input.idempotencyKey,
     inputDigest: input.inputDigest.toLowerCase(),
-    manifest: input.manifest,
-    compositionPlan: input.compositionPlan,
+    manifest: pinnedManifest,
+    compositionPlan: pinnedCompositionPlan,
     status: 'queued',
     progress: 0,
     attempt: 1,
