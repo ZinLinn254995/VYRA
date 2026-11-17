@@ -1548,42 +1548,30 @@ for (const capabilityId of Object.keys(PROPOSAL_CAPABILITY_TOOLS) as ProposalCap
         return Object.keys(input).every((key) => ['storyboard_id', 'field', 'value'].includes(key)) &&
           ['title', 'topic'].includes(String(input.field)) && typeof input.value === 'string';
       }
-      if (capabilityId === 'scene.propose_batch_create') {
-        return Object.keys(input).every((key) => ['storyboard_id', 'production_plan'].includes(key)) &&
-          isPlainRecord(input.production_plan);
-      }
-      if (capabilityId === 'scene.propose_update') {
-        return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'field', 'value'].includes(key)) &&
-          isUuid(input.scene_id) && ['title', 'description', 'transition', 'duration'].includes(String(input.field));
-      }
-      if (capabilityId === 'scene.propose_mutation') {
-        return Object.keys(input).every((key) => ['storyboard_id', 'scene_id', 'operation', 'title', 'description', 'duration'].includes(key)) &&
-          ['create', 'duplicate', 'delete'].includes(String(input.operation)) &&
-          (input.operation === 'create' ? input.scene_id === undefined : isUuid(input.scene_id));
-      }
-      if (capabilityId === 'scene.propose_reorder') {
-        return Object.keys(input).every((key) => ['storyboard_id', 'scene_ids'].includes(key)) &&
-          Array.isArray(input.scene_ids) && input.scene_ids.length > 0 && input.scene_ids.length <= 80 &&
-          input.scene_ids.every(isUuid);
-      }
-      if (capabilityId === 'timeline.propose_edit') {
-        return Object.keys(input).every((key) => ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration'].includes(key)) &&
-          ['add_text','move','trim','split','clone','update_text','delete'].includes(String(input.operation));
-      }
-      return Object.keys(input).every((key) => ['storyboard_id', 'transition_key', 'effect'].includes(key)) &&
-        typeof input.transition_key === 'string' &&
-        ['dissolve', 'fade', 'wipe', 'slide', 'zoom', 'blur', 'none'].includes(String(input.effect));
+      if (capabilityId === 'scene.propose_batch_create') return Object.keys(input).every((key) => ['storyboard_id','production_plan'].includes(key)) && isPlainRecord(input.production_plan);
+      if (capabilityId === 'scene.propose_update') return Object.keys(input).every((key) => ['storyboard_id','scene_id','field','value'].includes(key)) && isUuid(input.scene_id) && ['title','description','transition','duration'].includes(String(input.field));
+      if (capabilityId === 'scene.propose_mutation') return Object.keys(input).every((key) => ['storyboard_id','scene_id','operation','title','description','duration'].includes(key)) && ['create','duplicate','delete'].includes(String(input.operation)) && (input.operation === 'create' ? input.scene_id === undefined : isUuid(input.scene_id));
+      if (capabilityId === 'scene.propose_reorder') return Object.keys(input).every((key) => ['storyboard_id','scene_ids'].includes(key)) && Array.isArray(input.scene_ids) && input.scene_ids.length > 0 && input.scene_ids.length <= 80 && input.scene_ids.every(isUuid);
+      if (capabilityId === 'timeline.propose_edit') return Object.keys(input).every((key) => ['storyboard_id','operation','kind','clip_id','source_track_id','destination_track_id','track_id','edge','time','field','value','name','duration'].includes(key)) && ['add_text','move','trim','split','clone','update_text','delete'].includes(String(input.operation));
+      return Object.keys(input).every((key) => ['storyboard_id','transition_key','effect'].includes(key)) && typeof input.transition_key === 'string' && ['dissolve','fade','wipe','slide','zoom','blur','none'].includes(String(input.effect));
     },
     execute: async (input, execution) => {
       const runtime = isPlainRecord(execution.runtime) ? execution.runtime : {};
       const admin = runtime.admin;
       const sessionId = typeof runtime.sessionId === 'string' ? runtime.sessionId : null;
       const toolCallId = typeof runtime.toolCallId === 'string' ? runtime.toolCallId : '';
+      const rawArguments = JSON.stringify(input);
       if (!admin || !sessionId || !toolCallId) throw new Error('Verified proposal runtime is unavailable.');
-      return await executeSharedProposalCapability(
-        admin, execution.userId, sessionId, capabilityId, JSON.stringify(input), toolCallId,
-        null, null, false,
-      );
+      if (capabilityId === 'storyboard.propose_update') return await createStoryboardUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      if (capabilityId === 'scene.propose_batch_create') return await createSceneBatchProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      if (capabilityId === 'scene.propose_update') return await createSceneUpdateProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      if (capabilityId === 'scene.propose_mutation') {
+        const operation = input.operation === 'delete' ? 'delete' : input.operation === 'create' ? 'create' : 'duplicate';
+        return await createSceneMutationProposal(admin, execution.userId, sessionId, rawArguments, toolCallId, operation);
+      }
+      if (capabilityId === 'scene.propose_reorder') return await createSceneReorderProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      if (capabilityId === 'timeline.propose_edit') return await createMasterTimelineEditProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
+      return await createMasterTimelineTransitionProposal(admin, execution.userId, sessionId, rawArguments, toolCallId);
     },
   });
 }
