@@ -54,7 +54,7 @@ test('Project media progress distinguishes ready, pending and reconciliation sta
   assert.ok(chat.includes("result.status === 'ready'"));
   assert.ok(chat.includes("result.status === 'submitted_pending'"));
   assert.ok(chat.includes("result.status === 'reconciliation_required'"));
-  assert.ok(chat.includes('passed DNA / Fingerprint verification'));
+  assert.ok(chat.includes('passed verification.'));
 });
 
 test('media polling is aborted when the chat component unmounts', () => {
