@@ -233,8 +233,8 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     ...manifest.videoTracks.flatMap((track) => track.clips.map((clip) => clip)),
   ].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
   for (let index = 0; index < orderedVideoClips.length - 1; index += 1) {
-    const current = orderedVideoClips[index].clip;
-    const next = orderedVideoClips[index + 1].clip;
+    const current = orderedVideoClips[index];
+    const next = orderedVideoClips[index + 1];
     const boundarySeconds = current.start + current.duration;
     const matchingScene = scenes.find((scene, sceneIndex) =>
       sceneIndex < scenes.length - 1 && scenes[sceneIndex + 1].startSeconds === boundarySeconds);
