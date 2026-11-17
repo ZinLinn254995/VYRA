@@ -579,3 +579,13 @@ The Storyboard editor uses one persistent, pinned header stack:
 - Scrolling back to the top expands the title group but never automatically reopens the Details form. The creator must explicitly press the Details control to reopen it.
 - There is no ruler, divider, label, or helper text between the title group and the preview. The preview canvas has no separate heading or explanatory helper sentence.
 - Until an actual render is available, the canvas remains an honest empty preview surface; it must not imply playback or rendering.
+
+### Voice Changer — initial editor integration
+
+- Audio timeline clips can carry an optional per-clip `voiceEffect` profile. Older clips without this field continue to play as original audio.
+- The selected Audio clip exposes a compact Voice Changer panel with ready-made styles: Original, Studio, Radio, Telephone, Robot, Alien, Deep, Bright, and Vintage.
+- Manual controls expose tone/brightness, robot modulation, distortion, echo, and warmth. Values are normalized and clamped before persistence.
+- Master Timeline playback carries the saved effect profile into a Web Audio processing chain. The source buffer, source offset, clip start, and clip duration are not rewritten by the effect chain.
+- This is an initial real-time playback implementation, not yet a completed render/export feature. The current Project export path has not been wired to this chain, so do not claim that the effects are baked into exported video yet.
+- Pitch-preserving pitch/formant shifting, high-quality reverb, voice isolation, and offline processed-file rendering remain future DSP work. The current Deep/Bright styles are tone/formant-colour approximations, not true pitch shifting.
+- No database migration is required: effect settings are optional metadata stored on the existing timeline clip record. No existing Project/Storyboard data is rewritten.
