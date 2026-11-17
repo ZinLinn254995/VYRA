@@ -45,6 +45,21 @@ const defaultPorts: ProjectRenderSourceResolverPorts = {
   },
 };
 
+async function assertStoredContentHash(blob: Blob, expectedHash: string | null): Promise<void> {
+  if (!expectedHash) return;
+  if (!/^[a-f0-9]{64}$/i.test(expectedHash)) {
+    throw new Error('The Offline Project File has invalid SHA-256 metadata.');
+  }
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error('The Offline Project File integrity check is unavailable in this environment.');
+  }
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  if (actual.toLowerCase() !== expectedHash.toLowerCase()) {
+    throw new Error('The Offline Project File failed its SHA-256 integrity check.');
+  }
+}
+
 function assertMediaKind(mimeType: string, expectedKind: ProjectRenderMediaKind): void {
   if (!mimeType.toLowerCase().startsWith(expectedKind + '/')) {
     throw new Error('The render source MIME type does not match the expected ' + expectedKind + ' media type.');
@@ -69,6 +84,7 @@ export async function resolveProjectRenderSourceBlob(input: {
       assertMediaKind(record.mimeType, expectedKind);
       const blob = await ports.getOfflineBlob(source.projectFileId);
       if (blob && blob.size === record.sizeBytes) {
+        await assertStoredContentHash(blob, record.contentHash);
         return {
           sourceKey: 'project-file:' + source.projectFileId,
           projectId,
