@@ -238,24 +238,6 @@ export const VYRA_AI_CAPABILITIES: readonly AiCapabilityPolicy[] = [
     ['library.delete', 'Delete library items'],
     ['library.folder.delete', 'Delete a folder and handle its contents'],
   ]),
-  ...define('marketplace', 'autonomous', 'read', [
-    ['marketplace.search', 'Search Marketplace listings'],
-    ['marketplace.read', 'Read listing details and license terms'],
-    ['marketplace.compare', 'Compare listings and versions'],
-    ['marketplace.sales.read', 'Read own sales and purchase history'],
-  ]),
-  ...define('marketplace', 'approval-required', 'external', [
-    ['marketplace.purchase', 'Purchase a listing after price and license review'],
-    ['marketplace.publish_listing', 'Publish a Vyral listing'],
-    ['marketplace.update_listing', 'Update an owned listing'],
-    ['marketplace.unpublish_listing', 'Unpublish an owned listing'],
-    ['marketplace.accept_license', 'Accept a license for the current purchase'],
-  ]),
-  ...define('marketplace', 'human-only', 'financial', [
-    ['marketplace.payout_method', 'Add or change payout destination'],
-    ['marketplace.withdraw', 'Withdraw creator earnings'],
-    ['marketplace.refund_override', 'Override a refund or dispute outcome'],
-  ]),
   ...define('publishing', 'autonomous', 'read', [
     ['publishing.accounts.read', 'Read connected social account status'],
     ['publishing.preview', 'Prepare a publish preview and validate requirements'],
