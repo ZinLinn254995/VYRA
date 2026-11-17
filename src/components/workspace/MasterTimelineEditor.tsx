@@ -29,6 +29,7 @@ import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVi
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
 import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary, uploadMediaLibraryFiles } from '../../services/mediaLibraryCloud';
+import { getProjectOfflineFile, getProjectOfflineFileBlob } from '../../services/projectOfflineStorage';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -157,6 +158,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
   // canonical Asset and immutable Version upload in the background.
   const localMediaObjectUrlsRef = useRef(new Map<string, string>());
   const recoveringUploadKeysRef = useRef(new Set<string>());
+  const projectFileObjectUrlsRef = useRef(new Map<string, string>());
   const editorMountedRef = useRef(true);
   const latestTimelineValueRef = useRef(value);
   latestTimelineValueRef.current = value;
@@ -180,6 +182,8 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       URL.revokeObjectURL(objectUrl);
     }
     localMediaObjectUrlsRef.current.clear();
+    for (const objectUrl of projectFileObjectUrlsRef.current.values()) URL.revokeObjectURL(objectUrl);
+    projectFileObjectUrlsRef.current.clear();
   }, []);
   const resolveLocalMediaUrl = async (assetId: string, versionId: string): Promise<string | null> => {
     const key = assetId + ':' + versionId;
@@ -200,6 +204,31 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     localMediaObjectUrlsRef.current.set(key, objectUrl);
     return objectUrl;
   };
+  const resolveProjectFilePlaybackUrl = async (
+    projectFileId: string,
+    expectedKind: 'video' | 'image' | 'audio',
+  ): Promise<string> => {
+    if (!projectId) throw new Error('A Project is required to open this media file.');
+    const cachedUrl = projectFileObjectUrlsRef.current.get(projectFileId);
+    if (cachedUrl) return cachedUrl;
+    const localRecord = await getProjectOfflineFile(projectFileId);
+    if (localRecord?.projectId === projectId && localRecord.localState === 'available') {
+      const localBlob = await getProjectOfflineFileBlob(projectFileId);
+      if (localBlob) {
+        const mimeType = localRecord.mimeType.toLowerCase();
+        const matchesKind = expectedKind === 'video' ? mimeType.startsWith('video/')
+          : expectedKind === 'image' ? mimeType.startsWith('image/')
+          : mimeType.startsWith('audio/');
+        if (!matchesKind) throw new Error('The local Project file is not a valid ' + expectedKind + ' source.');
+        const objectUrl = URL.createObjectURL(localBlob);
+        projectFileObjectUrlsRef.current.set(projectFileId, objectUrl);
+        return objectUrl;
+      }
+    }
+    const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, expectedKind);
+    return source.signedUrl;
+  };
+
   const [mediaUploadBusy, setMediaUploadBusy] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState('');
 
@@ -980,7 +1009,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     setImagePreviewUrl(null);
     if (activeImageClip.projectFileId) {
       if (!projectId) { setImagePreviewUrl(null); return; }
-      void getProjectMediaLibraryItemPlaybackSource(activeImageClip.projectFileId, projectId, 'image')
+      void resolveProjectFilePlaybackUrl(activeImageClip.projectFileId, 'image')
         .then((source) => { if (!cancelled) setImagePreviewUrl(source.signedUrl); })
         .catch(() => { if (!cancelled) setImagePreviewUrl(null); });
       return () => { cancelled = true; };
@@ -1074,7 +1103,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         },
         resolveProjectFileUrl: async (projectFileId, signal) => {
           if (!projectId || signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
-          const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, 'audio');
+          const source = await resolveProjectFilePlaybackUrl(projectFileId, 'audio');
           if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
           return source.signedUrl;
         },
@@ -1105,7 +1134,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           },
           resolveProjectFileUrl: async (projectFileId, signal) => {
             if (!projectId || signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
-            const source = await getProjectMediaLibraryItemPlaybackSource(projectFileId, projectId, 'video');
+            const source = await resolveProjectFilePlaybackUrl(projectFileId, 'video');
             if (signal.aborted) throw new DOMException('Playback cancelled.', 'AbortError');
             return source.signedUrl;
           },
@@ -1415,7 +1444,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
       audio.removeAttribute('src');
       audio.load();
       const playbackUrl = clip.projectFileId
-        ? (await getProjectMediaLibraryItemPlaybackSource(clip.projectFileId, projectId || '', 'audio')).signedUrl
+        ? (await resolveProjectFilePlaybackUrl(clip.projectFileId, 'audio')).signedUrl
         : (await createVyralAudioPlaybackUrl(supabase, { assetId: clip.assetId!, versionId: clip.assetVersionId! })).signedUrl;
       audio.src = playbackUrl;
       audio.load();
