@@ -138,3 +138,18 @@ test('device recovery paginates the complete account manifest', () => {
   assert.ok(sync.includes('if (rows.length < pageSize) break'));
   assert.ok(sync.includes('if (projects.length < pageSize) break'));
 });
+
+
+test('Editor reuses existing Project Storage files without creating duplicate logical Assets', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes('loadProjectStoragePicker'));
+  assert.ok(editor.includes(".eq('project_id', projectId).is('universe_id', null)"));
+  assert.ok(editor.includes('listProjectOfflineFiles(projectId)'));
+  assert.ok(editor.includes('getProjectOfflineFileBlob(entry.id)'));
+  assert.ok(editor.includes('installProjectCloudFileToOfflineStorage'));
+  assert.ok(editor.includes('projectFileId: entry.id'));
+  assert.ok(editor.includes('Add from Project Storage'));
+  assert.ok(editor.includes('placeTimelineMediaClip(value?.videoTracks || [], clip, kind'));
+  assert.ok(editor.includes("placeTimelineOverlayClip(value?.audioTracks || [], clip, 'Audio'"));
+  assert.ok(!editor.includes('registerVyralAssetInMediaLibrary') || editor.includes('Legacy historical Editor uploads'));
+});
