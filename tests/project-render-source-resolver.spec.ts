@@ -138,3 +138,33 @@ test('rejects legacy Asset bytes whose downloaded MIME identity differs from the
   }) as never);
   assert.equal(valid.mimeType, 'video/mp4');
 });
+
+
+test('enforces the pinned MIME identity for local and restored Project File replicas', async () => {
+  const input = {
+    projectId: 'project-1',
+    source: { kind: 'project-file' as const, projectFileId: 'file-1', mimeType: 'video/mp4' },
+    expectedKind: 'video' as const,
+  };
+
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      getOfflineRecord: async () => record({ mimeType: 'video/webm' }),
+    }) as never),
+    /Offline Project File MIME type differs from the immutable render manifest/,
+  );
+
+  await assert.rejects(
+    () => resolveProjectRenderSourceBlob(input, ports({
+      getOfflineRecord: async () => null,
+      fetchBlob: async () => new Blob(['data'], { type: 'video/webm' }),
+    }) as never),
+    /Downloaded Project File MIME type differs from the immutable render manifest/,
+  );
+
+  const valid = await resolveProjectRenderSourceBlob(input, ports({
+    getOfflineRecord: async () => record({ mimeType: 'video/mp4; codecs=avc1' }),
+    getOfflineBlob: async () => new Blob(['data'], { type: 'video/mp4' }),
+  }) as never);
+  assert.equal(valid.mimeType, 'video/mp4; codecs=avc1');
+});
