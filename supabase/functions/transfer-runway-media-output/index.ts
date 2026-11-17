@@ -123,6 +123,20 @@ Deno.serve(async (request: Request) => {
   }
   if (claim.claimed !== true) {
     const projectTarget = typeof claim.target_project_id === 'string' ? claim.target_project_id : null;
+    if (projectTarget && claim.status === 'ingested' && typeof claim.project_file_id === 'string') {
+      const { data: item, error: itemError } = await context.supabaseAdmin.from('media_library_items')
+        .select('id,storage_path,file_name,mime_type,size_bytes,metadata')
+        .eq('id', claim.project_file_id).eq('user_id', userId).eq('project_id', projectTarget)
+        .is('universe_id', null).maybeSingle();
+      if (itemError || !item) return json({ error: 'The completed Project File could not be recovered.' }, 503);
+      return json({
+        jobId: body.jobId, outputIndex, targetProjectId: projectTarget,
+        projectFileId: item.id, status: 'stored', storagePath: item.storage_path,
+        fileName: item.file_name, mimeType: item.mime_type, sizeBytes: item.size_bytes,
+        sha256: item.metadata?.sha256,
+        message: 'Recovered the already completed canonical Project File.',
+      });
+    }
     return json({
       jobId: body.jobId, outputIndex,
       ...(projectTarget ? { targetProjectId: projectTarget, projectFileId: claim.project_file_id ?? claim.output_id ?? null } : { targetVyralId: claim.target_vyral_id ?? null }),
