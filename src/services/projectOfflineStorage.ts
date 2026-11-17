@@ -106,7 +106,10 @@ function openDatabase(): Promise<IDBDatabase> {
       databasePromise = null;
       reject(request.error ?? new Error('Could not open VYRA Offline Storage.'));
     };
-    request.onblocked = () => reject(new Error('VYRA Offline Storage is busy in another app tab.'));
+    request.onblocked = () => {
+      databasePromise = null;
+      reject(new Error('VYRA Offline Storage is busy in another app tab.'));
+    };
   });
   return databasePromise;
 }
@@ -126,6 +129,18 @@ async function storeValue<T>(storeName: string, value: T): Promise<void> {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not save local Storage data.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('Local Storage write was interrupted.'));
+  });
+}
+
+async function storeValuesAtomically(entries: Array<{ storeName: string; value: unknown }>): Promise<void> {
+  const db = await openDatabase();
+  const storeNames = Array.from(new Set(entries.map((entry) => entry.storeName)));
+  const transaction = db.transaction(storeNames, 'readwrite');
+  for (const entry of entries) transaction.objectStore(entry.storeName).put(entry.value);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not commit Offline Storage records.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Offline Storage transaction was interrupted.'));
   });
 }
 
@@ -262,6 +277,8 @@ export async function importProjectFileToOfflineStorage(input: {
     }
   }
   const projectFileId = input.projectFileId || createId();
+  const existingIdentity = await getProjectOfflineFile(projectFileId);
+  if (existingIdentity) throw new Error('This Project File ID is already in use and cannot be overwritten by a new import.');
   const storageKey = projectFileId + '.blob';
   const now = new Date().toISOString();
   const directory = await getOpfsDirectory();
@@ -322,8 +339,10 @@ export async function importProjectFileToOfflineStorage(input: {
     // Commit the ready metadata and durable upload operation before announcing
     // availability. If the queue write fails, do not expose a file that cannot
     // be recovered/synchronized.
-    await storeValue(FILE_STORE, readyRecord);
-    await storeValue(SYNC_STORE, syncOperation);
+    await storeValuesAtomically([
+      { storeName: FILE_STORE, value: readyRecord },
+      { storeName: SYNC_STORE, value: syncOperation },
+    ]);
     emitOfflineStorageChanged(projectFileId);
     return { file: readyRecord, syncOperation };
   } catch (error) {
