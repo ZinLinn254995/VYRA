@@ -234,6 +234,7 @@ test('Editor scopes cached Project File playback URLs to the active Project and 
   assert.ok(editor.includes("const cacheKey = projectId + ':' + projectFileId"), 'cached URLs must not leak across Project switches');
   assert.ok(editor.includes("if (localRecord?.projectId === projectId)"), 'local metadata must belong to the active Project');
   assert.ok(editor.includes("if (!matchesKind) throw new Error('The Project file is not a valid ' + expectedKind + ' source.')"));
-  assert.ok(editor.indexOf('const matchesKind = expectedKind') < editor.indexOf('const cachedUrl = projectFileObjectUrlsRef.current.get(cacheKey)'), 'validate the stored media type before reusing a cached URL');
+  const resolver = editor.slice(editor.indexOf('const resolveProjectFilePlaybackUrl = async'), editor.indexOf('const [mediaUploadBusy', editor.indexOf('const resolveProjectFilePlaybackUrl = async')));
+  assert.ok(resolver.indexOf('const matchesKind = expectedKind') < resolver.indexOf('const cachedUrl = projectFileObjectUrlsRef.current.get(cacheKey)'), 'validate the stored media type before reusing a cached URL');
 });
 
