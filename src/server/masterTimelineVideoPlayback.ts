@@ -46,7 +46,7 @@ export type MasterTimelineVideoPlaybackItem = {
  * Build a deterministic sequential video-source schedule for Scene instances.
  * Scene timing follows MasterTimelineEditor: ordered Scene durations are
  * contiguous and transitions do not shorten/overlap those durations.
- * Only exact immutable, typed Video Asset references are eligible for playback.
+ * Only typed Project Files or exact immutable Video Asset references are eligible for playback.
  */
 export function buildMasterTimelineVideoPlaybackPlan(
   scenes: MasterTimelineVideoScene[],
@@ -125,9 +125,11 @@ export function buildMasterTimelineVideoPlaybackPlan(
       continue;
     }
 
-    if (typeof instance.assetId !== 'string' || !instance.assetId ||
-        typeof instance.assetVersionId !== 'string' || !instance.assetVersionId ||
-        typeof instance.assetMimeType !== 'string' || !/^video\//i.test(instance.assetMimeType) ||
+    const hasProjectFileSource = typeof instance.projectFileId === 'string' && instance.projectFileId.length > 0;
+    const hasLegacyAssetSource = typeof instance.assetId === 'string' && instance.assetId.length > 0 &&
+      typeof instance.assetVersionId === 'string' && instance.assetVersionId.length > 0;
+    if ((!hasProjectFileSource && !hasLegacyAssetSource) ||
+        typeof instance.assetMimeType !== 'string' || !/^video\\//i.test(instance.assetMimeType) ||
         !Number.isFinite(instance.videoSourceIn) || (instance.videoSourceIn as number) < 0 ||
         !Number.isFinite(instance.videoSourceOut) || (instance.videoSourceOut as number) <= (instance.videoSourceIn as number)) continue;
 
@@ -142,8 +144,7 @@ export function buildMasterTimelineVideoPlaybackPlan(
     plan.push({
       instanceId: instance.id,
       sceneId: scene.id,
-      assetId: instance.assetId,
-      assetVersionId: instance.assetVersionId,
+      ...(hasProjectFileSource ? { projectFileId: instance.projectFileId! } : { assetId: instance.assetId!, assetVersionId: instance.assetVersionId! }),
       timelineStartSeconds: sceneStart,
       timelineEndSeconds: sceneEnd,
       delaySeconds: Math.max(0, sceneStart - playheadTime),
