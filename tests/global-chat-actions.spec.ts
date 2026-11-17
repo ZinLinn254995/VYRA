@@ -57,7 +57,7 @@ test('global AI Chat recognizes only explicit allowlisted navigation requests', 
   assert.equal(extractGlobalChatNavigationTarget('Go to Workspace'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Open Marketplace'), null);
   assert.equal(extractGlobalChatNavigationTarget('Take me to My Projects'), 'my-projects');
-  assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), 'my-media-library');
+  assert.equal(extractGlobalChatNavigationTarget('Open my Media Library'), null);
   assert.equal(extractGlobalChatNavigationTarget('Workspace ဖွင့်ပေး'), 'workspace');
   assert.equal(extractGlobalChatNavigationTarget('Delete my Projects'), null);
   assert.equal(extractGlobalChatNavigationTarget('Create a storyboard'), null);
