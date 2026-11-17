@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthDialog } from './components/auth/AuthDialog';
 import { AppHeader } from './components/common/AppHeader';
 import { ProfilePage } from './components/profile/ProfilePage';
-import type { VyralChatAssetContext } from './types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from './types/workspaceAiContext';
 import { WorkspacePage } from './components/workspace/WorkspacePage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -36,7 +35,6 @@ function VyraApp() {
   useEffect(() => {
     if (profileOpen && user) setHasVisitedProfile(true);
   }, [profileOpen, user]);
-  const [pendingChatAssets, setPendingChatAssets] = useState<VyralChatAssetContext[]>([]);
   const [workspaceAiContext, setWorkspaceAiContext] = useState<WorkspaceAiContext | null>(null);
   const [pendingSceneStateProposal, setPendingSceneStateProposal] = useState<WorkspaceSceneStateProposalHandoff | null>(null);
   useEffect(() => { setPendingSceneStateProposal(null); }, [user?.id]);
@@ -202,8 +200,7 @@ function VyraApp() {
               pendingSceneStateProposal={pendingSceneStateProposal}
               onSceneStateProposalConsumed={(proposalId) => setPendingSceneStateProposal((current) => current?.id === proposalId ? null : current)}
               onSceneStateProposal={setPendingSceneStateProposal}
-              initialSelectedAssets={pendingChatAssets}
-              onSelectedAssetsChange={setPendingChatAssets}
+              
             />
           </ErrorBoundary>
         </div>
