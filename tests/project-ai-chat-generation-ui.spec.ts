@@ -305,3 +305,10 @@ test('AI Director Project deletion writes a cloud tombstone instead of removing 
   assert.ok(chat.includes(".update({ details: { ...details, __vyraDeletedAt: deletedAt }, updated_at: deletedAt })"));
   assert.ok(!chat.includes(".delete()\\n              .eq('id', draft.storyboardId)"));
 });
+
+test('Project AI Chat remains available before any optional project Storage library exists', () => {
+  assert.ok(workspace.includes('activeVyralId={storyboardUniverse?.id ?? null}'));
+  assert.ok(workspace.includes('<AIChatPage isActive={Boolean(isActive && activeStoryboard && storyboardEditorView === \'chat\')}'));
+  assert.ok(!workspace.includes('{storyboardUniverse ? <AIChatPage'));
+  assert.ok(!workspace.includes('Preparing this Project’s Assets for AI Chat'));
+});
