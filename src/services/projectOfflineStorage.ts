@@ -718,14 +718,44 @@ export async function completeProjectOfflineFileMutation(
 export async function completeProjectOfflineFileDeletion(projectFileId: string): Promise<void> {
   const record = await getProjectOfflineFile(projectFileId);
   if (!record?.deletedAt) return;
+
+  // Keep the tombstone in place while deleting bytes. Cloud restore claims reject
+  // tombstoned records, so a restore cannot recreate this storage key mid-cleanup.
   if (record.storageBackend === 'opfs') {
     const directory = await getOpfsDirectory();
-    try { await directory?.removeEntry(record.storageKey); } catch { /* idempotent cleanup */ }
+    if (directory) {
+      try { await directory.removeEntry(record.storageKey); } catch (error) {
+        // A missing entry is already-clean; other failures must retain the tombstone.
+        if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
+      }
+    }
   } else {
     await deleteValue(BLOB_STORE, record.storageKey);
   }
-  await deleteValue(FILE_STORE, projectFileId);
-  for (const kind of ['delete', 'upload', 'rename', 'move']) await deleteValue(SYNC_STORE, kind + ':' + projectFileId);
+
+  // Remove metadata and stale work only if this is still the exact tombstone
+  // whose bytes were cleaned. A newer replica or mutation must remain untouched.
+  const db = await openDatabase();
+  const transaction = db.transaction([FILE_STORE, SYNC_STORE], 'readwrite');
+  const fileStore = transaction.objectStore(FILE_STORE);
+  const syncStore = transaction.objectStore(SYNC_STORE);
+  const request = fileStore.get(projectFileId);
+  request.onsuccess = () => {
+    const current = request.result as ProjectOfflineFileRecord | undefined;
+    if (!current?.deletedAt || current.storageKey !== record.storageKey ||
+      current.storageBackend !== record.storageBackend ||
+      current.replicaRevision !== record.replicaRevision ||
+      current.updatedAt !== record.updatedAt) return;
+    fileStore.delete(projectFileId);
+    for (const kind of ['delete', 'upload', 'rename', 'move']) {
+      syncStore.delete(kind + ':' + projectFileId);
+    }
+  };
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not finalize Project file deletion.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('Project file deletion finalization was interrupted.'));
+  });
 }
 
 export async function removeProjectOfflineFile(projectFileId: string): Promise<void> {
