@@ -530,7 +530,7 @@ export async function queueProjectOfflineFileMutation(input: {
   };
   await storeValue(FILE_STORE, updated);
   if (input.kind === 'delete') {
-    await deleteValue(SYNC_STORE, 'upload:' + input.projectFileId);
+    for (const kind of ['upload', 'rename', 'move']) await deleteValue(SYNC_STORE, kind + ':' + input.projectFileId);
     await storeValue(SYNC_STORE, operation);
   } else {
     await storeValue(SYNC_STORE, operation);
