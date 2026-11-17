@@ -174,7 +174,7 @@ function VyraApp() {
                 onBack={() => { setProfileOpen(false); setActiveSection(profileReturnSection); }}
                 backLabel="Back to Workspace"
                 onSignOut={() => { void handleSignOut(); setProfileOpen(false); }}
-                onLoginRequired={() => requestAuth('login')} isActive={profileOpen && Boolean(user)}
+                isActive={profileOpen && Boolean(user)}
               />
             </ErrorBoundary>
           </div>
