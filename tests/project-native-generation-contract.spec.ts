@@ -132,3 +132,16 @@ test('Runway polling serializes requests and protects terminal snapshots from st
   assert.ok(poll.indexOf("rpc('claim_runway_media_task_poll'") < poll.indexOf('getRunwayTask(apiKey, taskId)'));
   assert.ok(poll.includes("snapshot.status === 'succeeded' && snapshot.outputUrls.length === 0"));
 });
+
+test('Project output transfer refuses to overwrite a colliding canonical Project File ID', () => {
+  const transfer = read('supabase/functions/transfer-runway-media-output/index.ts');
+  assert.ok(transfer.includes("select('id,user_id,project_id,universe_id,source_asset_id,source_kind,bucket_id,storage_path,mime_type,size_bytes,metadata')"));
+  assert.ok(transfer.includes('.eq(\'id\', projectFileId).maybeSingle()'));
+  assert.ok(transfer.includes("existingItem.source_kind !== 'generated'"));
+  assert.ok(transfer.includes('existingItem.user_id !== userId'));
+  assert.ok(transfer.includes('existingItem.project_id !== targetProjectId'));
+  assert.ok(transfer.includes('existingItem.metadata?.generation_job_id !== body.jobId'));
+  assert.ok(transfer.includes('existingItem.metadata?.sha256 !== digest'));
+  assert.ok(transfer.includes('project_file_identity_conflict'));
+  assert.ok(transfer.indexOf('existingItemError') < transfer.indexOf('storage.from(BUCKET).upload('));
+});
