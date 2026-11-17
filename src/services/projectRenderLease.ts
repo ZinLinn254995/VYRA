@@ -121,7 +121,7 @@ export function renewProjectRenderLease(input: {
     throw new Error('Only the current lease owner may renew this render job.');
   }
   if (Date.parse(lease.acquiredAt) > nowMs || Date.parse(lease.expiresAt) <= nowMs) {
-    throw new Error('An expired or not-yet-active worker lease cannot be renewed.');
+    throw new Error('The expired worker lease or a not-yet-active worker lease cannot be renewed.');
   }
   if (!Number.isSafeInteger(input.leaseDurationMs) || input.leaseDurationMs < 1_000 ||
       input.leaseDurationMs > 15 * 60_000) {
