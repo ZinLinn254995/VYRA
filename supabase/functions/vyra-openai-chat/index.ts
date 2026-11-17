@@ -24,7 +24,7 @@ const SYSTEM_INSTRUCTION =
   'For factual topics, distinguish verified facts from uncertainty and never invent sources or statistics.';
 
 
-const isPlainRecord = (value: unknown): value is Record<string, any> =>
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 
@@ -239,7 +239,7 @@ const GLOBAL_READ_TOOLS = [
         additionalProperties: false,
       },
     },
-
+  },
 ];
 
 const buildWorkspaceContextInstruction = (raw: unknown): string => {
@@ -284,7 +284,7 @@ const buildWorkspaceContextInstruction = (raw: unknown): string => {
     if (label) lines.push('Selected Timeline item: ' + label);
     if (typeof item.id === 'string' && isUuid(item.id)) lines.push('Selected Timeline item ID (context only): ' + item.id);
   }
-  return lines.join('\\n').slice(0, 4000);
+  return lines.join('\n').slice(0, 4000);
 };
 
 async function executeGlobalReadTool(
@@ -300,7 +300,7 @@ async function executeGlobalReadTool(
   if (name === 'list_my_storyboards') {
     if (Object.keys(args).some((key) => !['query', 'limit'].includes(key))) return safeToolError('The Storyboard search arguments are invalid.');
     const query = typeof args.query === 'string'
-      ? args.query.replace(/[^\\p{L}\\p{N}\\s-]/gu, '').trim().slice(0, 100)
+      ? args.query.replace(/[^\p{L}\p{N}\s-]/gu, '').trim().slice(0, 100)
       : '';
     const limit = typeof args.limit === 'number' && Number.isInteger(args.limit)
       ? Math.max(1, Math.min(30, args.limit)) : 15;
