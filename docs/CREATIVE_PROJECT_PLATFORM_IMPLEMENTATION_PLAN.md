@@ -72,3 +72,16 @@ Storage is a general-purpose file manager, not a knowledge system.
 - Do not change approved UI styling/layout unless explicitly requested.
 - Do not make Storage content conventions mandatory.
 - Do not claim CI, browser tests, live provider calls, or migrations passed unless actually verified on the exact commit and environment.
+
+
+## Progress update — 2026-11-17
+
+- Added `project_id` columns to the generic Media Library folder and item indexes through a forward migration. Existing personal and Universe rows remain unassigned; no legacy files are moved.
+- Added database checks so a project-scoped folder/file must belong to the authenticated owner's Storyboard and a file/folder parent must share the same project and legacy scope.
+- Preserved folder-cycle prevention and changed root folder uniqueness to be per storage scope.
+- Project foreign keys use `ON DELETE RESTRICT` so deleting a Storyboard cannot silently cascade away the Storage index while leaving untracked binary objects.
+- Added a migration contract test and registered it in CI.
+- Removed the main Project AI Chat's dependency on first preparing a Vyral library. The Chat surface now renders with a null optional Vyral context when no library exists; project media generation still needs its own supported Asset destination flow.
+- Added a regression assertion for this Chat behavior.
+
+**Not yet complete:** `mediaLibraryCloud.ts` and `MyMediaLibraryPage` still need to pass and enforce `project_id` in every list/create/upload/move/rename/delete/thumbnail path. `StoryboardUniverseTab` still creates the legacy Vyral container until that runtime migration is ready. Do not deploy the migration or remove that legacy path before the project-scoped runtime and deletion cleanup are implemented and verified.
