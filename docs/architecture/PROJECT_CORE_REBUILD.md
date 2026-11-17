@@ -466,3 +466,14 @@ References: [Supabase CLI v3 migration guide](https://supabase.com/docs/guides/l
 - A malformed or mismatched hash, wrong-Project record, altered identity, or incomplete restore fails closed before the source can enter a render plan.
 - Regression tests cover invalid Cloud digest, wrong-Project installed metadata, and a valid Cloud-to-Offline restore.
 - The source integrity boundary now checks both local-first and Cloud-restored replicas. It still does not provide hashing for records whose metadata has no SHA-256, and it does not implement final encoding/render execution.
+
+## 17. Pure worker lease and recovery contract — November 17, 2026
+
+- Added `src/services/projectRenderLease.ts` as a persistence-neutral lease contract for the future transactional worker adapter.
+- A worker claim is fenced by the expected job revision and issues a fresh opaque token, worker identity, bounded expiry, and monotonically increasing lease generation.
+- A live lease cannot be stolen. A lease can be reclaimed only after expiry; recovery increments the fencing generation and job revision but does not increment the render attempt (lease recovery is not a user-requested retry).
+- Renewal requires the exact current worker/token pair and a still-unexpired lease. An expired worker cannot resurrect its lease.
+- Release requires the exact current worker/token pair and expected revision. Stale writers and former lease holders are rejected.
+- Lease durations are bounded to 1 second–15 minutes. The server-side adapter must generate unpredictable tokens and perform every claim/renew/release with a database compare-and-swap transaction; this pure module is not a distributed lock and does not provide persistence by itself.
+- Added `tests/project-render-lease.spec.ts` and the `test:project-render-lease` script for contract coverage.
+- This does not add a database table, RPC, worker runtime, scheduler, or automatic recovery loop. Those remain gated on Development migration-chain alignment and local database testing. No Supabase project was modified.
