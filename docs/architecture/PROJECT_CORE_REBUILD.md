@@ -285,3 +285,11 @@ This architecture gate is a design decision, not a claim that export has shipped
 - Added source-contract regression coverage for missing-binary repair, stable identity, and size validation.
 - These changes address metadata/binary divergence, including possible OPFS eviction. They are committed but not yet executed in tests or verified in a real browser/device.
 
+
+
+## Storage integrity hardening — November 17, 2026
+
+- Project File import now rejects an already-registered Project File ID instead of overwriting its local metadata or binary replica.
+- The transition to `available` and creation of the durable Cloud upload operation are committed in one IndexedDB read-write transaction spanning the file and sync stores. A partial commit cannot expose an available file without its upload queue entry.
+- An IndexedDB blocked-open event clears the cached open promise so a later attempt can recover after another tab releases the database.
+- Contract tests were added for the atomic commit, identity collision guard, and blocked-open retry behavior. These are source-level assertions and have not been executed in this environment.
