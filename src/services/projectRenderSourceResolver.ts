@@ -104,7 +104,8 @@ export async function resolveProjectRenderSourceBlob(input: {
     }
     const downloaded = await ports.fetchBlob(cloud.signedUrl);
     if (downloaded.size !== cloud.sizeBytes) throw new Error('The downloaded Project File size does not match its Cloud manifest.');
-    await ports.installCloudReplica({
+    await assertStoredContentHash(downloaded, cloud.expectedSha256);
+    const installedRecord = await ports.installCloudReplica({
       projectId,
       projectFileId: cloud.projectFileId,
       fileName: cloud.fileName,
@@ -112,8 +113,19 @@ export async function resolveProjectRenderSourceBlob(input: {
       blob: downloaded,
       expectedSha256: cloud.expectedSha256,
     });
+    if (
+      installedRecord.id !== source.projectFileId ||
+      installedRecord.projectId !== projectId ||
+      installedRecord.deletedAt ||
+      installedRecord.localState !== 'available' ||
+      installedRecord.mimeType.toLowerCase() !== cloud.mimeType.toLowerCase() ||
+      installedRecord.sizeBytes !== cloud.sizeBytes
+    ) {
+      throw new Error('The restored Project File metadata does not match its immutable render source.');
+    }
     const installed = await ports.getOfflineBlob(source.projectFileId);
     if (!installed || installed.size !== cloud.sizeBytes) throw new Error('The Project File could not be verified after Offline Storage restore.');
+    await assertStoredContentHash(installed, cloud.expectedSha256 || installedRecord.contentHash);
     return {
       sourceKey: 'project-file:' + source.projectFileId,
       projectId,
