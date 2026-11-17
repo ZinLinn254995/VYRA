@@ -4,6 +4,7 @@ export type AudioPlaybackRuntime = {
   context: AudioContext;
   fetchAudio: (url: string, signal: AbortSignal) => Promise<ArrayBuffer>;
   resolveAssetUrl: (assetId: string, assetVersionId: string, signal: AbortSignal) => Promise<string>;
+  resolveProjectFileUrl?: (projectFileId: string, signal: AbortSignal) => Promise<string>;
 };
 
 export type AudioPlaybackHandle = {
@@ -58,7 +59,11 @@ export function startMasterTimelineAudioPlayback(
     try {
       const prepared = await Promise.all(plan.map(async (item) => {
         if (stopped) return null;
-        const url = await runtime.resolveAssetUrl(item.assetId, item.assetVersionId, abortController.signal);
+        const url = item.projectFileId && runtime.resolveProjectFileUrl
+          ? await runtime.resolveProjectFileUrl(item.projectFileId, abortController.signal)
+          : item.assetId && item.assetVersionId
+            ? await runtime.resolveAssetUrl(item.assetId, item.assetVersionId, abortController.signal)
+            : (() => { throw new Error('The Audio clip has no supported private media source.'); })();
         if (stopped) return null;
         const bytes = await runtime.fetchAudio(url, abortController.signal);
         if (stopped) return null;
