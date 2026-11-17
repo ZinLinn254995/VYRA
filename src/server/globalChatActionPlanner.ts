@@ -9,39 +9,33 @@ export type GlobalChatActionOperation =
   | 'scene.read'
   | 'scene.update'
   | 'timeline.update'
-  | 'vyral.create'
-  | 'asset.upload'
   | 'media.generate'
   | 'workspace.navigate';
 
 type OperationPolicy = {
   risk: GlobalChatActionRisk;
-  requiresVyral: boolean;
   requiresStoryboard: boolean;
   requiresScene: boolean;
   parameterKeys: readonly string[];
 };
 
 const POLICIES: Record<GlobalChatActionOperation, OperationPolicy> = {
-  'storyboard.list': { risk: 'read', requiresVyral: false, requiresStoryboard: false, requiresScene: false, parameterKeys: [] },
-  'storyboard.read': { risk: 'read', requiresVyral: false, requiresStoryboard: true, requiresScene: false, parameterKeys: [] },
-  'storyboard.create': { risk: 'reversible-write', requiresVyral: false, requiresStoryboard: false, requiresScene: false, parameterKeys: ['title', 'topic'] },
-  'storyboard.update': { risk: 'reversible-write', requiresVyral: false, requiresStoryboard: true, requiresScene: false, parameterKeys: ['field', 'value', 'expectedUpdatedAt'] },
-  'storyboard.delete': { risk: 'destructive', requiresVyral: false, requiresStoryboard: true, requiresScene: false, parameterKeys: ['expectedUpdatedAt'] },
-  'scene.read': { risk: 'read', requiresVyral: false, requiresStoryboard: true, requiresScene: true, parameterKeys: [] },
-  'scene.update': { risk: 'reversible-write', requiresVyral: false, requiresStoryboard: true, requiresScene: true, parameterKeys: ['field', 'value', 'expectedUpdatedAt'] },
-  'timeline.update': { risk: 'reversible-write', requiresVyral: false, requiresStoryboard: true, requiresScene: false, parameterKeys: ['itemKind', 'itemId', 'field', 'value', 'expectedUpdatedAt'] },
-  'vyral.create': { risk: 'reversible-write', requiresVyral: false, requiresStoryboard: false, requiresScene: false, parameterKeys: ['name', 'description'] },
-  'asset.upload': { risk: 'reversible-write', requiresVyral: true, requiresStoryboard: false, requiresScene: false, parameterKeys: ['fileToken', 'fileName', 'mimeType', 'sizeBytes'] },
-  'media.generate': { risk: 'billable', requiresVyral: false, requiresStoryboard: false, requiresScene: false, parameterKeys: ['task', 'prompt', 'quality', 'quoteId', 'maxCredits'] },
-  'workspace.navigate': { risk: 'read', requiresVyral: false, requiresStoryboard: false, requiresScene: false, parameterKeys: ['destination'] },
+  'storyboard.list': { risk: 'read', requiresStoryboard: false, requiresScene: false, parameterKeys: [] },
+  'storyboard.read': { risk: 'read', requiresStoryboard: true, requiresScene: false, parameterKeys: [] },
+  'storyboard.create': { risk: 'reversible-write', requiresStoryboard: false, requiresScene: false, parameterKeys: ['title', 'topic'] },
+  'storyboard.update': { risk: 'reversible-write', requiresStoryboard: true, requiresScene: false, parameterKeys: ['field', 'value', 'expectedUpdatedAt'] },
+  'storyboard.delete': { risk: 'destructive', requiresStoryboard: true, requiresScene: false, parameterKeys: ['expectedUpdatedAt'] },
+  'scene.read': { risk: 'read', requiresStoryboard: true, requiresScene: true, parameterKeys: [] },
+  'scene.update': { risk: 'reversible-write', requiresStoryboard: true, requiresScene: true, parameterKeys: ['field', 'value', 'expectedUpdatedAt'] },
+  'timeline.update': { risk: 'reversible-write', requiresStoryboard: true, requiresScene: false, parameterKeys: ['itemKind', 'itemId', 'field', 'value', 'expectedUpdatedAt'] },
+  'media.generate': { risk: 'billable', requiresStoryboard: false, requiresScene: false, parameterKeys: ['task', 'prompt', 'quality', 'quoteId', 'maxCredits'] },
+  'workspace.navigate': { risk: 'read', requiresStoryboard: false, requiresScene: false, parameterKeys: ['destination'] },
 };
 
 export interface GlobalChatActionPlan {
   id: string;
   operation: GlobalChatActionOperation;
   target?: {
-    vyralId?: string;
     storyboardId?: string;
     sceneId?: string;
   };
@@ -52,7 +46,6 @@ export interface GlobalChatActionPlan {
 }
 
 export interface GlobalChatActionContext {
-  activeVyralId?: string | null;
   activeStoryboardId?: string | null;
   activeSceneId?: string | null;
 }
@@ -121,13 +114,6 @@ function validateParameters(
       typeof parameters.field === 'string' && parameters.field.length > 0 &&
       parameters.value !== undefined && parameters.value !== null && hasExpectedVersion;
   }
-  if (operation === 'vyral.create') return typeof parameters.name === 'string' && parameters.name.trim().length > 0;
-  if (operation === 'asset.upload') {
-    return typeof parameters.fileToken === 'string' && parameters.fileToken.length >= 8 &&
-      typeof parameters.fileName === 'string' && parameters.fileName.trim().length > 0 &&
-      typeof parameters.mimeType === 'string' && parameters.mimeType.length > 0 &&
-      typeof parameters.sizeBytes === 'number' && Number.isSafeInteger(parameters.sizeBytes) && parameters.sizeBytes > 0;
-  }
   if (operation === 'media.generate') {
     return ['image', 'video', 'audio', 'video-edit'].includes(String(parameters.task)) &&
       typeof parameters.prompt === 'string' && parameters.prompt.trim().length > 0 &&
@@ -159,11 +145,8 @@ export function validateGlobalChatActionPlan(
   if (!validateParameters(plan.operation, plan.parameters)) return { ok: false, reason: 'invalid-parameters' };
 
   const target = plan.target ?? {};
-  if (Object.keys(target).some((key) => !['vyralId', 'storyboardId', 'sceneId'].includes(key)) ||
+  if (Object.keys(target).some((key) => !['storyboardId', 'sceneId'].includes(key)) ||
       Object.values(target).some((value) => !isUuid(value))) {
-    return { ok: false, reason: 'missing-target' };
-  }
-  if (policy.requiresVyral && !(isUuid(target.vyralId) && target.vyralId === context.activeVyralId)) {
     return { ok: false, reason: 'missing-target' };
   }
   if (policy.requiresStoryboard && !isUuid(target.storyboardId)) {
