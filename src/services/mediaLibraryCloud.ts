@@ -57,6 +57,15 @@ async function assertStoryboardProject(db: any, userId: string, projectId: strin
   const { data, error } = await db.from('vyral_storyboards').select('id').eq('id', projectId).eq('user_id', userId).maybeSingle();
   if (error || !data) throw new Error('This project could not be verified for your account.');
 }
+
+async function assertProjectScopedRows(db: any, table: 'media_library_folders' | 'media_library_items', userId: string, projectId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const { data, error } = await db.from(table).select('id')
+    .eq('user_id', userId).eq('project_id', projectId).is('universe_id', null).in('id', ids);
+  if (error || !data || data.length !== ids.length) {
+    throw new Error('One or more selected records do not belong to this project.');
+  }
+}
 const applyMetadataSnapshot = (query: any, metadata: Record<string, unknown> | null) => metadata === null ? query.is('metadata', null) : query.eq('metadata', metadata);
 const thumbnailSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 let lastStorageCleanupStartedAt = 0;
@@ -457,7 +466,7 @@ export async function renameMediaLibraryFolder(folderId: string, name: string, u
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   if (universeId) {
@@ -474,7 +483,7 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
     applyMediaLibraryScope(db.from('media_library_folders').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('parent_id', folderId), universeId, projectId),
     applyMediaLibraryScope(db.from('media_library_items').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('folder_id', folderId), universeId, projectId),
@@ -502,7 +511,7 @@ export async function moveMediaLibraryFolder(folderId: string, parentId: string 
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   if (universeId) {
     const { error: canonicalError } = await db.from('vyral_folders').update({ parent_id: parentId }).eq('id', folderId).eq('vyral_id', universeId).eq('user_id', userId);
     if (canonicalError) throw new Error(canonicalError.message.toLowerCase().includes('descendant') ? 'A folder cannot be moved into one of its descendants.' : 'Could not move Universe folder: ' + canonicalError.message);
@@ -525,7 +534,7 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_items', userId, projectId, itemIds); }
   if (universeId) {
     const { data: selected, error: selectedError } = await applyUniverseScope(db.from('media_library_items').select('id,source_asset_id')
       .in('id', itemIds).eq('user_id', userId), universeId);
@@ -547,7 +556,7 @@ export async function renameMediaLibraryItem(itemId: string, fileName: string, u
   const userId = await getOwnerId();
   if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_items', userId, projectId, [itemId]); }
   const cleanName = SAFE_NAME(fileName);
   if (!cleanName) throw new Error('Enter a file name.');
   if (universeId) {
