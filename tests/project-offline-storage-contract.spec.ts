@@ -277,3 +277,16 @@ test('IndexedDB blocked-open errors clear the cached database promise so recover
   assert.ok(blocked.includes('databasePromise = null'));
   assert.ok(blocked.includes('VYRA Offline Storage is busy in another app tab.'));
 });
+
+
+test('failed Project imports clean up their unique local binary and copying record', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const importBody = storage.slice(
+    storage.indexOf('export async function importProjectFileToOfflineStorage'),
+    storage.indexOf('export async function installProjectCloudFileToOfflineStorage'),
+  );
+  assert.ok(importBody.includes('await directory?.removeEntry(storageKey)'));
+  assert.ok(importBody.includes('await deleteValue(BLOB_STORE, storageKey)'));
+  assert.ok(importBody.includes('await deleteValue(FILE_STORE, projectFileId)'));
+  assert.ok(!importBody.includes("localState: 'failed' as const"));
+});
