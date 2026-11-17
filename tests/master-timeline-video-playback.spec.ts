@@ -219,3 +219,26 @@ test('does not send Image Track clips to the Video decoder', () => {
   }];
   assert.deepEqual(buildMasterTimelineVideoPlaybackPlan([], [], 0, tracks), []);
 });
+
+
+test('plays a Project File-backed Scene video without legacy Asset identifiers', () => {
+  const projectFileInstance = [{
+    id: 'project-file-scene',
+    sceneId: 'scene-a',
+    sourceIn: 0,
+    sourceOut: 5,
+    projectFileId: 'project-file-video-1',
+    assetMimeType: 'video/mp4',
+    videoSourceIn: 1,
+    videoSourceOut: 4,
+  }];
+  const plan = buildMasterTimelineVideoPlaybackPlan([scenes[0]], projectFileInstance, 2);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].projectFileId, 'project-file-video-1');
+  assert.equal(plan[0].assetId, undefined);
+  assert.equal(plan[0].assetVersionId, undefined);
+  assert.equal(plan[0].sourceOffsetSeconds, 3);
+  assert.equal(plan[0].durationSeconds, 2);
+  assert.equal(plan[0].playbackStartSeconds, 2);
+  assert.equal(plan[0].playbackEndSeconds, 4);
+});
