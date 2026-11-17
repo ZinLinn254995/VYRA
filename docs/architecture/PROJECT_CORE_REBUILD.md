@@ -1,0 +1,163 @@
+# VYRA Project Core Rebuild — Local-First Hybrid Architecture
+
+Status: Approved architecture / implementation in progress
+Working branch: `feature/local-first-project-storage`
+Starting point: `feature/project-core-hybrid-rebuild`
+Scope: Preserve the approved UI and existing user data while replacing the legacy Project internals.
+
+## 1. Product boundary
+
+A Project has exactly three primary user-facing work areas:
+
+1. **Storage** — the canonical Project file manager.
+2. **Chat** — Project-aware AI conversation and generation.
+3. **Editor** — timeline, preview, playback, and editing.
+
+Project Details is not a separate feature or destination. Existing approved UI structure, styling, navigation, and interactions must remain unchanged unless a change is required to preserve existing behavior.
+
+## 2. Core invariants
+
+- One logical Project File has one stable `projectFileId` and one Project record.
+- Device Original, VYRA Offline Storage, and Cloud are physical replicas of that same logical file, not separate user-visible files.
+- VYRA Offline Storage is the primary working copy after local import completes.
+- Project Storage, Chat, and Editor all resolve the same `projectFileId`; no feature may invent or disguise legacy Asset IDs as Project File IDs.
+- Cloud is the account-level synchronization and recovery source; it is not required for normal use of a locally available file.
+- Cloud upload/download and reconciliation run in the background and must not block ordinary UI interaction.
+- A local import may show progress only when the local copy is materially large/slow. Small imports should feel immediate.
+- Do not delete the source Device file. Import is a copy, never a destructive move.
+- Never evict user-designated Offline files as ordinary cache cleanup.
+- Existing Project data, file binaries, chat history, and timelines must be preserved and migrated safely.
+- No production deployment or production database migration without explicit approval.
+
+## 3. Storage topology
+
+Each signed-in device owns a dedicated VYRA Offline Storage area.
+
+- **OPFS** is the preferred binary storage backend where available.
+- **IndexedDB** stores file metadata, replica state, sync operations, and fallback binary Blobs where appropriate.
+- Browser storage persistence is requested where supported. Quota and eviction limitations must be surfaced safely; browser storage is not an OS-level guaranteed partition.
+- Cloud object storage retains durable account-level copies.
+- Supabase/Postgres stores authoritative ownership, Project relationships, metadata, versions, and synchronization state; binaries remain in object storage.
+
+The local store is not a disposable HTTP cache. It is a durable, app-managed replica with explicit lifecycle and recovery semantics.
+
+## 4. Import lifecycle: Device → Offline → Cloud
+
+1. User selects a Device file.
+2. VYRA allocates or confirms a stable Project File identity and copies the bytes into the dedicated Offline Storage.
+3. Metadata and a durable local operation record are committed.
+4. Once the local copy is complete and verified, the file becomes immediately usable in Storage, Chat, and Editor.
+5. A background sync operation uploads the Offline copy to Cloud.
+6. Cloud verifies the uploaded object and records the replica as synchronized.
+7. The original Device file remains untouched. The user may delete it independently; VYRA's Offline and Cloud replicas remain.
+
+For large files, progress belongs only to the local Device → Offline copy. Cloud transfer progress is not shown in the normal workspace.
+
+## 5. Device onboarding and account recovery
+
+On login from a new device:
+
+1. Authenticate and load the user's Project list and lightweight metadata.
+2. Initialize that device's dedicated Offline Storage and request persistent storage where supported.
+3. Reconcile local and cloud manifests using stable Project File IDs, versions, and content hashes.
+4. Download metadata and small/high-priority files first.
+5. Download remaining files in the background according to available quota, network conditions, and local availability policy.
+6. Files become offline-available as soon as each local download is complete and verified.
+7. Files not downloaded due to quota or network constraints remain visible as cloud-backed items and can be explicitly fetched when needed.
+
+Do not claim that every file is offline-ready before it has actually been downloaded and verified. A new device cannot use an unavailable cloud file offline until its local replica exists.
+
+## 6. Two-way synchronization
+
+Every device maintains a durable operation queue. Synchronization is idempotent and resumable.
+
+- Local create/update/delete operations are recorded before network delivery.
+- Uploads use stable operation IDs and content hashes to avoid duplicate objects.
+- Downloads use version-aware temporary writes; promote to the active local replica only after verification.
+- Retries use bounded backoff and survive app restarts.
+- Reconciliation is incremental; do not repeatedly download full Project manifests or file bodies.
+- Concurrent edits use version checks and explicit conflict records. Never silently overwrite a newer replica.
+- Deletion uses tombstones and reference checks so offline devices cannot accidentally resurrect deleted files.
+- Multi-device sync is Cloud-mediated; devices do not need direct peer-to-peer connectivity.
+
+## 7. Canonical Project File contract
+
+The logical file record should contain at least:
+
+- `id` / `projectFileId`
+- `projectId`
+- `ownerId`
+- `folderId`
+- `fileName`
+- `mimeType`
+- `sizeBytes`
+- `contentHash` (SHA-256 when available)
+- `version` / `updatedAt`
+- `metadata`
+- replica state for the current device and Cloud
+
+Replica state is separate from logical file identity. Suggested states:
+
+- Local: `missing | copying | available | failed`
+- Cloud: `not_queued | queued | uploading | synced | failed`
+- Remote download: `not_requested | queued | downloading | verified | failed`
+
+A local file URL/object URL is a short-lived access handle, not a persistent identity and not a value to store in the database.
+
+## 8. Storage and performance behavior
+
+- Cache-first metadata reads with version/manifest-based invalidation.
+- Read local binary first whenever the current device has a verified replica.
+- No repeated full-list fetches on tab changes or routine renders.
+- Signed URLs are ephemeral; do not treat them as the file identity.
+- Generate thumbnails/previews asynchronously and cache them separately from original binaries.
+- Avoid loading entire large video/audio files into JS memory when a streaming File/Blob/URL path is available.
+- Use bounded concurrency for uploads/downloads and respect browser quota/network constraints.
+- Do not expose cloud upload spinners or block editor/chat actions on cloud completion.
+
+## 9. Chat and Editor integration
+
+- Chat attachments and generation inputs resolve through the Project File service.
+- Generated outputs are ingested as new Project Files directly; they do not require a Vyral Asset/DNA ingestion path.
+- Editor timeline clips reference `projectFileId` as the canonical media identity.
+- Existing timeline clips with legacy Asset/version references remain readable during migration; new clips must use Project File IDs.
+- Storage, Chat, and Editor share the same local-first resolver and never maintain independent binary copies.
+
+## 10. Migration and legacy retirement
+
+- Preserve the current approved UI and all existing user data.
+- Introduce the new Project File and replica contracts before switching consumers.
+- Migrate existing Project media and timeline references with deterministic mappings.
+- Keep legacy readers for historical records until migration and recovery tests pass.
+- Remove legacy code only after no active consumer depends on it and data compatibility is verified.
+- Do not delete old database tables or storage objects as part of an unverified code cleanup.
+
+## 11. Verification gates
+
+Before declaring the rebuild complete, verify:
+
+- local import for small and large files;
+- source Device file can be deleted after import without breaking VYRA's local copy;
+- app restart preserves local files and pending sync operations;
+- offline Storage, Chat references, and Editor playback;
+- cloud upload retry and integrity verification;
+- login on a second device and background download;
+- two-way update synchronization and conflict handling;
+- quota exhaustion, interrupted transfers, and recovery;
+- no duplicate Project file records;
+- existing Project data and timeline compatibility;
+- UI regression, typecheck, build, unit/integration tests, and relevant RLS/security checks.
+
+## 12. Implementation order
+
+1. Preserve UI and audit current service dependencies.
+2. Define canonical Project File and replica contracts.
+3. Implement dedicated local binary/metadata storage and durable operation queue.
+4. Implement background Cloud upload/download and manifest reconciliation.
+5. Integrate Project Storage.
+6. Integrate Project Chat and generation.
+7. Integrate Editor and timeline playback.
+8. Migrate historical records and retire obsolete internals.
+9. Run full verification and report merge readiness.
+
+This document is the source of truth for the Local-first Project Storage rebuild. Any implementation that violates the invariants above must be corrected before merge.
