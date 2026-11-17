@@ -28,8 +28,8 @@ import { supabase } from '../../context/AuthContext';
 import { createVyralAudioPlaybackUrl, createVyralImagePlaybackUrl, createVyralVideoPlaybackUrl } from '../../services/vyralAssetPlayback';
 import { createSupabaseVyralAssetIngestionPort, ingestVyralAsset } from '../../services/vyralAssetIngestion';
 import { getVyralAssetLocalCopy, removeVyralAssetLocalCopy, saveVyralAssetLocalCopy } from '../../services/vyralAssetLocalCache';
-import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary, uploadMediaLibraryFiles } from '../../services/mediaLibraryCloud';
-import { getProjectOfflineFile, getProjectOfflineFileBlob } from '../../services/projectOfflineStorage';
+import { getProjectMediaLibraryItemPlaybackSource, registerVyralAssetInMediaLibrary } from '../../services/mediaLibraryCloud';
+import { getProjectOfflineFile, getProjectOfflineFileBlob, importProjectFileToOfflineStorage } from '../../services/projectOfflineStorage';
 import { buildScenesClipTrainLayout, getScenesInsertionIndex, mergeTimelineVideoRows, placeTimelineMediaClip, placeTimelineOverlayClip } from '../../services/timelineMediaPlacement';
 import { buildMasterTimelineAudioPlaybackPlan } from '../../server/masterTimelineAudioPlayback';
 import { startMasterTimelineAudioPlayback, type AudioPlaybackHandle } from '../../server/masterTimelineAudioPlaybackEngine';
@@ -1518,7 +1518,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (!files.length) return;
-    if (!supabase || (!projectId && !vyralId)) {
+    if (!projectId && (!supabase || !vyralId)) {
       setMediaUploadError('Open a Project before uploading media.');
       return;
     }
@@ -1527,15 +1527,20 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
     try {
       // Read the already-persisted device session first; do not wait for a
       // network user lookup before showing the selected local file in Editor.
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      let uploadUser = sessionData?.session?.user ?? null;
-      if (!uploadUser) {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        uploadUser = authData?.user ?? null;
+      let uploadUser: { id: string } | null = null;
+      if (supabase) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        uploadUser = sessionData?.session?.user ? { id: sessionData.session.user.id } : null;
+        if (!uploadUser) {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError) throw authError;
+          uploadUser = authData?.user ? { id: authData.user.id } : null;
+        }
+        if (sessionError && !uploadUser) throw new Error('Sign in again before uploading media.');
+        if (uploadUser) localMediaUserIdRef.current = uploadUser.id;
+      } else if (!projectId) {
+        throw new Error('Sign in again before uploading media.');
       }
-      if (sessionError || !uploadUser) throw new Error('Sign in again before uploading media.');
-      localMediaUserIdRef.current = uploadUser.id;
       let nextVideoTracks = value?.videoTracks || [];
       let nextAudioTracks = value?.audioTracks || [];
       let nextSceneInstances = value?.sceneInstances || [];
@@ -1605,18 +1610,12 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
           ? file
           : new File([file], file.name, { type: mimeByExtension[extension] || (kind + '/octet-stream') });
         if (projectId) {
-          let projectFileId: string | null = null;
-          await uploadMediaLibraryFiles(
-            [normalizedFile],
-            null,
-            undefined,
-            undefined,
-            undefined,
-            (itemId) => { projectFileId = itemId; },
-            undefined,
+          const imported = await importProjectFileToOfflineStorage({
             projectId,
-          );
-          if (!projectFileId) throw new Error(file.name + ' uploaded without a Project file record.');
+            folderId: null,
+            file: normalizedFile,
+          });
+          const projectFileId = imported.file.id;
           const projectDuration = await readUploadedMediaDuration(normalizedFile, kind);
           const projectClip: TimelineClip = {
             id: crypto.randomUUID(),
@@ -1652,6 +1651,9 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
             textTracks: value?.textTracks || [],
           });
           continue;
+        }
+        if (!supabase || !uploadUser || !vyralId) {
+          throw new Error('Connect to Cloud before creating a legacy Asset-backed timeline clip.');
         }
         // Legacy historical Editor uploads remain recoverable until their old
         // Asset-backed timelines have been migrated to Project file references.
