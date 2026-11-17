@@ -34,8 +34,8 @@ export type MasterTimelineAudioPlaybackItem = {
  *
  * The returned values are relative to the playhead: delaySeconds is how long
  * until a future clip starts, sourceOffsetSeconds is the exact offset into the
- * immutable source Asset, and durationSeconds is the remaining clip duration.
- * Muted/zero-volume tracks and non-Asset placeholder clips are excluded.
+ * immutable source file, and durationSeconds is the remaining clip duration.
+ * Muted/zero-volume tracks and clips without a Project File or immutable Asset source are excluded.
  */
 export function buildMasterTimelineAudioPlaybackPlan(
   timeline: MasterTimelineAudioPlaybackInput,
