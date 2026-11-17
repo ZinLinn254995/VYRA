@@ -6,7 +6,10 @@ import {
   installProjectCloudFileToOfflineStorage,
   listPendingProjectOfflineSyncOperations,
   updateProjectOfflineCloudState,
+  completeProjectOfflineFileDeletion,
+  completeProjectOfflineFileMutation,
 } from './projectOfflineStorage';
+import { deleteMediaLibraryItems, moveMediaLibraryItems, renameMediaLibraryItem } from './mediaLibraryCloud';
 
 const BUCKET = 'vyral-assets';
 const MAX_BATCH = 20;
@@ -40,8 +43,26 @@ export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number>
   let synced = 0;
 
   for (const operation of operations) {
+    if (operation.kind !== 'upload') {
+      try {
+        if (operation.kind === 'delete') {
+          await deleteMediaLibraryItems([operation.projectFileId], null, operation.projectId);
+          await completeProjectOfflineFileDeletion(operation.projectFileId);
+          synced += 1;
+        } else if (operation.kind === 'rename' && operation.fileName) {
+          await renameMediaLibraryItem(operation.projectFileId, operation.fileName, null, operation.projectId);
+          await completeProjectOfflineFileMutation(operation.projectFileId, 'rename');
+          synced += 1;
+        } else if (operation.kind === 'move') {
+          await moveMediaLibraryItems([operation.projectFileId], operation.folderId ?? null, null, operation.projectId);
+          await completeProjectOfflineFileMutation(operation.projectFileId, 'move');
+          synced += 1;
+        }
+      } catch { /* Keep the durable operation queued for a later retry. */ }
+      continue;
+    }
     const record = await getProjectOfflineFile(operation.projectFileId);
-    if (!record || record.projectId !== operation.projectId || record.localState !== 'available') continue;
+    if (!record || record.deletedAt || record.projectId !== operation.projectId || record.localState !== 'available') continue;
     const blob = await getProjectOfflineFileBlob(record.id);
     if (!blob || blob.size !== record.sizeBytes) {
       await updateProjectOfflineCloudState(record.id, 'failed', 'The local Offline replica is missing or incomplete.');
@@ -119,6 +140,7 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
       if (row.bucket_id !== BUCKET || typeof row.storage_path !== 'string' ||
           !row.storage_path.startsWith(userId + '/media-library/' + projectId + '/')) continue;
       const local = await getProjectOfflineFile(row.id);
+      if (local?.deletedAt && local.projectId === projectId) continue;
       if (local?.localState === 'available' && local.projectId === projectId) continue;
       const fileSize = Math.max(0, Number(row.size_bytes) || 0);
       const estimate = await getProjectOfflineStorageEstimate();
