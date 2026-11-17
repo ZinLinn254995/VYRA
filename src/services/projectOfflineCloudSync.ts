@@ -130,6 +130,22 @@ export async function restoreProjectOfflineFilesFromCloud(projectId: string, lim
   return restored;
 }
 
+/** Restore the signed-in account's Project files on a newly initialized device. */
+export async function restoreAccountProjectsToOfflineStorage(): Promise<number> {
+  const db = getDb();
+  const userId = await getOwnerId();
+  const { data: projects, error } = await db.from('vyral_storyboards')
+    .select('id')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+  if (error) throw new Error('Could not load the account Project list for Offline recovery: ' + error.message);
+  let restored = 0;
+  for (const project of projects ?? []) {
+    restored += await restoreProjectOfflineFilesFromCloud(project.id, 200);
+  }
+  return restored;
+}
+
 /** Attach idempotent background sync triggers for the lifetime of the app shell. */
 export function startProjectOfflineCloudSync(): () => void {
   if (typeof window === 'undefined') return () => undefined;
