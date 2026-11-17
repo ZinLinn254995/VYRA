@@ -22,6 +22,25 @@ const makeJob = () => {
   });
 };
 
+
+test('verifies the persisted render input digest against the exact manifest and composition plan', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const job = await createProjectRenderJobFromInputs({
+    id: 'verified-render-job', ownerId: 'owner-1', idempotencyKey: 'verified:1',
+    manifest, compositionPlan: plan, at,
+  });
+  assert.match(job.inputDigest, /^[a-f0-9]{64}$/);
+  const { verifyProjectRenderJobInputIntegrity } = await import('../src/services/projectRenderJob.ts');
+  await assert.doesNotReject(() => verifyProjectRenderJobInputIntegrity(job));
+  await assert.rejects(() => verifyProjectRenderJobInputIntegrity({
+    ...job, inputDigest: 'a'.repeat(64),
+  }), /digest does not match/);
+  const altered = JSON.parse(JSON.stringify(job)) as typeof job;
+  altered.manifest.scenes[0].title = 'Tampered after persistence';
+  await assert.rejects(() => verifyProjectRenderJobInputIntegrity(altered), /composition plan does not match/);
+});
+
 test('creates an immutable Project-owned job with a pinned manifest and composition plan', () => {
   const job = makeJob();
   assert.equal(job.schema, 'vyra.project-render-job');
