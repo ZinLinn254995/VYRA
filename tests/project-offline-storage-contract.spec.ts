@@ -331,3 +331,17 @@ test('Project Cloud upload rechecks delete tombstones before and after publishin
   assert.ok(sync.includes('latestBeforeManifest.deletedAt'));
   assert.ok(sync.includes('latestAfterManifest.deletedAt'));
 });
+
+
+test('Cloud restore cannot overwrite a newer local replica or deletion', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  const installStart = storage.indexOf('export async function installProjectCloudFileToOfflineStorage');
+  const installEnd = storage.indexOf('export async function getProjectOfflineFile', installStart);
+  const install = storage.slice(installStart, installEnd);
+  assert.ok(storage.includes('replicaRevision?: string'));
+  assert.ok(install.includes('replicaRevision: createId()'));
+  assert.ok(install.includes('latestBeforeReady.replicaRevision !== base.replicaRevision'));
+  assert.ok(install.includes('latestBeforeReady.deletedAt'));
+  assert.ok(install.includes('latest?.replicaRevision === base.replicaRevision && !latest.deletedAt'));
+  assert.ok(install.includes('Never let an older restore overwrite its state'));
+});
