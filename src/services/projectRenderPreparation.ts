@@ -7,6 +7,8 @@ import {
 } from './projectRenderInputResolver';
 import type { ProjectRenderCompositionPlan } from './projectRenderCompositionPlanner';
 import type { ProjectRenderManifest } from './projectRenderManifest';
+import { createProjectRenderManifestInputFromEditor } from './projectRenderEditorAdapter';
+import type { MasterTimelineData } from '../components/workspace/MasterTimelineEditor';
 
 export type PreparedProjectRender = {
   manifest: ProjectRenderManifest;
@@ -37,4 +39,17 @@ export async function prepareProjectRender(
     ...(options.concurrency !== undefined ? { concurrency: options.concurrency } : {}),
   }, options.resolver);
   return { manifest, compositionPlan, resolvedInputs };
+}
+
+
+/** Prepare directly from the live Editor data model without changing Editor state. */
+export async function prepareProjectRenderFromEditor(input: {
+  projectId: string;
+  scenes: Array<{ id: string; title: string; duration: number }>;
+  timeline: MasterTimelineData;
+}, options: {
+  concurrency?: number;
+  resolver?: ProjectRenderSourceResolver;
+} = {}): Promise<PreparedProjectRender> {
+  return prepareProjectRender(createProjectRenderManifestInputFromEditor(input), options);
 }
