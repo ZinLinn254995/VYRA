@@ -167,6 +167,29 @@ test('rejects sparse arrays, symbol keys and accessor properties in digest input
   );
 });
 
+test('rejects a composition plan that diverges from the pinned manifest', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const alteredPlan = JSON.parse(JSON.stringify(plan)) as typeof plan;
+  alteredPlan.visuals[0].source = {
+    kind: 'project-file', projectFileId: 'unrelated-project-file', mimeType: 'video/mp4',
+  };
+  alteredPlan.requiredSources = [{
+    kind: 'project-file', projectFileId: 'unrelated-project-file', mimeType: 'video/mp4',
+  }];
+  await assert.rejects(
+    createProjectRenderInputDigest(manifest, alteredPlan),
+    /does not match the pinned Project render manifest/,
+  );
+  await assert.rejects(
+    createProjectRenderJobFromInputs({
+      id: 'render-job-tampered', ownerId: 'owner-1', idempotencyKey: 'tampered:1',
+      manifest, compositionPlan: alteredPlan, at,
+    }),
+    /does not match the pinned Project render manifest/,
+  );
+});
+
 test('creates a render job with a digest derived from its exact manifest and plan', async () => {
   const manifest = createProjectRenderManifest(manifestInput());
   const plan = buildProjectRenderCompositionPlan(manifest);
