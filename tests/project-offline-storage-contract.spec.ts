@@ -251,3 +251,9 @@ test('Cloud recovery repairs evicted local binaries without changing Project Fil
   assert.ok(sync.includes('projectFileId: row.id'), 'repair must retain the canonical Cloud Project File ID');
 });
 
+test('Offline restore cannot reassign a Project File ID across Projects', () => {
+  const storage = read('src/services/projectOfflineStorage.ts');
+  assert.ok(storage.includes('if (existing && existing.projectId !== input.projectId)'));
+  assert.ok(storage.includes('already belongs to a different Project and cannot be reassigned'));
+});
+
