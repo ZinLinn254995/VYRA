@@ -219,3 +219,12 @@ test('switches between ordered generated shots within the same Scene', async () 
   assert.deepEqual(resolved, ['shot-asset-1/shot-version-1', 'shot-asset-2/shot-version-2']);
   handle.stop();
 });
+
+
+test('Director clip conversion preserves Project File identity and trimmed source ranges', () => {
+  const editor = readFileSync(resolve(process.cwd(), 'src/components/workspace/MasterTimelineEditor.tsx'), 'utf8');
+  assert.equal((editor.match(/const projectFileId = instance\.projectFileId \|\| legacyClip\?\.projectFileId;/g) || []).length, 2);
+  assert.equal((editor.match(/\.\.\.\(projectFileId \? \{ projectFileId \} : \{ assetId, assetVersionId \}\),/g) || []).length, 2);
+  assert.equal((editor.match(/sourceIn: instance\.videoSourceIn \?\? legacyClip\.sourceIn \?\? 0,/g) || []).length, 2);
+  assert.equal((editor.match(/sourceOut: instance\.videoSourceOut \?\? legacyClip\.sourceOut \?\? legacyClip\.duration,/g) || []).length, 2);
+});
