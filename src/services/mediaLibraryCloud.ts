@@ -48,10 +48,16 @@ const getDb = () => {
 // reused only until shortly before their one-hour expiry.
 const MEDIA_FOLDER_CACHE_TTL_MS = 30_000;
 const mediaLibraryFolderCache = new Map<string, { folders: MediaLibraryFolder[]; expiresAt: number }>();
-const folderCacheKey = (ownerId: string, universeId?: string | null, projectId?: string | null) => ownerId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'personal');
+const folderCacheKey = (ownerId: string, universeId?: string | null, projectId?: string | null) => ownerId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'invalid');
 const applyUniverseScope = (query: any, universeId?: string | null) => universeId ? query.eq('universe_id', universeId) : query.is('universe_id', null);
 const applyProjectScope = (query: any, projectId?: string | null) => projectId ? query.eq('project_id', projectId).is('universe_id', null) : query.is('project_id', null);
 const applyMediaLibraryScope = (query: any, universeId?: string | null, projectId?: string | null) => projectId ? applyProjectScope(query, projectId) : applyUniverseScope(applyProjectScope(query, null), universeId);
+
+/** Personal/unscoped file storage is retired. Every Library operation must belong to a Project or a legacy Universe. */
+function assertMediaLibraryScope(universeId?: string | null, projectId?: string | null): void {
+  if (universeId && projectId) throw new Error('Choose either project Storage or legacy Universe Storage, not both.');
+  if (!universeId && !projectId) throw new Error('Choose a Project to access Storage.');
+}
 
 async function assertStoryboardProject(db: any, userId: string, projectId: string): Promise<void> {
   const { data, error } = await db.from('vyral_storyboards').select('id').eq('id', projectId).eq('user_id', userId).maybeSingle();
@@ -302,7 +308,7 @@ export async function loadMediaLibrary(options: MediaLibraryPageOptions = {}): P
   const ownerId = await getOwnerId();
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const limit = Math.min(100, Math.max(1, Math.floor(options.limit ?? 100)));
-  if (options.universeId && options.projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(options.universeId, options.projectId);
   if (options.projectId) await assertStoryboardProject(db, ownerId, options.projectId);
   if (options.universeId) await syncStoryboardUniverseLibrary(db, ownerId, options.universeId);
   if (Date.now() - lastStorageCleanupStartedAt >= 15 * 60_000) {
@@ -385,7 +391,7 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
   if (!itemIds.length) return [];
   const db = getDb();
   const ownerId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, ownerId, universeId);
   if (projectId) await assertStoryboardProject(db, ownerId, projectId);
   let itemQuery = applyMediaLibraryScope(db.from('media_library_items')
@@ -420,7 +426,7 @@ export async function loadMediaLibraryItemsByIds(itemIds: string[], universeId?:
 export async function getMediaLibraryItemSignedUrl(itemId: string, universeId?: string | null, projectId?: string | null): Promise<string> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) await assertStoryboardProject(db, userId, projectId);
   const { data, error } = await applyMediaLibraryScope(db.from('media_library_items')
@@ -442,7 +448,7 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
   if (!cleanName) throw new Error('Enter a folder name.');
   let folderId: string | undefined;
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (projectId) await assertStoryboardProject(db, userId, projectId);
   if (universeId) {
     await assertStoryboardUniverse(db, userId, universeId);
@@ -464,7 +470,7 @@ export async function createMediaLibraryFolder(name: string, parentId: string | 
 export async function renameMediaLibraryFolder(folderId: string, name: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   const cleanName = name.trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -481,7 +487,7 @@ export async function renameMediaLibraryFolder(folderId: string, name: string, u
 export async function deleteMediaLibraryFolder(folderId: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   const [{ count: childCount, error: childError }, { count: itemCount, error: itemError }] = await Promise.all([
@@ -509,7 +515,7 @@ export async function deleteMediaLibraryFolder(folderId: string, universeId?: st
 export async function moveMediaLibraryFolder(folderId: string, parentId: string | null, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_folders', userId, projectId, [folderId]); }
   if (universeId) {
@@ -532,7 +538,7 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
   if (!itemIds.length) return;
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_items', userId, projectId, itemIds); }
   if (universeId) {
@@ -554,7 +560,7 @@ export async function moveMediaLibraryItems(itemIds: string[], folderId: string 
 export async function renameMediaLibraryItem(itemId: string, fileName: string, universeId?: string | null, projectId?: string | null): Promise<void> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) { await assertStoryboardProject(db, userId, projectId); await assertProjectScopedRows(db, 'media_library_items', userId, projectId, [itemId]); }
   const cleanName = SAFE_NAME(fileName);
@@ -576,7 +582,7 @@ export async function deleteMediaLibraryItems(itemIds: string[], universeId?: st
   if (!itemIds.length) return { deletedCount: 0, cleanupPending: false };
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (projectId) {
     await assertStoryboardProject(db, userId, projectId);
     const { data: projectRows, error: projectRowsError } = await applyProjectScope(db.from('media_library_items')
@@ -740,10 +746,10 @@ const activeThumbnailBackfills = new Map<string, Promise<number>>();
 export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null, projectId?: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
-  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
+  assertMediaLibraryScope(universeId, projectId);
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
   if (projectId) await assertStoryboardProject(db, userId, projectId);
-  const key = userId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'personal');
+  const key = userId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'invalid');
   const existing = activeThumbnailBackfills.get(key);
   if (existing) return existing;
 
@@ -1021,7 +1027,7 @@ export async function uploadMediaLibraryFiles(
 export async function registerVyralAssetInMediaLibrary(input: {
   assetId: string; userId: string; fileName: string; mimeType: string; sizeBytes: number; storagePath: string;
   sourceKind?: 'vyral_asset' | 'generated';
-  universeId?: string | null;
+  universeId: string;
   folderId?: string | null;
   /** Pass the already-selected source File so thumbnails are created without downloading the canonical object again. */
   thumbnailSource?: File;
@@ -1040,7 +1046,8 @@ export async function registerVyralAssetInMediaLibrary(input: {
     || storageSegments.some((segment) => !segment || segment === '.' || segment === '..')) {
     throw new Error('The Asset has an invalid private storage location.');
   }
-  if (input.universeId) await assertStoryboardUniverse(db, ownerId, input.universeId);
+  assertMediaLibraryScope(input.universeId, null);
+  await assertStoryboardUniverse(db, ownerId, input.universeId);
   let thumbnailPath: string | null = null;
   if (input.thumbnailSource) {
     const thumbnailBlob = await createMediaThumbnail(input.thumbnailSource).catch(() => null);
