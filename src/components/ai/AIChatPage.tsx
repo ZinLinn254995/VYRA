@@ -1215,7 +1215,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         ...(visionImages.length ? { visionImages: visionImages.map(({ mimeType, data, assetId, assetName }) => ({ mimeType, data, assetId, assetName })) } : {}),
       });
       assertRequestCurrent();
-      // Chat attachments are metadata-only until generic Project-file access is available.
+      // Project attachments are persisted to Offline Storage before the turn; image/video previews are sent to AI Vision and text files are included within a bounded prompt size.
       // A provider response or post-response Asset transfer may finish after sign-out.
       // Never publish that old request's completion into the next account's chat.
       if (activeRequestControllerRef.current !== requestController) return;
