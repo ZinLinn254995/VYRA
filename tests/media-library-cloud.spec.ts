@@ -148,6 +148,8 @@ test('Project Storage UI includes required organization, filtering, views and mu
   assert.ok(storageTab.includes('<ProjectStoragePage') && storageTab.includes('projectId={projectId}'), 'Only the current Project may mount its Storage page.');
   assert.ok(!page.includes('Personal Storage') && !page.includes('My Media Library'), 'The Project Storage UI must not expose a separate personal library.');
   assert.ok(service.includes('function assertMediaLibraryScope(') && service.includes('Choose a Project to access Storage.'), 'Unscoped Personal Storage reads and mutations must be rejected.');
+  assert.ok(!service.includes('delete_media_library_items_and_queue_storage_cleanup'), 'The retired Personal Storage delete RPC must not remain reachable from the client service.');
+  assert.ok(service.includes('delete_project_media_library_items_and_queue_storage_cleanup'), 'Project file deletion must use its project-scoped cleanup RPC.');
   for (const value of ["'image'","'video'","'audio'","'document'","'other'"]) assert.ok(page.includes(value));
   for (const snippet of [
     "setView('grid')", "setView('list')", 'multiple className="hidden"',
