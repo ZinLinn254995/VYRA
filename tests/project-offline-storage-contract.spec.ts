@@ -228,3 +228,12 @@ test('Editor Director video track accepts Project File IDs without legacy Asset 
   assert.ok(editor.includes('(instance?.projectFileId || (instance?.assetId && instance.assetVersionId))'));
   assert.ok(editor.includes('sourceIn, sourceOut, projectFileId: instance.projectFileId'));
 });
+
+test('Editor scopes cached Project File playback URLs to the active Project and validates media kind first', () => {
+  const editor = read('src/components/workspace/MasterTimelineEditor.tsx');
+  assert.ok(editor.includes("const cacheKey = projectId + ':' + projectFileId"), 'cached URLs must not leak across Project switches');
+  assert.ok(editor.includes("if (localRecord?.projectId === projectId)"), 'local metadata must belong to the active Project');
+  assert.ok(editor.includes("if (!matchesKind) throw new Error('The Project file is not a valid ' + expectedKind + ' source.')"));
+  assert.ok(editor.indexOf('const matchesKind = expectedKind') < editor.indexOf('const cachedUrl = projectFileObjectUrlsRef.current.get(cacheKey)'), 'validate the stored media type before reusing a cached URL');
+});
+
