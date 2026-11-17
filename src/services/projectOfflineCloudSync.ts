@@ -46,7 +46,11 @@ export async function syncPendingProjectFilesToCloud(limit = 5): Promise<number>
     if (operation.kind !== 'upload') {
       try {
         if (operation.kind === 'delete') {
-          await deleteMediaLibraryItems([operation.projectFileId], null, operation.projectId);
+          const { data: existingRow, error: lookupError } = await db.from('media_library_items')
+            .select('id').eq('id', operation.projectFileId).eq('user_id', userId)
+            .eq('project_id', operation.projectId).is('universe_id', null).maybeSingle();
+          if (lookupError) throw new Error(lookupError.message);
+          if (existingRow) await deleteMediaLibraryItems([operation.projectFileId], null, operation.projectId);
           await completeProjectOfflineFileDeletion(operation.projectFileId);
           synced += 1;
         } else if (operation.kind === 'rename' && operation.fileName) {
