@@ -225,7 +225,10 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
       const localRecords = await listProjectOfflineFiles(projectId);
       if (requestId !== libraryRequestRef.current) return;
       const cloudIds = new Set(result.items.map((item) => item.id));
-      const localItems: MediaLibraryItem[] = localRecords.filter((record) => !cloudIds.has(record.id)).map((record) => ({
+      const localItems: MediaLibraryItem[] = localRecords.filter((record) => !cloudIds.has(record.id)
+          && (record.folderId ?? null) === activeFolderId
+          && (filter === 'all' || kindOf(record.mimeType) === filter)
+          && (!serverQuery || record.fileName.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))).map((record) => ({
         id: record.id, user_id: ownerId!, universe_id: null, project_id: projectId,
         folder_id: record.folderId ?? null, source_kind: 'upload', source_asset_id: null,
         bucket_id: 'vyral-assets', storage_path: '', file_name: record.fileName,
@@ -245,7 +248,11 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
         try {
           const localRecords = await listProjectOfflineFiles(projectId);
           if (requestId !== libraryRequestRef.current) return;
-          const localItems: MediaLibraryItem[] = localRecords.map((record) => ({
+          const localItems: MediaLibraryItem[] = localRecords.filter((record) =>
+            (record.folderId ?? null) === activeFolderId
+            && (filter === 'all' || kindOf(record.mimeType) === filter)
+            && (!serverQuery || record.fileName.toLocaleLowerCase().includes(serverQuery.toLocaleLowerCase()))
+          ).map((record) => ({
             id: record.id, user_id: ownerId!, universe_id: null, project_id: projectId,
             folder_id: record.folderId ?? null, source_kind: 'upload', source_asset_id: null,
             bucket_id: 'vyral-assets', storage_path: '', file_name: record.fileName,
