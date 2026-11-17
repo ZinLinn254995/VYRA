@@ -2050,7 +2050,7 @@ Deno.serve(async (request: Request) => {
             : proposalCapabilityId
               ? parsedToolArguments
                 ? await executeSharedProposalCapability(
-                    context.supabaseAdmin, userId, conversationId, proposalCapabilityId, parsedToolArguments, call.id,
+                    context.supabaseAdmin, userId, conversationId, proposalCapabilityId, JSON.stringify(parsedToolArguments), call.id,
                   )
                 : safeToolError('Invalid tool arguments.')
               : ['list_my_storyboards', 'get_my_storyboard_details', 'get_master_timeline_state'].includes(call.function.name)
