@@ -231,7 +231,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
           setHasMoreItems(false);
           setSelectedIds([]);
         }
-        setError(cause instanceof Error ? cause.message : projectId ? 'Could not load this Project Storage.' : 'Could not load My Media Library.');
+        setError(cause instanceof Error ? cause.message : Could not load this Project Storage.);
       }
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
@@ -731,7 +731,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
       <style>{`.vyra-media-breadcrumb-scroll::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }`}</style>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--vyra-border-subtle)] pb-3">
         <div ref={breadcrumbScrollRef} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="vyra-media-breadcrumb-scroll flex min-w-0 items-center gap-1 overflow-x-auto text-sm" aria-label="Folder path">
-          <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{projectId ? 'Project' : 'My Media'}</button>
+          <button type="button" onClick={() => navigateToFolder(null)} className="shrink-0 rounded-md px-2 py-1.5 font-semibold text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">Project</button>
           {breadcrumbs.map((folder, index) => <React.Fragment key={folder.id}><ChevronRight size={14} className="shrink-0 text-[var(--vyra-text-muted)]"/><button type="button" onClick={() => navigateToFolder(folder.id)} aria-current={index === breadcrumbs.length - 1 ? 'page' : undefined} className="max-w-36 shrink-0 truncate rounded-md px-1.5 py-1.5 text-[var(--vyra-text-primary)] hover:bg-[var(--vyra-bg-hover)]">{folder.name}</button></React.Fragment>)}
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -779,7 +779,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
           <span>Move files</span>
           <select aria-label="Move selected files to folder" value="" onChange={(event) => void moveSelected(event)} disabled={busy || selectedFiles.length === 0 || selectedFolders.length > 0} className="max-w-32 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose folder</option>
-            <option value="__root__">{projectId ? 'Project' : 'My Media'}</option>
+            <option value="__root__">Project</option>
             {folderTree.filter(({ folder }) => folder.id !== activeFolderId).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPath(folder.id)}</option>)}
           </select>
         </label>
@@ -788,7 +788,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; projectId: strin
           <span>Move folder</span>
           <select aria-label="Move selected folder to folder" value="" onChange={(event) => void moveSelectedFolder(event)} disabled={busy || selectedFolders.length !== 1 || selectedFiles.length > 0} className="max-w-40 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose destination</option>
-            <option value="__root__">{'My Media'}</option>
+            <option value="__root__">Project</option>
             {folderTree.filter(({ folder }) => !blockedFolderIds.has(folder.id)).map(({ folder, depth }) => <option key={folder.id} value={folder.id}>{'　'.repeat(depth)}{folderPath(folder.id)}</option>)}
           </select>
         </label>
