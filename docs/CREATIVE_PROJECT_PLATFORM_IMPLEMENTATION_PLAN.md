@@ -292,3 +292,11 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - Renamed remaining sign-in and legacy Asset-index errors so they no longer tell users to open a Personal Media Library.
 - Added regression assertions that Project Storage is required and that Project deletion uses the project-scoped cleanup RPC.
 - This is a runtime/UI cleanup only. Historical personal rows, binaries, database columns, and deployed migration history remain untouched for data safety. No test/build/typecheck or database execution has yet been run.
+
+
+## Cleanup progress — 2026-11-17 (align AI permissions and test catalog)
+
+- The active capability registry now exposes only the current Workspace/Project, scene/timeline Editor, generic media generation/editing, Project Storage, publishing, profile, security, and platform-operation domains. Removed Vyral, Asset/DNA, Fingerprint, and Marketplace capability IDs are explicitly asserted absent by the registry test.
+- Rewrote the capability registry contract tests to match the actual reduced 12-domain catalogue and its approval/security boundaries; removed stale expectations for retired Asset, Vyral, Marketplace, and old folder actions.
+- Removed two npm test commands that referenced test files already deleted during the Chat/details cleanup.
+- This keeps the permission surface and test catalogue aligned; it does not yet migrate the Editor/generation runtime off historical Vyral Asset IDs. No test/build/typecheck execution has been performed.
