@@ -144,3 +144,32 @@ test('never schedules audio-only sources as visual video layers', () => {
   assert.ok(!plan.requiredSources.some((source) =>
     source.kind === 'project-file' && ['audio-only-file', 'scene-audio-file'].includes(source.projectFileId)));
 });
+
+
+test('resolves visual clip transitions to their timeline boundary', () => {
+  const value = input();
+  value.timeline.videoTracks![0].clips.push({
+    id: 'next-video-clip', start: 9, duration: 3,
+    projectFileId: 'next-video-file', assetMimeType: 'video/mp4', mediaKind: 'video',
+  });
+  value.timeline.transitions = {
+    'video-clip:next-video-clip': { effect: 'wipe', duration: 0.4 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'video-clip:next-video-clip', effect: 'wipe', durationSeconds: 0.4,
+    scope: 'video', boundarySeconds: 9, fromId: 'video-clip', toId: 'next-video-clip',
+  }]);
+});
+
+test('preserves transition metadata but marks stale keys unresolved', () => {
+  const value = input();
+  value.timeline.transitions = {
+    'removed-scene:missing-scene': { effect: 'fade', duration: 0.5 },
+  };
+  const plan = buildProjectRenderCompositionPlan(createProjectRenderManifest(value));
+  assert.deepEqual(plan.transitions, [{
+    key: 'removed-scene:missing-scene', effect: 'fade', durationSeconds: 0.5,
+    scope: 'unresolved', boundarySeconds: null,
+  }]);
+});
