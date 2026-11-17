@@ -25,7 +25,7 @@ test('Project Chat receives the active Project identity and its current workspac
 });
 
 test('Project Storage remains a generic file manager with no Vyral creation workflow', () => {
-  assert.match(storageTab, /<MyMediaLibraryPage[\s\S]*?projectId=\{projectId\}/);
+  assert.match(storageTab, /import \{ ProjectStoragePage \} from '\.\/ProjectStoragePage'/);\n  assert.match(storageTab, /<ProjectStoragePage[\s\S]*?projectId=\{projectId\}/);
   assert.doesNotMatch(storageTab, /from\('vyrals'\)|from\('vyral_assets'\)|DNA|Fingerprint|Universe/);
 });
 
