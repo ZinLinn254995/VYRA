@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProjectRenderManifest, type ProjectRenderManifestInput } from '../src/services/projectRenderManifest.ts';
 import { buildProjectRenderCompositionPlan } from '../src/services/projectRenderCompositionPlanner.ts';
-import { createProjectRenderJob, transitionProjectRenderJob } from '../src/services/projectRenderJob.ts';
+import { createProjectRenderInputDigest, createProjectRenderJob, transitionProjectRenderJob } from '../src/services/projectRenderJob.ts';
 
 const at = '2026-11-17T12:00:00.000Z';
 const manifestInput = (): ProjectRenderManifestInput => ({
@@ -95,4 +95,39 @@ test('failed jobs retry with the same input identity and an incremented attempt'
   assert.equal(retry.inputDigest, job.inputDigest);
   assert.equal(retry.idempotencyKey, job.idempotencyKey);
   assert.equal(retry.error, null);
+});
+
+test('computes a stable SHA-256 digest independent of object key order', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const first = await createProjectRenderInputDigest(manifest, plan);
+  const reordered = await createProjectRenderInputDigest(
+    JSON.parse(JSON.stringify(manifest)) as typeof manifest,
+    JSON.parse(JSON.stringify(plan)) as typeof plan,
+  );
+  assert.match(first, /^[a-f0-9]{64}$/);
+  assert.equal(first, reordered);
+});
+
+test('render input digest changes when a render-affecting source changes', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const changedManifest = createProjectRenderManifest({
+    ...manifestInput(),
+    timeline: { videoTracks: [{ id: 'video', clips: [{ id: 'clip', start: 0, duration: 5,
+      projectFileId: 'different-source', assetMimeType: 'video/mp4', mediaKind: 'video' }] }] },
+  });
+  const changedPlan = buildProjectRenderCompositionPlan(changedManifest);
+  assert.notEqual(await createProjectRenderInputDigest(manifest, plan), await createProjectRenderInputDigest(changedManifest, changedPlan));
+});
+
+test('rejects non-JSON render digest inputs', async () => {
+  const manifest = createProjectRenderManifest(manifestInput());
+  const plan = buildProjectRenderCompositionPlan(manifest);
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
+  await assert.rejects(
+    createProjectRenderInputDigest(manifest, { ...plan, text: circular as never }),
+    /circular references/,
+  );
 });
