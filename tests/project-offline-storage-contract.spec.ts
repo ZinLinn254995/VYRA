@@ -190,6 +190,11 @@ test('Project Chat keeps attachment IDs in message history and rehydrates prior-
   assert.ok(chat.includes(".eq('project_id', storyboardId).is('universe_id', null).maybeSingle()"));
   assert.ok(chat.includes('installProjectCloudFileToOfflineStorage'));
   assert.ok(chat.includes('extractSelectedVideoFrames(blob, attachment.projectFileId'));
+  assert.ok(chat.includes('nextMessages.slice(-12)'));
+  assert.ok(chat.includes('.slice(-4)'));
+  assert.ok(chat.includes('64 * 1024 * 1024'));
+  assert.ok(chat.includes('visionImages.length < 8'));
+  assert.ok(chat.includes('512 * 1024'));
   assert.ok(chat.includes('createVisionImagePreview(blob)'));
   assert.ok(chat.includes('historicalText.set(attachment.projectFileId'));
   assert.ok(chat.includes('promptMessages.map(({ role, content }) => ({ role, content }))'));
