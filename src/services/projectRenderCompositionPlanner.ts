@@ -130,8 +130,8 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
         ? { kind: 'project-file', projectFileId: instance.projectFileId, ...(instance.assetMimeType ? { mimeType: instance.assetMimeType } : {}) }
         : { kind: 'legacy-asset', assetId: instance.assetId!, assetVersionId: instance.assetVersionId!, ...(instance.assetMimeType ? { mimeType: instance.assetMimeType } : {}) };
       if (source.mimeType?.toLowerCase().startsWith('video/')) {
-        const sourceIn = instance.videoSourceIn ?? 0;
-        const sourceOut = instance.videoSourceOut ?? sourceIn + scene.duration;
+        const sourceIn = instance.videoSourceIn ?? instance.sourceIn;
+        const sourceOut = instance.videoSourceOut ?? instance.sourceOut;
         const duration = Math.min(scene.duration, sourceOut - sourceIn);
         if (duration > 0) {
           visuals.push({ kind: 'video', trackId: 'scene:' + scene.id, clipId: instance.id, layer: 0,
@@ -246,8 +246,8 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     const mime = instance.assetMimeType?.toLowerCase() ?? '';
     if (!(instance.projectFileId || (instance.assetId && instance.assetVersionId)) ||
         !(mime.startsWith('video/') || mime.startsWith('image/'))) return [];
-    const sourceIn = instance.videoSourceIn ?? 0;
-    const sourceOut = instance.videoSourceOut ?? sourceIn + scene.duration;
+    const sourceIn = instance.videoSourceIn ?? instance.sourceIn;
+    const sourceOut = instance.videoSourceOut ?? instance.sourceOut;
     const duration = Math.min(scene.duration, sourceOut - sourceIn);
     return duration > 0 ? [{ id: instance.id, start: sceneStart, duration }] : [];
   });
