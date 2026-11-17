@@ -1021,7 +1021,7 @@ async function applyPendingStoryboardApprovalLegacy(
   if (!pendingRows?.length) return null;
   if (pendingRows.length !== 1) return 'There is more than one pending action in this chat. Tell me which preview you want to resolve; nothing was changed.';
   const pending = pendingRows[0];
-  if (!['storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate', 'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
+  if (!['storyboard.update', 'scene.update', 'scene.reorder', 'scene.create', 'scene.duplicate', 'scene.delete', 'timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id)) || !pending.plan || typeof pending.plan !== 'object') {
     return 'This pending action is not yet supported by the current safe executor. Nothing was changed.';
   }
   if (reject) {
@@ -1060,7 +1060,7 @@ async function applyPendingStoryboardApprovalLegacy(
   const isSceneDuplicate = pending.capability_id === 'scene.duplicate';
   const isSceneDelete = pending.capability_id === 'scene.delete';
   const isSceneMutation = isSceneCreate || isSceneBatchCreate || isSceneDuplicate || isSceneDelete;
-  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_audio', 'timeline.attach_video', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
+  const isTimelineUpdate = ['timeline.move_clip', 'timeline.split_clip', 'timeline.update_clip', 'timeline.add_clip', 'timeline.add_text', 'timeline.add_transition', 'timeline.remove_clip'].includes(String(pending.capability_id));
   const isTimelineTransitionUpdate = pending.capability_id === 'timeline.add_transition';
   const transitionKey = target.transitionKey;
   const timelineOperation = parameters.operation;
@@ -1074,8 +1074,6 @@ async function applyPendingStoryboardApprovalLegacy(
     (pending.capability_id === 'timeline.update_clip' && timelineOperation === 'update_text') ||
     (pending.capability_id === 'timeline.add_clip' && timelineOperation === 'clone') ||
     (pending.capability_id === 'timeline.add_text' && timelineOperation === 'add_text') ||
-    (pending.capability_id === 'timeline.add_audio' && timelineOperation === 'add_audio') ||
-    (pending.capability_id === 'timeline.attach_video' && timelineOperation === 'attach_video') ||
     (pending.capability_id === 'timeline.add_transition' && timelineOperation === 'set_transition') ||
     (pending.capability_id === 'timeline.remove_clip' && timelineOperation === 'delete');
   const validTimelineParameters = !isTimelineUpdate || (
@@ -1084,24 +1082,20 @@ async function applyPendingStoryboardApprovalLegacy(
       ? typeof transitionKey === 'string' && transitionKey.length <= 100 &&
         parameters.transitionKey === transitionKey &&
         (parameters.effect === null || ['dissolve','fade','wipe','slide','zoom','blur'].includes(String(parameters.effect)))
-      : timelineOperation === 'attach_video'
-        ? isUuid(parameters.sceneId) && target.sceneId === parameters.sceneId && target.assetId === parameters.assetId && target.assetVersionId === parameters.assetVersionId && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^video\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && parameters.sourceIn === 0 && typeof parameters.sourceOut === 'number' && Number.isFinite(parameters.sourceOut) && parameters.sourceOut >= 0.2 && parameters.sourceOut <= 3600
-        : ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
+      : ['audio','text'].includes(String(timelineKind)) && isUuid(timelineClipId) &&
         (timelineOperation === 'add_text'
           ? timelineKind === 'text' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.value === 'string' && !!parameters.value.trim() && parameters.value.trim().length <= 1000 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
-          : timelineOperation === 'add_audio'
-            ? timelineKind === 'audio' && isUuid(parameters.trackId) && parameters.createdClipId === timelineClipId && isUuid(parameters.assetId) && isUuid(parameters.assetVersionId) && isUuid(parameters.vyralId) && typeof parameters.assetMimeType === 'string' && /^audio\//i.test(parameters.assetMimeType) && typeof parameters.name === 'string' && !!parameters.name.trim() && parameters.name.length <= 180 && typeof parameters.start === 'number' && Number.isFinite(parameters.start) && parameters.start >= 0 && typeof parameters.duration === 'number' && Number.isFinite(parameters.duration) && parameters.duration >= 0.2 && parameters.duration <= 3600
-            : timelineOperation === 'move'
-          ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-          : timelineOperation === 'trim'
-            ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-            : timelineOperation === 'split'
-              ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
-              : timelineOperation === 'clone'
-                ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId)
-                : timelineOperation === 'delete'
-                  ? isUuid(parameters.trackId) && typeof parameters.confirmationPhrase === 'string' && /^DELETE CLIP [0-9A-F]{6}$/.test(parameters.confirmationPhrase) && parameters.deletedClipSnapshot && typeof parameters.deletedClipSnapshot === 'object'
-                  : timelineKind === 'text' && isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
+          : timelineOperation === 'move'
+            ? isUuid(parameters.sourceTrackId) && isUuid(parameters.destinationTrackId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+            : timelineOperation === 'trim'
+              ? isUuid(parameters.trackId) && ['start','end'].includes(String(parameters.edge)) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+              : timelineOperation === 'split'
+                ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId) && typeof parameters.time === 'number' && Number.isFinite(parameters.time) && parameters.time >= 0
+                : timelineOperation === 'clone'
+                  ? isUuid(parameters.trackId) && isUuid(parameters.createdClipId)
+                  : timelineOperation === 'delete'
+                    ? isUuid(parameters.trackId) && typeof parameters.confirmationPhrase === 'string' && /^DELETE CLIP [0-9A-F]{6}$/.test(parameters.confirmationPhrase) && parameters.deletedClipSnapshot && typeof parameters.deletedClipSnapshot === 'object'
+                    : timelineKind === 'text' && isUuid(parameters.trackId) && ['name','content'].includes(String(parameters.field)) && typeof parameters.value === 'string' && !!parameters.value.trim()
         )
     )
   );
@@ -1331,32 +1325,6 @@ async function applyPendingStoryboardApprovalLegacy(
       audioTracks: Array.isArray(raw.audioTracks) ? raw.audioTracks : [],
       textTracks: Array.isArray(raw.textTracks) ? raw.textTracks : [],
     } as MasterTimelineData;
-    if (timelineOperation === 'attach_video') {
-      const { data: asset, error: assetError } = await admin.from('vyral_assets').select('id,name,asset_type,mime_type,processing_status').eq('id', parameters.assetId).eq('vyral_id', parameters.vyralId).eq('user_id', userId).eq('asset_type', 'video').eq('processing_status', 'ready').maybeSingle();
-      if (assetError || !asset) return await fail('VIDEO_ASSET_UNAVAILABLE', 'The selected Video Asset is no longer ready or owned by the active Vyral. No Scene change was made.');
-      const { data: version, error: versionError } = await admin.from('vyral_asset_versions').select('id,mime_type,storage_path,sha256,metadata').eq('id', parameters.assetVersionId).eq('asset_id', parameters.assetId).eq('vyral_id', parameters.vyralId).eq('user_id', userId).maybeSingle();
-      const metadata = version?.metadata && typeof version.metadata === 'object' && !Array.isArray(version.metadata) ? version.metadata as Record<string, unknown> : {};
-      const technical = metadata.video_technical_metadata && typeof metadata.video_technical_metadata === 'object' && !Array.isArray(metadata.video_technical_metadata) ? metadata.video_technical_metadata as Record<string, unknown> : {};
-      if (versionError || !version || typeof version.storage_path !== 'string' || !version.storage_path || !String(version.mime_type || asset.mime_type || '').toLowerCase().startsWith('video/') || technical.schemaVersion !== 1 || technical.sourceSha256 !== version.sha256 || technical.durationSeconds !== parameters.sourceOut || String(asset.name) !== String(parameters.name)) return await fail('VIDEO_ASSET_VERSION_CHANGED', 'The selected immutable Video Version could not be reverified. No Scene change was made.');
-      if (!Array.isArray(details.scenes) || !details.scenes.some((scene: Record<string, unknown>) => scene?.id === parameters.sceneId)) return await fail('SCENE_NOT_FOUND', 'The Scene is no longer part of this Storyboard. No change was made.');
-      if (!(timeline.sceneInstances ?? []).some((instance) => instance.sceneId === parameters.sceneId)) return await fail('SCENE_INSTANCE_MISSING', 'The Scene no longer has a Timeline instance. Refresh and prepare a new preview.');
-    }
-    if (timelineOperation === 'add_audio') {
-      const { data: asset, error: assetError } = await admin.from('vyral_assets')
-        .select('id,name,asset_type,mime_type,processing_status')
-        .eq('id', parameters.assetId).eq('vyral_id', parameters.vyralId).eq('user_id', userId)
-        .eq('asset_type', 'audio').eq('processing_status', 'ready').maybeSingle();
-      if (assetError || !asset) return await fail('AUDIO_ASSET_UNAVAILABLE', 'The selected Audio Asset is no longer ready or owned by the active Vyral. No Timeline change was made.');
-      const { data: version, error: versionError } = await admin.from('vyral_asset_versions')
-        .select('id,mime_type,storage_path')
-        .eq('id', parameters.assetVersionId).eq('asset_id', parameters.assetId)
-        .eq('vyral_id', parameters.vyralId).eq('user_id', userId).maybeSingle();
-      if (versionError || !version || typeof version.storage_path !== 'string' || !version.storage_path ||
-          !String(version.mime_type || asset.mime_type || '').toLowerCase().startsWith('audio/') ||
-          String(asset.name) !== String(parameters.name)) {
-        return await fail('AUDIO_ASSET_VERSION_CHANGED', 'The selected Audio Asset version could not be reverified. No Timeline change was made.');
-      }
-    }
     const rawScenes = Array.isArray(details.scenes) ? details.scenes.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) as Array<Record<string, unknown>> : [];
     const sceneById = new Map(rawScenes.filter((scene) => typeof scene.id === 'string').map((scene) => [String(scene.id), scene]));
     const ordered = (Array.isArray(raw.sceneInstances) ? raw.sceneInstances : []).map((instance) => {
@@ -1369,9 +1337,7 @@ async function applyPendingStoryboardApprovalLegacy(
       const next = ordered[index + 1];
       return typeof scene.id === 'string' && typeof next?.id === 'string' ? [scene.id + ':' + next.id] : [];
     });
-    const result = timelineOperation === 'attach_video'
-      ? attachMasterTimelineVideoAsset(timeline, String(parameters.sceneId), String(parameters.assetId), String(parameters.assetVersionId), String(parameters.assetMimeType), Number(parameters.sourceIn), Number(parameters.sourceOut))
-      : applyMasterTimelineEdit(timeline, parameters, validTransitionKeys);
+    const result = applyMasterTimelineEdit(timeline, parameters, validTransitionKeys);
     if (!result.ok) return await fail('TIMELINE_RULE_REJECTED', 'The latest Master Timeline no longer satisfies this edit. No change was made; please prepare a fresh preview.');
     const { data: timelineUpdated, error: timelineUpdateError } = await admin.from('vyral_storyboards')
       .update({ details: { ...details, masterTimeline: result.value }, updated_at: new Date().toISOString() })
@@ -1393,12 +1359,8 @@ async function applyPendingStoryboardApprovalLegacy(
   const { error: finishError } = await admin.rpc('finish_ai_operator_pending_action', {
     p_user_id: userId, p_session_id: sessionId, p_action_id: pending.id,
     p_status: 'completed',
-    p_result_summary: { storyboardId: updated.id, sceneId: (isSceneUpdate || isSceneMutation) ? sceneId : null, sceneCreated: isSceneCreate, createdScene: isSceneCreate ? parameters.createdScene : null, sceneDuplicated: isSceneDuplicate, sceneDeleted: isSceneDelete, deletedSceneSnapshot: isSceneDelete ? parameters.deletedSceneSnapshot : null, sceneOrderChanged: isSceneReorder, clipId: isTimelineUpdate && !isTimelineTransitionUpdate ? timelineClipId : null, deletedClipSnapshot: timelineOperation === 'delete' ? parameters.deletedClipSnapshot : null, createdClipId: timelineOperation === 'clone' || timelineOperation === 'split' || timelineOperation === 'add_text' || timelineOperation === 'add_audio' ? parameters.createdClipId : null,
-      audioAssetId: timelineOperation === 'add_audio' ? parameters.assetId : null,
-      attachedVideoAssetId: timelineOperation === 'attach_video' ? parameters.assetId : null,
-      attachedVideoAssetVersionId: timelineOperation === 'attach_video' ? parameters.assetVersionId : null,
-      attachedVideoSceneId: timelineOperation === 'attach_video' ? parameters.sceneId : null,
-      audioAssetVersionId: timelineOperation === 'add_audio' ? parameters.assetVersionId : null, transitionKey: isTimelineTransitionUpdate ? transitionKey : null, operation: isTimelineUpdate ? timelineOperation : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
+    p_result_summary: { storyboardId: updated.id, sceneId: (isSceneUpdate || isSceneMutation) ? sceneId : null, sceneCreated: isSceneCreate, createdScene: isSceneCreate ? parameters.createdScene : null, sceneDuplicated: isSceneDuplicate, sceneDeleted: isSceneDelete, deletedSceneSnapshot: isSceneDelete ? parameters.deletedSceneSnapshot : null, sceneOrderChanged: isSceneReorder, clipId: isTimelineUpdate && !isTimelineTransitionUpdate ? timelineClipId : null, deletedClipSnapshot: timelineOperation === 'delete' ? parameters.deletedClipSnapshot : null, createdClipId: timelineOperation === 'clone' || timelineOperation === 'split' || timelineOperation === 'add_text' ? parameters.createdClipId : null,
+transitionKey: isTimelineTransitionUpdate ? transitionKey : null, operation: isTimelineUpdate ? timelineOperation : null, title: updated.title, topic: updated.topic, updatedAt: updated.updated_at },
     p_failure_code: null,
   });
   if (finishError) return 'The Storyboard update was applied, but its audit completion could not be confirmed. Please refresh the Storyboard before retrying.';
