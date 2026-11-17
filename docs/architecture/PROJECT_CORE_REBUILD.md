@@ -163,7 +163,7 @@ Completed on the working branch:
 - Folder relationships are retained in local records and synchronized to the Cloud media row.
 - Background Cloud upload remains outside the visible upload progress UI.
 - Local imports check available browser storage and request persistent storage where supported.
-- Background device recovery is bounded by available quota and per-pass download budgets.
+- Background device recovery is bounded by available quota and per-pass download budgets, and now paginates through every Project file and account Project manifest instead of silently stopping at the first 200 files.
 - Contract tests cover local-first upload wiring and capacity guards.
 
 Still pending:
