@@ -185,7 +185,7 @@ function VyraApp() {
             <WorkspacePage
               storageKey={workspaceStorageKey}
               isAuthenticated={hasPermanentAccount} isActive={projectWorkspaceOpen} createProjectRequest={createProjectRequest} openProjectRequest={openProjectRequest} onEditorExit={() => setProjectWorkspaceOpen(false)} onLoginRequired={() => requestAuth('login')}
-              onOpenLibraryPage={() => { setProfileOpen(false); setProjectWorkspaceOpen(false); setActiveSection('workspace'); }}
+              onOpenProjects={() => { setProfileOpen(false); setProjectWorkspaceOpen(false); setActiveSection('workspace'); }}
               onAiContextChange={setWorkspaceAiContext}
               
             />
