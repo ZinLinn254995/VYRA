@@ -231,17 +231,17 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
           setHasMoreItems(false);
           setSelectedIds([]);
         }
-        setError(cause instanceof Error ? cause.message : universeId ? 'Could not load this Storyboard Universe.' : 'Could not load My Media Library.');
+        setError(cause instanceof Error ? cause.message : universeId ? 'Could not load this Storyboard Universe.' : projectId ? 'Could not load this Project Storage.' : 'Could not load My Media Library.');
       }
     } finally {
       if (requestId === libraryRequestRef.current && !silent) setLoading(false);
     }
-  }, [activeFolderId, filter, ownerId, serverQuery, universeId]);
+  }, [activeFolderId, filter, ownerId, serverQuery, universeId, projectId]);
 
   useEffect(() => {
     const refreshIfStale = () => {
       if (!isActive || document.visibilityState !== 'visible') return;
-      const key = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
+      const key = JSON.stringify([ownerId, universeId ?? null, projectId ?? null, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(key);
       if (!cached || Date.now() - cached.cachedAt >= 30_000) void refresh(true);
     };
@@ -261,7 +261,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
       window.removeEventListener('online', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
     };
-  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId]);
+  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, universeId, projectId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerQuery(query), 250);
@@ -271,7 +271,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
     if (!isActive) return;
     let mounted = true;
     const initializeLibrary = async () => {
-      const cacheKey = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
+      const cacheKey = JSON.stringify([ownerId, universeId ?? null, projectId ?? null, activeFolderId, serverQuery, filter]);
       const cached = libraryCacheRef.current.get(cacheKey);
       if (cached) {
         setFolders(cached.folders);
@@ -360,7 +360,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
 
   const patchCachedItems = (updater: (current: MediaLibraryItem[]) => MediaLibraryItem[]) => {
     setItems((current) => updater(current));
-    const key = JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter]);
+    const key = JSON.stringify([ownerId, universeId ?? null, projectId ?? null, activeFolderId, serverQuery, filter]);
     const cached = libraryCacheRef.current.get(key);
     if (cached) libraryCacheRef.current.set(key, { ...cached, items: updater(cached.items), cachedAt: Date.now() });
   };
@@ -594,7 +594,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
     const pageRequestId = ++loadMoreRequestRef.current;
     setLoadingMoreItems(true);
     try {
-      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100, universeId });
+      const result = await loadMediaLibrary({ folderId: activeFolderId, search: serverQuery, filter, offset: items.length, limit: 100, universeId, projectId });
       if (requestId !== libraryRequestRef.current || pageRequestId !== loadMoreRequestRef.current) return;
       setItems((previous) => {
         const known = new Set(previous.map((item) => item.id));
@@ -639,7 +639,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
         patchCachedItems(patch);
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, universeId ?? null, projectId ?? null, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: patch(cached.items), cachedAt: Date.now() });
           }
         }
@@ -704,7 +704,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
         masterDnaStatus = result.masterDnaStatus ?? null;
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
-          if (key !== JSON.stringify([ownerId, universeId ?? null, activeFolderId, serverQuery, filter])) {
+          if (key !== JSON.stringify([ownerId, universeId ?? null, projectId ?? null, activeFolderId, serverQuery, filter])) {
             libraryCacheRef.current.set(key, { ...cached, items: cached.items.filter((item) => !deletedFileIds.includes(item.id)), cachedAt: Date.now() });
           }
         }
@@ -786,7 +786,7 @@ export const MyMediaLibraryPage: React.FC<{ isActive?: boolean; universeId?: str
           <span>Move files</span>
           <select aria-label="Move selected files to folder" value="" onChange={(event) => void moveSelected(event)} disabled={busy || selectedFiles.length === 0 || selectedFolders.length > 0} className="max-w-32 bg-transparent text-xs text-[var(--vyra-text-primary)] outline-none disabled:cursor-not-allowed">
             <option value="" disabled>Choose folder</option>
-            <option value="__root__">{universeId ? 'Universe' : 'My Media'}</option>
+            <option value="__root__">{universeId ? 'Universe' : projectId ? 'Project' : 'My Media'}</option>
             {folderTree.filter(({ folder }) => folder.id !== activeFolderId).map(({ folder }) => <option key={folder.id} value={folder.id}>{folderPath(folder.id)}</option>)}
           </select>
         </label>
