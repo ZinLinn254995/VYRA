@@ -1375,7 +1375,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         messages: nextMessages.map(({ role, content }) => ({ role, content })),
         conversationId: chatSessionId,
         ...(resolvedActiveVyralId ? { activeVyralId: resolvedActiveVyralId } : {}),
-        ...(attachedFile && !attachedFile.name.toLowerCase().endsWith('.vyral') ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
+        ...(attachedFile ? { uploadAttachment: { clientDraftId: uploadClientDraftId!, fileName: attachedFile.name, mimeType: attachedFile.type || 'application/octet-stream', sizeBytes: attachedFile.size } } : {}),
         ...(promptWorkspaceContext ? { workspaceContext: promptWorkspaceContext } : {}),
         ...(accessToken ? { accessToken } : {}),
         signal: requestController.signal,
@@ -1462,29 +1462,14 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           }));
           assertRequestCurrent();
           if (completionError || completion?.status !== 'completed') {
-            throw new Error('The Asset bytes and DNA were saved, but the server could not finalize the approved upload audit. Refresh the Universe before retrying.');
+            throw new Error('The Asset file was saved, but the server could not finalize the approved upload audit. Refresh the Universe before retrying.');
           }
           pendingAttachmentFilesRef.current.delete(clientDraftId);
-          let masterDnaMessage = 'Master DNA will update after exact Asset verification.';
-          if (ingested.exactVerificationStatus === 'passed') {
-            try {
-              const { data: masterResult, error: masterError } = await awaitForCurrentRequest(supabase.functions.invoke('build-vyral-master-dna', { body: { vyralId: destination.id } }));
-              masterDnaMessage = !masterError && masterResult?.status === 'ready'
-                ? 'Master DNA updated to revision ' + String(masterResult.revision ?? 'latest') + '.'
-                : 'The Asset is ready. Master DNA is queued for its next synchronization.';
-            } catch { masterDnaMessage = 'The Asset is ready. Master DNA will synchronize when the Universe workspace refreshes.'; }
-          } else {
-            masterDnaMessage = 'The Asset is saved. Exact DNA verification is still running; Master DNA will update after it passes.';
-          }
-          assertRequestCurrent();
           assetUploadCompletionText = '\n\n**Asset saved to Universe:** ' + destination.name +
             '\n**Asset name:** ' + assetName +
             '\n**Original file:** ' + sourceFile.name +
             '\n**Asset ID:** ' + ingested.assetId +
-            '\n**DNA:** ' + ingested.dnaKind +
-            '\n**Fingerprint:** SHA-256 recorded' +
-            '\n**Status:** Ready' +
-            '\n' + masterDnaMessage + mediaLibraryMessage;
+            '\n**Status:** Ready' + mediaLibraryMessage;
         } catch (uploadError) {
           await reportUploadFailure();
           throw uploadError;
@@ -1614,7 +1599,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setMessages((previous) => [...previous, {
           id: makeId(),
           role: 'assistant',
-          content: preservedUpload ? message + ' The source Asset was preserved for recovery; open its Vyral and use Recover DNA. Asset ID: ' + (error instanceof VyralAssetIngestionError ? error.assetId ?? 'not returned' : 'unknown') : message,
+          content: preservedUpload ? message + ' The source Asset was preserved for recovery; open Project Storage and retry recovery. Asset ID: ' + (error instanceof VyralAssetIngestionError ? error.assetId ?? 'not returned' : 'unknown') : message,
           status: 'error',
           ...(retryDraftAction ? { action: retryDraftAction } : {}),
         }]);
