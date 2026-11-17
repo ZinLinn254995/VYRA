@@ -7,7 +7,6 @@ import { Button } from '../ui/Button';
 import { AIChatMessageContent } from './AIChatMessageContent';
 import { getCurrentAccessToken, supabase } from '../../context/AuthContext';
 import { aiService } from '../../services/aiService';
-import type { VyralChatAssetContext } from '../../types/vyralChat';
 import type { WorkspaceAiContext, WorkspaceSceneStateProposalHandoff } from '../../types/workspaceAiContext';
 import { evaluateSceneStateProposal } from '../../services/universeSceneStateRuntime';
 import { extractGlobalChatNavigationTarget, extractStoryboardCreateRequest, extractStoryboardDetailTitle, extractStoryboardDeleteTitle, extractStoryboardUpdateRequest, findMentionedVyrals, findStoryboardMatches, formatStoryboardCreateDraft, formatStoryboardDeleteDraft, formatStoryboardDetail, formatStoryboardList, formatStoryboardUpdateDraft, isStoryboardCreateConfirmation, isStoryboardCreateIntent, isStoryboardDeleteConfirmation, isStoryboardDeleteIntent, isStoryboardListRequest, isStoryboardUpdateConfirmation, isStoryboardUpdateIntent, isNaturalChatApproval, isVyralAssetUploadConfirmation, type GlobalChatAction, type GlobalChatNavigationTarget, type GlobalChatStoryboardRecord } from '../../services/globalChatActions.ts';
@@ -50,8 +49,6 @@ type AIChatPageProps = {
   isActive: boolean;
   isAuthenticated: boolean;
   onLoginRequired: () => void;
-  initialSelectedAssets?: VyralChatAssetContext[];
-  onSelectedAssetsChange?: (assets: VyralChatAssetContext[]) => void;
   onShotSequenceReady?: (sequence: RunwayProjectShotSequenceReady) => void;
   onShotRepairHistory?: (entry: { id: string; createdAt: string; sceneId: string; shotId: string; shotIndex: number; previousAssetId: string | null; previousAssetVersionId: string | null; candidateAssetId: string | null; candidateAssetVersionId: string | null; outcome: 'verified' | 'needs_review'; baselineRevision: string | null; checkedBoundaryIndices: number[]; findings: string[]; approvedCostUsd: number }) => void;
   workspaceContext?: WorkspaceAiContext | null;
@@ -228,7 +225,7 @@ const getSceneVisualBaselineRevision = async (
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
-export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, initialSelectedAssets = [], onSelectedAssetsChange, onShotSequenceReady, onShotRepairHistory, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
+export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticated, onLoginRequired, onShotSequenceReady, onShotRepairHistory, workspaceContext, onSceneStateProposal, storyboardId, activeVyralId: storyboardUniverseId, embedded = false }) => {
   const workspaceContextRef = useRef(workspaceContext);
   workspaceContextRef.current = workspaceContext;
   const [draft, setDraft] = useState('');
@@ -243,7 +240,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileStatus, setSelectedFileStatus] = useState<string | null>(null);
   const [activeVyralId, setActiveVyralId] = useState<string | null>(null);
-  const [selectedAssets, setSelectedAssets] = useState<VyralChatAssetContext[]>(initialSelectedAssets);
   const [isSending, setIsSending] = useState(false);
   const [mediaComposerOpen, setMediaComposerOpen] = useState(false);
   const [mediaTask, setMediaTask] = useState<'image' | 'video' | 'audio'>('image');
@@ -348,7 +344,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingAttachmentFilesRef = useRef(new Map<string, File>());
 
-  useEffect(() => { setSelectedAssets(initialSelectedAssets); }, [initialSelectedAssets]);
 
   // Keep conversation data mounted across navigation, but dismiss transient chat overlays.
   useEffect(() => {
@@ -407,8 +402,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         setIsLocked(false);
         setSelectedFile(null);
         setSelectedFileStatus(null);
-        setSelectedAssets([]);
-        onSelectedAssetsChange?.([]);
         setActiveVyralId(null);
         
         setDraft('');
@@ -650,7 +643,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     
     
     
-    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setActionsOpen(false);
   };
@@ -670,7 +662,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     
     
     
-    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setDraft('');
     setHistoryOpen(false);
@@ -680,7 +671,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     const text = value.trim();
     const retryUserIndex = retryUserMessageId ? messages.findIndex((message) => message.id === retryUserMessageId && message.role === 'user') : -1;
     if (retryUserMessageId && retryUserIndex < 0) return;
-    if ((!text && !selectedFile && !selectedAssets.length) || isLocked || isSending) return;
+    if ((!text && !selectedFile) || isLocked || isSending) return;
     if (!isAuthenticated) {
       onLoginRequired();
       return;
@@ -702,13 +693,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     const attachmentText = selectedFile
       ? `\n\nAttached file: ${selectedFile.name} (${selectedFile.type || 'application/octet-stream'}, ${selectedFile.size.toLocaleString()} bytes)${selectedFileStatus ? `\n${selectedFileStatus}` : ''}`
       : '';
-    const assetContextText = selectedAssets.length ? '\n\nSelected VYRA Assets (explicit user-selected context):\n' + selectedAssets.map((asset, index) => `${index + 1}. ${asset.name} [${asset.assetType}; ${asset.mimeType}] — Universe: ${asset.vyralName}; Asset ID: ${asset.id}; Visibility: ${asset.visibility}; Description: ${asset.description || 'Not provided'}`).join('\n') + '\nUse only these selected Assets as the requested VYRA library context. This selection does not grant public access; private Assets are owner-authorized context only.' : '';
     const userMessage: ChatMessage = retryUserIndex >= 0
       ? messages[retryUserIndex]
       : {
           id: makeId(),
           role: 'user',
-          content: (text || (selectedAssets.length ? 'Please use the selected VYRA Assets as context.' : 'Please inspect this attachment.')) + attachmentText + assetContextText,
+          content: (text || 'Please inspect this attachment.') + attachmentText,
         };
     shouldAutoScrollRef.current = true;
     // Retry the original user turn in place; discard the failed assistant turn and anything after it.
@@ -722,7 +712,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     
     
     
-    setSelectedAssets([]); onSelectedAssetsChange?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     const chatSessionId = activeSessionId ?? storyboardId ?? crypto.randomUUID();
     if (!activeSessionId) setActiveSessionId(chatSessionId);
@@ -747,13 +736,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     let streamedText = '';
     try {
       let resolvedActiveVyralId = storyboardId ? storyboardUniverseId ?? null : activeVyralId;
-      if (!storyboardId && !resolvedActiveVyralId && selectedAssets.length > 0) {
-        const selectedVyralIds = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
-        if (selectedVyralIds.length === 1) {
-          resolvedActiveVyralId = selectedVyralIds[0];
-          setActiveVyralId(resolvedActiveVyralId);
-        }
-      }
       let mentionedVyrals: { id: string; name: string; description?: string }[] = [];
       if (supabase && text && !storyboardId) {
         const { data: authData } = await awaitForCurrentRequest(supabase.auth.getUser());
@@ -788,7 +770,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
 
       const navigationTarget = extractGlobalChatNavigationTarget(text);
-      if (navigationTarget && !selectedFile && selectedAssets.length === 0) {
+      if (navigationTarget && !selectedFile) {
         const destinationLabels: Record<GlobalChatNavigationTarget, string> = {
           workspace: 'Workspace',
           'my-vyrals': 'My Universes',
@@ -819,7 +801,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return;
       }
 
-      if (isStoryboardDeleteConfirmation(text) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-delete-draft') {
+      if (isStoryboardDeleteConfirmation(text) && !selectedFile && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-delete-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-delete-draft') {
@@ -882,7 +864,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
       }
 
-      if ((isStoryboardUpdateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-update-draft') {
+      if ((isStoryboardUpdateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-update-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-update-draft') {
@@ -949,7 +931,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
       }
 
-      if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && selectedAssets.length === 0 && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-create-draft') {
+      if ((isStoryboardCreateConfirmation(text) || isNaturalChatApproval(text)) && !selectedFile && [...messages].reverse().find((message) => message.role === 'assistant')?.action?.type === 'storyboard-create-draft') {
         const previousAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
         const pendingAction = previousAssistant?.action;
         if (pendingAction?.type === 'storyboard-create-draft') {
@@ -1020,7 +1002,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         }
       }
 
-      if (isStoryboardDeleteIntent(text) && !selectedFile && selectedAssets.length === 0) {
+      if (isStoryboardDeleteIntent(text) && !selectedFile) {
         const requestedTitle = extractStoryboardDeleteTitle(text);
         if (!requestedTitle) {
           setMessages((previous) => [...previous, {
@@ -1081,7 +1063,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return;
       }
 
-      if (isStoryboardUpdateIntent(text) && !selectedFile && selectedAssets.length === 0) {
+      if (isStoryboardUpdateIntent(text) && !selectedFile) {
         const parsed = extractStoryboardUpdateRequest(text);
         if (!parsed) {
           setMessages((previous) => [...previous, {
@@ -1145,7 +1127,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return;
       }
 
-      if (isStoryboardCreateIntent(text) && !selectedFile && selectedAssets.length === 0) {
+      if (isStoryboardCreateIntent(text) && !selectedFile) {
         const parsed = extractStoryboardCreateRequest(text);
         if (!parsed?.topic) {
           setMessages((previous) => [...previous, {
@@ -1169,7 +1151,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       }
 
       const requestedStoryboardTitle = extractStoryboardDetailTitle(text);
-      if (requestedStoryboardTitle && !selectedFile && selectedAssets.length === 0) {
+      if (requestedStoryboardTitle && !selectedFile) {
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
         const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to access your Workspace Storyboards.');
@@ -1218,7 +1200,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return;
       }
 
-      if (isStoryboardListRequest(text) && !selectedFile && selectedAssets.length === 0) {
+      if (isStoryboardListRequest(text) && !selectedFile) {
         if (!supabase) throw new Error('Workspace Storyboard access is unavailable in this environment.');
         const { data: authData, error: authError } = await awaitForCurrentRequest(supabase.auth.getUser());
         if (authError || !authData.user) throw new Error('Sign in again to access your Workspace Storyboards.');
@@ -1259,105 +1241,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         return;
       }
 
-      if (selectedAssets.length) {
-        if (!supabase) throw new Error('Secure Asset access is unavailable in this environment.');
-        const uniqueVyrals = [...new Set(selectedAssets.map((asset) => asset.vyralId))];
-        const { data: assetRows, error: assetError } = await awaitForCurrentRequest(supabase.from('vyral_assets').select('id,vyral_id,name,mime_type,storage_path,license_override,metadata').in('id', selectedAssets.map((asset) => asset.id)));
-        if (assetError) throw new Error('Could not verify selected Asset access: ' + assetError.message);
-        if ((assetRows ?? []).length !== selectedAssets.length) throw new Error('One or more selected Assets are no longer accessible. Please select them again.');
-        if ((assetRows ?? []).some((asset) => !selectedAssets.some((selected) => selected.id === asset.id && selected.vyralId === asset.vyral_id))) throw new Error('A selected Asset no longer belongs to its declared Vyral.');
-        const { data: parentVyrals, error: vyralError } = await awaitForCurrentRequest(supabase.from('vyrals').select('id,license_policy').in('id', uniqueVyrals));
-        if (vyralError) throw new Error('Could not verify Vyral permissions: ' + vyralError.message);
-        if ((parentVyrals ?? []).length !== uniqueVyrals.length) throw new Error('One or more selected Vyrals are no longer accessible.');
-        if ((parentVyrals ?? []).some((item) => (item.license_policy as Record<string, unknown> | null)?.allow_ai_analysis === false)) throw new Error('AI analysis is not permitted by one of the selected Vyrals.');
-
-        // Resolve immutable latest versions instead of trusting the Asset row's legacy storage_path.
-        const selectedIds = (assetRows ?? []).map((asset) => asset.id);
-        const { data: versionRows, error: versionError } = await awaitForCurrentRequest(supabase
-          .from('vyral_asset_versions')
-          .select('id,asset_id,vyral_id,storage_path,mime_type,size_bytes,version_number')
-          .in('asset_id', selectedIds)
-          .order('version_number', { ascending: false }));
-        if (versionError) throw new Error('Could not resolve current selected Asset versions: ' + versionError.message);
-        const latestVersionByAsset = new Map<string, { vyral_id: string; storage_path: string; mime_type: string | null; size_bytes: number; version_number: number }>();
-        for (const version of versionRows ?? []) {
-          if (!latestVersionByAsset.has(version.asset_id)) latestVersionByAsset.set(version.asset_id, version);
-        }
-        if (selectedIds.some((id) => !latestVersionByAsset.has(id))) throw new Error('A selected Asset has no available source version. Please refresh the Universe and select it again.');
-
-        for (const asset of assetRows ?? []) {
-          const license = asset.license_override && typeof asset.license_override === 'object' ? asset.license_override as Record<string, unknown> : {};
-          if (license.allow_ai_analysis === false) throw new Error('AI analysis is not permitted for selected Asset: ' + asset.name);
-          const version = latestVersionByAsset.get(asset.id)!;
-          if (version.vyral_id !== asset.vyral_id) throw new Error('A selected Asset version no longer belongs to its Vyral: ' + asset.name);
-          const mimeType = String(version.mime_type || asset.mime_type || '').toLowerCase();
-          const filename = String(asset.name || '').toLowerCase();
-          const extension = filename.split('.').pop() || '';
-          const isTextLike = mimeType.startsWith('text/') ||
-            ['application/json', 'application/xml', 'application/x-ndjson'].includes(mimeType) ||
-            /\.(txt|md|csv|json|xml|log)$/i.test(filename);
-          const isPdf = mimeType === 'application/pdf' || extension === 'pdf';
-          const audioMime = (mimeType === 'audio/mp3' || mimeType === 'audio/x-mp3') ? 'audio/mpeg'
-            : mimeType === 'audio/x-wav' ? 'audio/wav'
-              : mimeType === 'audio/x-flac' ? 'audio/flac'
-                : mimeType.startsWith('audio/') ? mimeType
-                  : ({ mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac' } as Record<string, string>)[extension] ?? mimeType;
-          const isAudio = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(audioMime) ||
-            ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(extension);
-          const isVideo = mimeType.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v'].includes(extension);
-          const needsSource = mimeType.startsWith('image/') || isTextLike || isPdf || isAudio || isVideo;
-          if (!needsSource) continue;
-          const sourceLimit = isPdf || isAudio ? 2 * 1024 * 1024 : 20 * 1024 * 1024;
-          if (Number(version.size_bytes) > sourceLimit) throw new Error(`Selected Asset exceeds the ${isPdf || isAudio ? '2 MB document/audio' : '20 MB media'} inspection limit: ${asset.name}`);
-          const { data: signed, error: signedError } = await awaitForCurrentRequest(supabase.storage.from('vyral-assets').createSignedUrl(version.storage_path, 60));
-          if (signedError || !signed?.signedUrl) throw new Error('Could not securely open the current version of selected Asset: ' + asset.name);
-          const response = await fetch(signed.signedUrl, { signal: requestController.signal });
-          assertRequestCurrent();
-          if (!response.ok) throw new Error('Could not load the current version of selected Asset: ' + asset.name);
-          const blob = await response.blob();
-          assertRequestCurrent();
-          if (blob.size > sourceLimit) throw new Error('Selected Asset exceeds its safe inspection limit: ' + asset.name);
-          if (mimeType.startsWith('image/')) {
-            if (visionImages.length < 4) {
-              const preview = await createSelectedAssetVisionPreview(blob);
-              assertRequestCurrent();
-              visionImages.push({ ...preview, assetId: asset.id, assetName: asset.name });
-            }
-          } else if (isTextLike) {
-            const decodedBytes = await blob.arrayBuffer();
-            assertRequestCurrent();
-            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(decodedBytes);
-            const bounded = decoded.slice(0, 24000);
-            const marker = decoded.length > bounded.length ? '\n[Content truncated for safety]' : '';
-            const currentMessage = nextMessages[nextMessages.length - 1];
-            currentMessage.content += `\n\nSelected Asset content — ${asset.name} (current version ${version.version_number}):\n${bounded}${marker}`;
-          } else if (isPdf || isAudio) {
-            if (mediaFiles.length >= 4) throw new Error('Select no more than four PDF/audio files for one AI request.');
-            const mediaMime = isPdf ? 'application/pdf' : audioMime;
-            if (!['application/pdf', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac'].includes(mediaMime)) {
-              throw new Error('This audio format is not supported for direct AI inspection: ' + asset.name);
-            }
-            const encodedMedia = await readBlobAsBase64(blob);
-            assertRequestCurrent();
-            mediaFiles.push({
-              mimeType: mediaMime as typeof mediaFiles[number]['mimeType'],
-              data: encodedMedia,
-              assetId: asset.id,
-              assetName: asset.name,
-            });
-            const currentMessage = nextMessages[nextMessages.length - 1];
-            currentMessage.content += `\n\nAttached source for direct AI inspection: ${asset.name} (${isPdf ? 'PDF document' : 'audio'}; current version ${version.version_number}).`;
-          } else if (isVideo) {
-            const remaining = Math.max(0, 4 - visionImages.length);
-            const frames = await extractSelectedVideoFrames(blob, asset.id, asset.name, remaining);
-            assertRequestCurrent();
-            visionImages.push(...frames);
-            const currentMessage = nextMessages[nextMessages.length - 1];
-            currentMessage.content += `\n\nVideo frames attached for visual inspection: ${asset.name}; ${frames.length} sampled frames from the current version (${version.version_number}). Audio track transcription is not included.`;
-          }
-          assertRequestCurrent();
-        }
-      }
       if (requestController.signal.aborted) throw new DOMException('Generation stopped.', 'AbortError');
       const accessToken = await getCurrentAccessToken();
       assertRequestCurrent();
@@ -2468,7 +2351,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             </div>
           )}
 
-          {selectedAssets.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5 px-1" aria-label="Selected VYRA Assets">{selectedAssets.map((asset) => <span key={asset.id} className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--vyra-accent-primary)]/30 bg-[var(--vyra-accent-primary)]/10 px-2 py-1 text-[10px] text-[var(--vyra-text-primary)]"><span className="max-w-36 truncate">{asset.name}</span><span className="text-[var(--vyra-text-muted)]">{asset.visibility}</span><button type="button" onClick={() => { const next = selectedAssets.filter((item) => item.id !== asset.id); setSelectedAssets(next); onSelectedAssetsChange?.(next); }} aria-label={'Remove '+asset.name} className="rounded-full p-0.5 hover:bg-[var(--vyra-bg-hover)]"><X size={11}/></button></span>)}<button type="button" onClick={() => { setSelectedAssets([]); onSelectedAssetsChange?.([]); }} className="px-1 text-[10px] text-[var(--vyra-text-muted)] underline">Clear</button></div>}
           {selectedFile && (
             <div className="mb-1 flex items-center gap-2 px-2 text-[10px] text-[var(--vyra-text-muted)]">
               <span className="min-w-0 flex-1 truncate">{selectedFile.name}{selectedFileStatus ? ` · ${selectedFileStatus}` : ''}</span>
@@ -2513,7 +2395,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
               onClick={isSending ? stopGeneration : undefined}
               size="sm"
               className={`col-start-3 !size-11 !min-h-11 !min-w-11 !rounded-full !p-0 aspect-square shrink-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${isMultiline ? 'row-start-2' : 'row-start-1'}`}
-              disabled={isSending ? false : ((!draft.trim() && !selectedFile && !selectedAssets.length) || isLocked || false)}
+              disabled={isSending ? false : ((!draft.trim() && !selectedFile) || isLocked || false)}
               aria-label={isSending ? "Stop generation" : "Send message"}
               title={isSending ? "Stop generation" : "Send message"}
             >
