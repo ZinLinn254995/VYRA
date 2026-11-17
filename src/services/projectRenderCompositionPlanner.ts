@@ -257,7 +257,7 @@ export function buildProjectRenderCompositionPlan(manifest: ProjectRenderManifes
     const next = orderedVideoClips[index + 1];
     const boundarySeconds = current.start + current.duration;
     const matchingScene = scenes.find((scene, sceneIndex) =>
-      sceneIndex < scenes.length - 1 && scenes[sceneIndex + 1].startSeconds === boundarySeconds);
+      sceneIndex < scenes.length - 1 && Math.abs(scenes[sceneIndex + 1].startSeconds - boundarySeconds) <= 0.001);
     const key = matchingScene
       ? matchingScene.sceneId + ':' + scenes[scenes.indexOf(matchingScene) + 1].sceneId
       : current.id + ':' + next.id;
