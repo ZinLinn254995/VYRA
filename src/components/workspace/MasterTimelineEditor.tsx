@@ -1083,7 +1083,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         : Boolean(instance.assetId && instance.assetVersionId));
     if (!supabase && hasLegacyAssetRefs) { setMasterPlaybackError('Connect to Cloud to play legacy Asset clips. Project Files stored offline remain available.'); return; }
     if (!audioPlan.length && !videoPlan.length) {
-      setMasterPlaybackError('There are no verified Audio or Video Asset clips after the current Playhead.');
+      setMasterPlaybackError('There are no playable Project File or legacy Asset clips after the current Playhead.');
       setMasterPlaybackState('idle');
       return;
     }
@@ -1121,7 +1121,7 @@ export const MasterTimelineEditor: React.FC<Props> = ({ scenes, projectId, vyral
         },
         fetchAudio: async (url, signal) => {
           const response = await fetch(url, { cache: 'no-store', signal });
-          if (!response.ok) throw new Error('A private Audio Asset could not be downloaded for playback.');
+          if (!response.ok) throw new Error('A private Project File or Audio Asset could not be downloaded for playback.');
           return response.arrayBuffer();
         },
       });
