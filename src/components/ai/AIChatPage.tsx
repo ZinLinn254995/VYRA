@@ -295,15 +295,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
     try {
       const result = await recoverRunwayProjectFiles(supabase, storyboardId, jobId, controller.signal);
       if (result.status === 'ready') {
+        const files = result.files ?? [];
         const projectFiles: ProjectFilePreview[] = [];
-        for (const file of result.files) {
+        for (const file of files) {
           const { data: signed, error: signedError } = await supabase.storage.from('vyral-assets').createSignedUrl(file.storagePath, 3600);
           projectFiles.push({ projectFileId: file.projectFileId, name: file.fileName, mimeType: file.mimeType,
             ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
         }
         setMessages((previous) => [...previous, {
           id: makeId(), role: 'assistant', status: 'success', projectFiles,
-          content: 'Recovered ' + result.files.length + ' generated Project File(s). They are saved in Project Storage and restored to this device’s Offline Storage.',
+          content: 'Recovered ' + files.length + ' generated Project File(s). They are saved in Project Storage and restored to this device’s Offline Storage.',
         }]);
         setMediaGenerationStatus('Project generation recovery completed.');
       } else if (result.status === 'submitted_pending') {
@@ -1278,11 +1279,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
       // Rehydrate Project attachments referenced by earlier turns. Offline replicas are
       // preferred; Cloud is a recovery source, and any downloaded copy is installed
       // under the same Project File ID before Vision receives it.
+      const historicalText = new Map<string, string>();
       if (storyboardId && supabase) {
         const attachmentRefs = nextMessages.slice(-12).flatMap((message) => message.projectFiles ?? []);
         const uniqueRefs = [...new Map(attachmentRefs.map((file) => [file.projectFileId, file])).values()].slice(-4);
         const currentVisionIds = new Set(visionImages.map((image) => image.assetId));
-        const historicalText = new Map<string, string>();
         for (const attachment of uniqueRefs) {
           assertRequestCurrent();
           let blob = await getProjectOfflineFileBlob(attachment.projectFileId);
@@ -1651,18 +1652,19 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
         });
         assertMediaRequestCurrent();
         if (nativeResult.status === 'ready') {
+          const files = nativeResult.files ?? [];
           const projectFiles: ProjectFilePreview[] = [];
-          for (const file of nativeResult.files) {
+          for (const file of files) {
             const { data: signed, error: signedError } = await awaitForCurrentMediaRequest(
               projectSupabase.storage.from('vyral-assets').createSignedUrl(file.storagePath, 3600),
             );
             projectFiles.push({ projectFileId: file.projectFileId, name: file.fileName, mimeType: file.mimeType,
               ...(!signedError && signed?.signedUrl ? { url: signed.signedUrl } : {}) });
           }
-          const summary = nativeResult.files.map((file, index) =>
+          const summary = files.map((file, index) =>
             (index + 1) + '. ' + file.fileName + ' · ' + file.projectFileId + ' · ' + file.mimeType).join('\\n');
           setMessages((previous) => [...previous, { id: makeId(), role: 'assistant', status: 'success', projectFiles,
-            content: 'Media generation completed. ' + nativeResult.files.length +
+            content: 'Media generation completed. ' + files.length +
               ' file(s) were saved directly to Project Storage and installed in this device’s Offline Storage.\\n\\n' + summary }]);
           setDraft('');
           setMediaGenerationStatus('Completed. Your generated files are available in Project Storage and Editor.');
