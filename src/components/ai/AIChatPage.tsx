@@ -1311,7 +1311,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
             const frames = await extractSelectedVideoFrames(blob, attachment.projectFileId, attachment.name, Math.min(4, 8 - visionImages.length));
             visionImages.push(...frames);
             currentVisionIds.add(attachment.projectFileId);
-          } else if ((attachment.mimeType.startsWith('text/') || /\\.(txt|md|csv|json|xml|ya?ml)$/i.test(attachment.name)) && blob.size <= 1024 * 1024) {
+          } else if ((attachment.mimeType.startsWith('text/') || /\.(txt|md|csv|json|xml|ya?ml)$/i.test(attachment.name)) && blob.size <= 1024 * 1024) {
             if ([...historicalText.values()].reduce((total, value) => total + value.length, 0) < 512 * 1024) {
               historicalText.set(attachment.projectFileId, (await blob.text()).slice(0, 512 * 1024));
             }
@@ -1324,7 +1324,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ isActive, isAuthenticate
           const missingText = message.projectFiles?.filter((file) => historicalText.has(file.projectFileId)
             && !message.content.includes('Attached text content:')) ?? [];
           if (missingText.length) {
-            const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\\n' + historicalText.get(file.projectFileId)).join('\\n\\n');
+            const recovered = missingText.map((file) => 'Attachment ' + file.name + ':\\n' + historicalText.get(file.projectFileId)).join('\n\n');
             message.content += '\\n\\nRecovered Project attachment text:\\n' + recovered;
           }
         }
