@@ -11,7 +11,7 @@ import {
   type MediaLibraryFolder, type MediaLibraryItem,
 } from '../../services/mediaLibraryCloud';
 import { useAuth } from '../../context/AuthContext';
-import { getProjectOfflineFileBlob, importProjectFileToOfflineStorage, listProjectOfflineFiles } from '../../services/projectOfflineStorage';
+import { getProjectOfflineFile, getProjectOfflineFileBlob, importProjectFileToOfflineStorage, listProjectOfflineFiles, queueProjectOfflineFileMutation } from '../../services/projectOfflineStorage';
 
 type FilterKind = 'all' | 'image' | 'video' | 'audio' | 'document' | 'other';
 type ViewMode = 'list' | 'grid';
@@ -651,7 +651,12 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
         await renameMediaLibraryFolder(target.id, nextName, null, projectId);
         patchCachedFolders((current) => current.map((folder) => folder.id === target.id ? { ...folder, name: nextName, updated_at: new Date().toISOString() } : folder));
       } else {
-        await renameMediaLibraryItem(target.id, nextName, null, projectId);
+        const localRecord = await getProjectOfflineFile(target.id);
+        if (localRecord && !localRecord.deletedAt) {
+          await queueProjectOfflineFileMutation({ projectFileId: target.id, kind: 'rename', fileName: nextName });
+        } else {
+          await renameMediaLibraryItem(target.id, nextName, null, projectId);
+        }
         const updatedAt = new Date().toISOString();
         const patch = (current: MediaLibraryItem[]) => current.map((item) => item.id === target.id ? { ...item, file_name: nextName, updated_at: updatedAt } : item);
         patchCachedItems(patch);
@@ -670,7 +675,17 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
     const count = selectedFiles.length;
     const movingIds = [...selectedFiles];
     await withBusy(async () => {
-      await moveMediaLibraryItems(movingIds, destination, null, projectId);
+      const localRecords = await Promise.all(movingIds.map((id) => getProjectOfflineFile(id)));
+      const localIds = new Set<string>();
+      for (let index = 0; index < movingIds.length; index += 1) {
+        const local = localRecords[index];
+        if (local && !local.deletedAt) {
+          await queueProjectOfflineFileMutation({ projectFileId: movingIds[index], kind: 'move', folderId: destination });
+          localIds.add(movingIds[index]);
+        }
+      }
+      const cloudOnlyIds = movingIds.filter((id) => !localIds.has(id));
+      if (cloudOnlyIds.length) await moveMediaLibraryItems(cloudOnlyIds, destination, null, projectId);
       patchCachedItems((current) => destination === activeFolderId
         ? current.map((item) => movingIds.includes(item.id) ? { ...item, folder_id: destination } : item)
         : current.filter((item) => !movingIds.includes(item.id)));
@@ -720,8 +735,20 @@ export const ProjectStoragePage: React.FC<{ isActive?: boolean; projectId: strin
       const deletedFileIds = [...selectedFiles];
       const deletedFolderIds = [...selectedFolders];
       if (deletedFileIds.length) {
-        const result = await deleteMediaLibraryItems(deletedFileIds, null, projectId);
-        cleanupPending = result.cleanupPending;
+        const localRecords = await Promise.all(deletedFileIds.map((id) => getProjectOfflineFile(id)));
+        const localIds = new Set<string>();
+        for (let index = 0; index < deletedFileIds.length; index += 1) {
+          const local = localRecords[index];
+          if (local && !local.deletedAt) {
+            await queueProjectOfflineFileMutation({ projectFileId: deletedFileIds[index], kind: 'delete' });
+            localIds.add(deletedFileIds[index]);
+          }
+        }
+        const cloudOnlyIds = deletedFileIds.filter((id) => !localIds.has(id));
+        if (cloudOnlyIds.length) {
+          const result = await deleteMediaLibraryItems(cloudOnlyIds, null, projectId);
+          cleanupPending = result.cleanupPending;
+        }
         patchCachedItems((current) => current.filter((item) => !deletedFileIds.includes(item.id)));
         for (const [key, cached] of libraryCacheRef.current) {
           if (key !== JSON.stringify([ownerId, projectId ?? null, activeFolderId, serverQuery, filter])) {
