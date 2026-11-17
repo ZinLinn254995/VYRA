@@ -510,8 +510,22 @@ export async function installProjectCloudFileToOfflineStorage(input: {
   } catch (error) {
     const latest = await getProjectOfflineFile(input.projectFileId).catch(() => null);
     // A newer import, restore, or delete owns this logical file now. Never let
-    // an older restore overwrite its state with a stale failure record.
+    // an older restore overwrite its state or clean up its binary.
     if (latest?.replicaRevision === base.replicaRevision && latest.updatedAt === base.updatedAt && !latest.deletedAt) {
+      try {
+        if (storageBackend === 'opfs') {
+          const cleanupDirectory = await getOpfsDirectory();
+          if (cleanupDirectory) {
+            try { await cleanupDirectory.removeEntry(storageKey); } catch (cleanupError) {
+              if (!(cleanupError && typeof cleanupError === 'object' && 'name' in cleanupError && cleanupError.name === 'NotFoundError')) throw cleanupError;
+            }
+          }
+        } else {
+          await deleteValue(BLOB_STORE, storageKey);
+        }
+      } catch {
+        // Keep failed metadata so a later recovery pass can identify this replica.
+      }
       const failed = { ...base, storageBackend, localState: 'failed' as const, updatedAt: new Date().toISOString() };
       try { await storeValue(FILE_STORE, failed); } catch { /* preserve original error */ }
     }
@@ -784,7 +798,8 @@ export async function removeProjectOfflineFile(projectFileId: string): Promise<v
       current.storageKey !== record.storageKey ||
       current.storageBackend !== record.storageBackend ||
       current.cloudState !== 'synced' || current.deletedAt ||
-      (current.localState !== 'available' && current.localState !== 'deleting')) {
+      current.localState !== record.localState ||
+      (record.localState !== 'available' && record.localState !== 'deleting')) {
       claim.abort();
       return;
     }
