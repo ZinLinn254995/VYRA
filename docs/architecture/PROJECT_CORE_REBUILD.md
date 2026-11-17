@@ -755,3 +755,17 @@ The current Render Job implementation is a validated, immutable domain model, no
 - This is an input-preparation boundary only. It does not create a Render Job, persist a job, schedule a worker, encode/mux media, upload output, or expose an export action in the UI. The editor is not yet wired to this service.
 
 **Next implementation gate:** define and test a renderer adapter that consumes the resolved Blob inventory and the pinned composition plan, with explicit support/limitations for the browser runtime. Durable job persistence and worker orchestration remain gated on clean disposable local Supabase migration-chain validation. No hosted database, migration ledger, deployment, or billing/runtime setting was changed.
+
+
+## 26. Project Render preparation orchestration — November 18, 2026
+
+`projectRenderPreparation.ts` now composes the preparation stages into one callable service:
+
+1. Validate and detach the supplied Project scene/timeline data into an immutable render manifest.
+2. Build the deterministic renderer-neutral composition plan from that exact manifest.
+3. Resolve the unique visual and audio source inventory through the bounded, identity-checked input resolver.
+4. Return the manifest, composition plan, and resolved Blob inventory together as one prepared-render value.
+
+The preparation service is read-only with respect to the editor and does not mutate timeline state. Invalid manifests fail before any media download begins. It does not yet create a durable Render Job, run an encoder/muxer, or persist an output Project File. The existing editor UI remains unchanged and is not yet wired to an export action.
+
+Focused contract tests cover snapshot-to-plan-to-source preparation, text/visual/audio schedule preservation, invalid-manifest short-circuiting, and cross-Project resolver identity rejection.
