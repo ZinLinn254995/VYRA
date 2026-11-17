@@ -141,8 +141,16 @@ export async function resolveProjectRenderSourceBlob(input: {
   const signedUrl = await ports.getLegacyPlaybackUrl({ assetId: source.assetId, assetVersionId: source.assetVersionId }, expectedKind);
   const blob = await ports.fetchBlob(signedUrl);
   if (!blob.size) throw new Error('The legacy Asset Version returned an empty media file.');
-  const mimeType = source.mimeType || blob.type || expectedKind + '/octet-stream';
+  const declaredMimeType = source.mimeType?.trim().toLowerCase() || '';
+  const downloadedMimeType = blob.type.trim().toLowerCase();
+  const mimeEssence = (value: string) => value.split(';', 1)[0].trim();
+  if (declaredMimeType && downloadedMimeType &&
+      mimeEssence(declaredMimeType) !== mimeEssence(downloadedMimeType)) {
+    throw new Error('The downloaded legacy Asset MIME type differs from its immutable render manifest.');
+  }
+  const mimeType = declaredMimeType || downloadedMimeType || expectedKind + '/octet-stream';
   assertMediaKind(mimeType, expectedKind);
+  if (downloadedMimeType) assertMediaKind(downloadedMimeType, expectedKind);
   return {
     sourceKey: 'legacy-asset:' + source.assetId + ':' + source.assetVersionId,
     projectId,
