@@ -211,6 +211,25 @@ export async function createProjectRenderJobFromInputs(input: {
   return createProjectRenderJob({ ...input, inputDigest });
 }
 
+/**
+ * Verify a deserialized or persisted job before it is trusted for rendering,
+ * recovery, or output commit. The synchronous envelope constructor is useful
+ * for pure state-machine tests; persistence adapters must use this verifier.
+ */
+export async function verifyProjectRenderJobInputIntegrity(job: ProjectRenderJob): Promise<void> {
+  if (!job || job.schema !== 'vyra.project-render-job' || job.version !== 1 ||
+      !job.id?.trim() || !job.ownerId?.trim() || !job.projectId?.trim() ||
+      !/^[a-f0-9]{64}$/i.test(job.inputDigest) ||
+      job.manifest?.projectId !== job.projectId ||
+      job.compositionPlan?.projectId !== job.projectId) {
+    throw new Error('The persisted Project render job identity is invalid.');
+  }
+  const expectedDigest = await createProjectRenderInputDigest(job.manifest, job.compositionPlan);
+  if (expectedDigest !== job.inputDigest.toLowerCase()) {
+    throw new Error('The persisted Project render job input digest does not match its pinned manifest and composition plan.');
+  }
+}
+
 /** Apply one monotonic, validated lifecycle event to an immutable render job snapshot. */
 export function transitionProjectRenderJob(job: ProjectRenderJob, event: ProjectRenderJobEvent): ProjectRenderJob {
   assertTimestamp(event.at);
