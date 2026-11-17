@@ -362,7 +362,7 @@ test('Media Library failure handling keeps retries scoped and protects canonical
 test('Media Library clears stale file rows after a failed context refresh', () => {
   const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const refreshStart = page.indexOf('const refresh = useCallback');
-  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, ownerId, serverQuery, universeId]);', refreshStart);
+  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, ownerId, serverQuery, projectId]);', refreshStart);
   const refresh = page.slice(refreshStart, refreshEnd);
   assert.ok(refresh.includes('setItems([])'), 'A failed refresh must not leave the previous folder or search results visible.');
   assert.ok(refresh.includes('setHasMoreItems(false)'), 'A failed refresh must not offer pagination for stale results.');
@@ -382,7 +382,7 @@ test('Deleting multiple selected folders processes descendants before parents', 
 test('Media Library invalidates and unlocks stale pagination when the folder or query changes', () => {
   const page = read('src/components/workspace/ProjectStoragePage.tsx');
   const refreshStart = page.indexOf('const refresh = useCallback');
-  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, serverQuery]);', refreshStart);
+  const refreshEnd = page.indexOf('  }, [activeFolderId, filter, isActive, ownerId, refresh, serverQuery, projectId]);', refreshStart);
   const refresh = page.slice(refreshStart, refreshEnd);
   assert.ok(refresh.includes('++loadMoreRequestRef.current'), 'A context refresh must invalidate an in-flight next-page response.');
   assert.ok(refresh.includes('loadingMoreLockRef.current = false'), 'A context refresh must release the synchronous pagination lock.');
