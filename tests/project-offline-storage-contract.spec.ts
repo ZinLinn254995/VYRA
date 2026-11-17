@@ -318,3 +318,16 @@ test('Project Offline sync serializes workers and reconciles Cloud metadata with
   assert.ok(storage.includes("syncStore.get('move:' + input.projectFileId)"));
   assert.ok(storage.includes('renamePending || movePending) return'));
 });
+
+
+test('Project Cloud upload rechecks delete tombstones before and after publishing the manifest', () => {
+  const sync = read('src/services/projectOfflineCloudSync.ts');
+  const before = sync.indexOf('const latestBeforeManifest = await getProjectOfflineFile(record.id)');
+  const upsert = sync.indexOf(".from('media_library_items').upsert({", before);
+  const after = sync.indexOf('const latestAfterManifest = await getProjectOfflineFile(record.id)', upsert);
+  assert.ok(before >= 0 && upsert > before && after > upsert);
+  assert.ok(sync.includes("db.storage.from(BUCKET).remove([storagePath])"));
+  assert.ok(sync.includes('await deleteMediaLibraryItems([record.id], null, record.projectId)'));
+  assert.ok(sync.includes('latestBeforeManifest.deletedAt'));
+  assert.ok(sync.includes('latestAfterManifest.deletedAt'));
+});
