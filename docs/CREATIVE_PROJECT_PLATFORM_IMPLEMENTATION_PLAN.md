@@ -214,3 +214,11 @@ The Editor audit confirms that the current Project Editor is not yet independent
 - The next cleanup must trace each capability ID through adapter registration, server prompt/tool schemas, and client callers. Keep project/storyboard, scene, timeline, generic Storage, and supported generation/editing capabilities only where their implementation is genuinely project-scoped and tested. Remove Marketplace and Vyral/DNA actions only after confirming no active workflow or historical recovery path depends on them.
 
 **Merge gate remains closed:** the project identity mismatch between `public.projects` and `public.vyral_storyboards`, the Vyral-bound generation/output path, and the Editor's Vyral-bound media identity must be resolved and verified before merge. The branch is still 38 commits behind and 1,854 commits ahead of `main`; do not reconcile or merge until the feature branch cleanup is complete and the history difference is understood.
+
+
+## Retired Marketplace AI surface removed — 2026-11-17
+
+- Removed all `marketplace.*` policies from `src/server/vyraAiCapabilityRegistry.ts`.
+- Audited the active `supabase/functions/vyra-openai-chat/index.ts` on this feature branch: it contains no Marketplace capability references or Marketplace adapter registrations, so removing the registry entries does not leave an active edge-function adapter pointing at a missing policy.
+- The AI capability coverage test derives its expected total from `VYRA_AI_CAPABILITIES.length`, so it does not rely on a stale hard-coded Marketplace count.
+- This removes the Marketplace AI permission surface only. It does **not** claim that every Marketplace UI, service, schema, migration, or historical data dependency has been removed. Those still require a repository-wide reference and data-retention audit before deletion.
