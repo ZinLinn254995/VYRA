@@ -710,15 +710,17 @@ const activeThumbnailBackfills = new Map<string, Promise<number>>();
  * remain unique and the metadata update remains compare-and-set, so separate
  * tabs/devices are also safe: only one worker can attach a thumbnail to a row.
  */
-export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null): Promise<number> {
+export async function backfillMediaLibraryThumbnails(limit = 4, universeId?: string | null, projectId?: string | null): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (universeId && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (universeId) await assertStoryboardUniverse(db, userId, universeId);
-  const key = userId + ':' + (universeId ?? 'personal');
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
+  const key = userId + ':' + (projectId ? 'project:' + projectId : universeId ? 'universe:' + universeId : 'personal');
   const existing = activeThumbnailBackfills.get(key);
   if (existing) return existing;
 
-  const task = runMediaLibraryThumbnailBackfill(limit, universeId, userId);
+  const task = runMediaLibraryThumbnailBackfill(limit, universeId, userId, projectId);
   activeThumbnailBackfills.set(key, task);
   try {
     return await task;
@@ -731,14 +733,15 @@ async function runMediaLibraryThumbnailBackfill(
   limit: number,
   universeId: string | null | undefined,
   userId: string,
+  projectId?: string | null,
 ): Promise<number> {
   const db = getDb();
   const batchSize = Math.max(1, Math.min(Math.floor(limit) || 1, 8));
   // Keep the PostgREST filter value free of fractional-second dots.
   const retryCutoff = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const { data, error } = await applyUniverseScope(db.from('media_library_items')
+  const { data, error } = await applyMediaLibraryScope(db.from('media_library_items')
     .select('id,bucket_id,storage_path,file_name,mime_type,metadata')
-    .eq('user_id', userId), universeId)
+    .eq('user_id', userId), universeId, projectId)
     .is('metadata->thumbnail_path', null)
     .is('metadata->thumbnail_backfill_attempted_at', null)
     .or('metadata->thumbnail_backfill_retry_after_at.is.null,metadata->thumbnail_backfill_retry_after_at.lt.' + retryCutoff)
@@ -764,9 +767,9 @@ async function runMediaLibraryThumbnailBackfill(
       const delayMinutes = Math.min(5 * (2 ** (attempts - 1)), 24 * 60);
       retryMetadata.thumbnail_backfill_retry_after_at = new Date(Date.now() + delayMinutes * 60_000).toISOString();
     }
-    await applyUniverseScope(applyMetadataSnapshot(db.from('media_library_items')
+    await applyMediaLibraryScope(applyMetadataSnapshot(db.from('media_library_items')
       .update({ metadata: retryMetadata })
-      .eq('id', row.id).eq('user_id', userId), row.metadata), universeId)
+      .eq('id', row.id).eq('user_id', userId), row.metadata), universeId, projectId)
       .is('metadata->thumbnail_path', null)
       .is('metadata->thumbnail_backfill_attempted_at', null);
   };
@@ -798,12 +801,12 @@ async function runMediaLibraryThumbnailBackfill(
       if (uploadError) { await scheduleRetry(row); continue; }
 
       const metadata = { ...(row.metadata ?? {}), thumbnail_path: thumbnailPath };
-      const attachmentQuery = applyUniverseScope(
+      const attachmentQuery = applyMediaLibraryScope(
         applyMetadataSnapshot(db.from('media_library_items')
           .update({ metadata })
           .eq('id', row.id).eq('user_id', userId)
           .is('metadata->thumbnail_path', null), row.metadata),
-        universeId,
+        universeId, projectId,
       ).select('id').maybeSingle();
       const { data: updatedRow, error: updateError } = await attachmentQuery;
       // A returned row confirms this worker actually claimed the row's thumbnail metadata slot.
@@ -815,10 +818,10 @@ async function runMediaLibraryThumbnailBackfill(
         let latestRowExists = false;
         let couldVerifyRow = false;
         try {
-          const { data: latestRow, error: readError } = await applyUniverseScope(
+          const { data: latestRow, error: readError } = await applyMediaLibraryScope(
             db.from('media_library_items').select('metadata')
               .eq('id', row.id).eq('user_id', userId),
-            universeId,
+            universeId, projectId,
           ).maybeSingle();
           if (!readError) {
             couldVerifyRow = true;
@@ -867,10 +870,13 @@ export async function uploadMediaLibraryFiles(
   signal?: AbortSignal,
   onFileUploaded?: (itemId: string) => void,
   scope?: { universeId: string; storyboardId: string; onMasterDnaSync?: (status: 'ready' | 'pending') => void },
+  projectId?: string | null,
 ): Promise<number> {
   const db = getDb();
   const userId = await getOwnerId();
+  if (scope && projectId) throw new Error('Choose either project Storage or Universe Storage, not both.');
   if (scope) await assertStoryboardUniverse(db, userId, scope.universeId, scope.storyboardId);
+  if (projectId) await assertStoryboardProject(db, userId, projectId);
   let uploaded = 0;
   let processed = 0;
   for (const file of files) {
@@ -928,7 +934,7 @@ export async function uploadMediaLibraryFiles(
         if (!thumbnailError) thumbnailPath = candidatePath;
       }
       const { error: insertError } = await db.from('media_library_items').insert({
-        id, user_id: userId, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
+        id, user_id: userId, project_id: projectId ?? null, folder_id: folderId, source_kind: 'upload', source_asset_id: null,
         bucket_id: 'vyral-assets', storage_path: storagePath, file_name: fileName,
         mime_type: mimeType, size_bytes: file.size,
         metadata: { upload_source: 'media_library', ...(thumbnailPath ? { thumbnail_path: thumbnailPath } : {}) },
