@@ -63,6 +63,8 @@ jobs:
         run: npm run test:project-render-canvas-composer
       - name: Project render video decode and seek tests
         run: npm run test:project-render-video-decoder
+      - name: Multi-source Project render frame synchronization tests
+        run: npm run test:project-render-frame-synchronizer
       - name: Durable Project render job lifecycle tests
         run: npm run test:project-render-job
       - name: Project render worker lease fencing tests
