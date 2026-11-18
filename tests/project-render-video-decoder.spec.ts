@@ -74,3 +74,34 @@ test('rejects mismatched Blob MIME identity before allocating a video element', 
   }), /MIME type differs/);
   assert.equal(created, false);
 });
+
+
+test('times out when browser media metadata never becomes available and releases resources', async () => {
+  const video = new FakeVideo();
+  video.readyState = 0;
+  const revoked: string[] = [];
+  await assert.rejects(() => decodeProjectRenderVideoFrame({
+    blob: new Blob(['video'], { type: 'video/mp4' }),
+    mimeType: 'video/mp4',
+    timeSeconds: 0,
+    timeoutMs: 5,
+  }, ports(video, revoked)), /timed out.*loadedmetadata/);
+  assert.deepEqual(revoked, ['blob:render-video']);
+});
+
+test('preserves AbortError when decoding is cancelled while waiting for metadata', async () => {
+  const video = new FakeVideo();
+  video.readyState = 0;
+  const revoked: string[] = [];
+  const controller = new AbortController();
+  const pending = decodeProjectRenderVideoFrame({
+    blob: new Blob(['video'], { type: 'video/mp4' }),
+    mimeType: 'video/mp4',
+    timeSeconds: 0,
+    signal: controller.signal,
+  }, ports(video, revoked));
+  controller.abort();
+  await assert.rejects(() => pending, (error: unknown) =>
+    error instanceof Error && error.name === 'AbortError');
+  assert.deepEqual(revoked, ['blob:render-video']);
+});
