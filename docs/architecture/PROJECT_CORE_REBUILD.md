@@ -804,3 +804,12 @@ The adapter uses an explicit field whitelist. Editor-only waveform caches, tempo
 - Focused tests cover source seeking, out-of-range timestamps, disposal, and MIME mismatch rejection. These tests are registered in the repository CI workflow.
 
 **Scope limitation:** this decodes/seeks one source at a time. It is not yet a multi-source frame synchronizer, frame-rate scheduler, image decoder, audio mixer, transition renderer, MediaRecorder pipeline, or durable worker. A caller must keep the returned handle alive while drawing and dispose it when no longer needed. No export UI or database persistence was added.
+
+
+## 30. Multi-source frame synchronization boundary
+
+`synchronizeProjectRenderFrame` resolves every visual clip active at one output timestamp from the pinned composition plan and the already integrity-checked Project source inventory. Video clips are decoded independently at their computed source timestamps, including when one underlying video is reused by overlapping clips with different trims. Reusable still images share one decoded bitmap while each active clip receives its own stable layer key. The synchronizer bounds concurrent decoding, rejects cross-Project or mismatched media sources, propagates cancellation, and disposes decoded video handles and image bitmaps on both failure and explicit frame disposal.
+
+The Canvas composer now prefers the synchronized per-layer key, retaining the source-key lookup only as a compatibility fallback. This enables independent source timestamps for repeated video clips without changing the immutable composition plan.
+
+This remains a frame preparation primitive, not a complete renderer. Audio decoding/mixing, transition effects, crop/transform/opacity/blend/masks, frame pacing, color management, encoder/muxer integration, output upload, and end-to-end browser rendering are still outstanding. A frame is only ready after all active visual decodes succeed; no partial frame is returned.
