@@ -813,3 +813,15 @@ The adapter uses an explicit field whitelist. Editor-only waveform caches, tempo
 The Canvas composer now prefers the synchronized per-layer key, retaining the source-key lookup only as a compatibility fallback. This enables independent source timestamps for repeated video clips without changing the immutable composition plan.
 
 This remains a frame preparation primitive, not a complete renderer. Audio decoding/mixing, transition effects, crop/transform/opacity/blend/masks, frame pacing, color management, encoder/muxer integration, output upload, and end-to-end browser rendering are still outstanding. A frame is only ready after all active visual decodes succeed; no partial frame is returned.
+
+
+## 31. Project multi-track audio sample mixing boundary
+
+`projectRenderAudioMixer.ts` mixes decoded audio buffers against the immutable composition plan without depending on browser AudioContext state.
+
+- It resolves each active audio layer through the plan's stable source key, honors clip placement, source trim, track gain, and deterministic layer ordering.
+- Sources are linearly resampled to the requested output sample rate; mono sources can be duplicated to stereo, and multichannel sources can be downmixed to mono.
+- Overlapping tracks are summed into floating-point output channels. The mixer intentionally does not clip or normalize peaks; a future mastering/limiter stage must make that explicit rather than silently distorting the mix.
+- Output format, source buffers, clip ranges, missing inputs, and cancellation are validated. Focused tests cover overlap/gain, resampling/channel mapping, source trim, missing inputs, and cancellation.
+
+**Scope limitation:** this consumes already-decoded PCM buffers. Audio Blob decoding, memory-bounded streaming/chunking, fades/ducking automation, loudness normalization/limiting, final audio/video muxing, and end-to-end playback/export remain outstanding. No export UI or database persistence was added.
