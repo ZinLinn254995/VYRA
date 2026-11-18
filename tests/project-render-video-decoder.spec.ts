@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { decodeProjectRenderVideoFrame } from '../src/services/projectRenderVideoDecoder.ts';
 
 class FakeVideo extends EventTarget {
-  currentTime = 0;
+  private _currentTime = 0;
+  get currentTime() { return this._currentTime; }
+  set currentTime(value: number) {
+    this._currentTime = value;
+    queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
+  }
   duration = 12;
   videoWidth = 1920;
   videoHeight = 1080;
@@ -17,11 +22,6 @@ class FakeVideo extends EventTarget {
   load() {}
   pause() { this.paused = true; }
   removeAttribute(name: string) { if (name === 'src') this.removed = true; }
-  set currentTimeValue(value: number) { this.currentTime = value; }
-  setCurrentTime(value: number) {
-    this.currentTime = value;
-    queueMicrotask(() => this.dispatchEvent(new Event('seeked')));
-  }
 }
 
 function ports(video: FakeVideo, revoked: string[]) {
@@ -35,8 +35,6 @@ function ports(video: FakeVideo, revoked: string[]) {
 test('decodes a video Blob and seeks to the requested source timestamp', async () => {
   const video = new FakeVideo();
   const revoked: string[] = [];
-  const originalSetter = Object.getOwnPropertyDescriptor(FakeVideo.prototype, 'currentTime');
-  void originalSetter;
   const result = await decodeProjectRenderVideoFrame({
     blob: new Blob(['video'], { type: 'video/mp4' }),
     mimeType: 'video/mp4',
