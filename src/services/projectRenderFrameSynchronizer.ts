@@ -43,7 +43,6 @@ export async function synchronizeProjectRenderFrame(input: {
   if (input.signal?.aborted) throw new DOMException('Frame synchronization was aborted.', 'AbortError');
 
   const frame = getProjectRenderFrameState(input.plan, input.timeSeconds);
-  const uniqueImages = new Map<string, ProjectRenderResolvedSource>();
   const visualTasks = frame.visuals.map((layer) => {
     const sourceKey = getProjectRenderSourceKey(layer.source);
     const resolved = input.resolvedSources.get(sourceKey);
@@ -54,12 +53,18 @@ export async function synchronizeProjectRenderFrame(input: {
     if (!resolved.mimeType.toLowerCase().startsWith(expectedPrefix)) {
       throw new Error('The resolved media kind does not match render layer ' + layer.clipId + '.');
     }
-    if (layer.kind === 'image') uniqueImages.set(sourceKey, resolved);
     return { layer, sourceKey, resolved };
   });
 
   const decoded = new Map<string, CanvasImageSource & { width?: number; height?: number; videoWidth?: number; videoHeight?: number }>();
   const disposers: Array<() => void> = [];
+  const closedBitmaps = new Set<object>();
+  const closeBitmap = (bitmap: object) => {
+    if (closedBitmaps.has(bitmap)) return;
+    closedBitmaps.add(bitmap);
+    const close = (bitmap as { close?: () => void }).close;
+    if (typeof close === 'function') close.call(bitmap);
+  };
   const imagePromises = new Map<string, Promise<ImageBitmap>>();
   let cursor = 0;
   let failed: unknown;
@@ -75,7 +80,7 @@ export async function synchronizeProjectRenderFrame(input: {
       }
       const bitmap = await promise;
       if (input.signal?.aborted) {
-        bitmap.close();
+        closeBitmap(bitmap);
         throw new DOMException('Frame synchronization was aborted.', 'AbortError');
       }
       decoded.set(layerKey, bitmap);
@@ -122,7 +127,7 @@ export async function synchronizeProjectRenderFrame(input: {
         disposed = true;
         disposers.forEach((dispose) => dispose());
         for (const source of decoded.values()) {
-          if (source instanceof ImageBitmap) source.close();
+          if (typeof (source as { close?: unknown }).close === 'function') closeBitmap(source);
         }
         decoded.clear();
       },
@@ -130,10 +135,10 @@ export async function synchronizeProjectRenderFrame(input: {
   } catch (error) {
     disposers.forEach((dispose) => dispose());
     for (const source of decoded.values()) {
-      if (source instanceof ImageBitmap) source.close();
+      if (typeof (source as { close?: unknown }).close === 'function') closeBitmap(source);
     }
     for (const promise of imagePromises.values()) {
-      void promise.then((bitmap) => { if (![...decoded.values()].includes(bitmap)) bitmap.close(); }).catch(() => {});
+      void promise.then((bitmap) => { if (![...decoded.values()].includes(bitmap)) closeBitmap(bitmap); }).catch(() => {});
     }
     throw error;
   }
