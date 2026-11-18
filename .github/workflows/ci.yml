@@ -65,6 +65,8 @@ jobs:
         run: npm run test:project-render-video-decoder
       - name: Multi-source Project render frame synchronization tests
         run: npm run test:project-render-frame-synchronizer
+      - name: Project multi-track audio mixer tests
+        run: npm run test:project-render-audio-mixer
       - name: Durable Project render job lifecycle tests
         run: npm run test:project-render-job
       - name: Project render worker lease fencing tests
