@@ -22,10 +22,13 @@ function waitForMediaEvent(
   video: HTMLVideoElement,
   successEvent: 'loadedmetadata' | 'loadeddata' | 'seeked',
   signal?: AbortSignal,
+  timeoutMs = 15000,
 ): Promise<void> {
   if (signal?.aborted) return Promise.reject(new DOMException('Video decode was aborted.', 'AbortError'));
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { cleanup(); reject(new Error('The Project render video timed out while waiting for ' + successEvent + '.')); }, timeoutMs);
     const cleanup = () => {
+      clearTimeout(timer);
       video.removeEventListener(successEvent, onSuccess);
       video.removeEventListener('error', onError);
       signal?.removeEventListener('abort', onAbort);
@@ -45,7 +48,7 @@ function waitForMediaEvent(
  * Callers must dispose it when the render source is no longer needed.
  */
 export async function decodeProjectRenderVideoFrame(
-  input: { blob: Blob; mimeType: string; timeSeconds: number; signal?: AbortSignal },
+  input: { blob: Blob; mimeType: string; timeSeconds: number; signal?: AbortSignal; timeoutMs?: number },
   ports: ProjectRenderVideoDecoderPorts = defaultPorts,
 ): Promise<ProjectRenderDecodedVideo> {
   if (!(input.blob instanceof Blob) || input.blob.size <= 0 ||
@@ -57,8 +60,12 @@ export async function decodeProjectRenderVideoFrame(
       input.mimeType.split(';', 1)[0].trim().toLowerCase()) {
     throw new Error('The decoded video Blob MIME type differs from its immutable render source.');
   }
+  if (input.timeoutMs !== undefined && (!Number.isFinite(input.timeoutMs) || input.timeoutMs < 1 || input.timeoutMs > 120000)) {
+    throw new Error('The video decode timeout must be between 1 and 120000 milliseconds.');
+  }
   if (input.signal?.aborted) throw new DOMException('Video decode was aborted.', 'AbortError');
 
+  const timeoutMs = input.timeoutMs ?? 15000;
   const video = ports.createVideo();
   const objectUrl = ports.createObjectUrl(input.blob);
   let disposed = false;
@@ -75,7 +82,7 @@ export async function decodeProjectRenderVideoFrame(
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
-    const metadataReady = waitForMediaEvent(video, 'loadedmetadata', input.signal);
+    const metadataReady = waitForMediaEvent(video, 'loadedmetadata', input.signal, timeoutMs);
     video.src = objectUrl;
     video.load();
     if (video.readyState < 1) await metadataReady;
@@ -91,14 +98,12 @@ export async function decodeProjectRenderVideoFrame(
     }
 
     if (Math.abs(video.currentTime - input.timeSeconds) > 0.0005) {
-      const seeked = waitForMediaEvent(video, 'seeked', input.signal);
+      const seeked = waitForMediaEvent(video, 'seeked', input.signal, timeoutMs);
       video.currentTime = input.timeSeconds;
       await seeked;
     }
     if (video.readyState < 2) {
-      await waitForMediaEvent(video, 'loadeddata', input.signal).catch(() => {
-        throw new Error('The Project render video seek completed without a decoded frame.');
-      });
+      await waitForMediaEvent(video, 'loadeddata', input.signal, timeoutMs);
     }
     if (input.signal?.aborted) throw new DOMException('Video decode was aborted.', 'AbortError');
     return { video, durationSeconds, width, height, dispose };
