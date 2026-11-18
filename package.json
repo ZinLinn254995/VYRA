@@ -80,7 +80,8 @@
     "test:timeline-media-placement": "node --import tsx --test tests/timeline-media-placement.spec.ts",
     "test:project-storage-migration": "node --import tsx --test tests/project-scoped-storage-migration.spec.ts",
     "test:project-storage-runtime": "node --import tsx --test tests/project-scoped-storage-runtime.spec.ts tests/project-scoped-storage-migration.spec.ts",
-    "test:project-render-canvas-composer": "node --import tsx --test tests/project-render-canvas-composer.spec.ts"
+    "test:project-render-canvas-composer": "node --import tsx --test tests/project-render-canvas-composer.spec.ts",
+    "test:project-render-video-decoder": "node --import tsx --test tests/project-render-video-decoder.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
