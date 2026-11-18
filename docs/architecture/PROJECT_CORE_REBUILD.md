@@ -778,3 +778,29 @@ Focused contract tests cover snapshot-to-plan-to-source preparation, text/visual
 The adapter uses an explicit field whitelist. Editor-only waveform caches, temporary upload-recovery flags, local object URLs, collapsed UI state, and other runtime-only fields are not copied into the render snapshot.
 
 `prepareProjectRenderFromEditor` exposes the full read-only preparation path directly from Editor scenes and timeline data: Editor adapter → immutable manifest → deterministic composition plan → verified source Blob inventory. It does not add an export control or change the existing Editor UI. The function is ready for a future explicit export action once a real renderer adapter is implemented and validated.
+
+
+
+## 28. Project render Canvas composition boundary — November 18, 2026
+
+`projectRenderCanvasComposer.ts` now turns one scheduled frame state into Canvas drawing operations.
+
+- It consumes the immutable composition plan through the frame scheduler, draws the configured background, then draws active visual sources in deterministic scheduler order.
+- Sources are fitted with a contain transform so their aspect ratio is preserved; active text layers are wrapped to the configured safe width and drawn near the lower edge.
+- Missing sources and undecoded/zero-dimension media fail explicitly rather than yielding a silently incomplete frame.
+- The composer restores the caller-owned Canvas context even when drawing throws and does not mutate the pinned plan.
+- Focused tests cover active visual/text composition, contain geometry, missing source rejection, and decoded-dimension validation.
+
+**Scope limitation:** this is a first Canvas composition primitive, not a complete visual editor renderer. It currently treats each visual source as a full-frame contained image/video surface; per-layer transform, crop, opacity, blend modes, masks, transitions, and scene-specific layout are not implemented. It also does not decode media, mix audio, encode, mux, or upload output. The existing Editor UI remains unchanged.
+
+## 29. Project render video decode and seek boundary — November 18, 2026
+
+`projectRenderVideoDecoder.ts` adds an isolated browser-media boundary for one immutable video Blob.
+
+- It validates non-empty Blob bytes, video MIME identity, and a non-negative requested source timestamp before allocating a browser video element.
+- It creates a private object URL, waits for metadata, validates duration and decoded dimensions, seeks to the requested source timestamp, and waits for the seek completion before returning the paused video element.
+- The returned handle owns the object URL and exposes idempotent disposal; failures release the video element and URL.
+- Abort signals cancel pending metadata/seek waits and are checked again before returning the decoded handle.
+- Focused tests cover source seeking, out-of-range timestamps, disposal, and MIME mismatch rejection. These tests are registered in the repository CI workflow.
+
+**Scope limitation:** this decodes/seeks one source at a time. It is not yet a multi-source frame synchronizer, frame-rate scheduler, image decoder, audio mixer, transition renderer, MediaRecorder pipeline, or durable worker. A caller must keep the returned handle alive while drawing and dispose it when no longer needed. No export UI or database persistence was added.
