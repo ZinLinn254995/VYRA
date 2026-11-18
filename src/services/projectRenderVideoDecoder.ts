@@ -82,10 +82,9 @@ export async function decodeProjectRenderVideoFrame(
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
-    const metadataReady = waitForMediaEvent(video, 'loadedmetadata', input.signal, timeoutMs);
     video.src = objectUrl;
     video.load();
-    if (video.readyState < 1) await metadataReady;
+    if (video.readyState < 1) await waitForMediaEvent(video, 'loadedmetadata', input.signal, timeoutMs);
     const durationSeconds = video.duration;
     const width = video.videoWidth;
     const height = video.videoHeight;
