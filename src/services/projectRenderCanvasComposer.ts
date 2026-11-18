@@ -1,4 +1,5 @@
 import { getProjectRenderSourceKey } from './projectRenderManifest';
+import { getProjectRenderLayerKey } from './projectRenderFrameSynchronizer';
 import { getProjectRenderFrameState, type ProjectRenderFrameState } from './projectRenderFrameScheduler';
 import type { ProjectRenderCompositionPlan } from './projectRenderCompositionPlanner';
 
@@ -96,7 +97,7 @@ export function drawProjectRenderCanvasFrame(options: ProjectRenderCanvasFrameOp
     context.fillStyle = options.backgroundColor ?? '#000000';
     context.fillRect(0, 0, width, height);
     for (const layer of frame.visuals) {
-      const source = sources.get(getProjectRenderSourceKey(layer.source));
+      const source = sources.get(getProjectRenderLayerKey(layer)) ?? sources.get(getProjectRenderSourceKey(layer.source));
       if (!source) throw new Error('A decoded canvas source is missing for render layer ' + layer.clipId + '.');
       drawContained(context, source, width, height);
     }
