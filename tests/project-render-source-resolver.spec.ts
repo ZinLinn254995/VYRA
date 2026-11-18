@@ -125,7 +125,7 @@ test('rejects legacy Asset bytes whose downloaded MIME identity differs from the
     () => resolveProjectRenderSourceBlob(input, ports({
       fetchBlob: async () => new Blob(['audio'], { type: 'audio/mpeg' }),
     }) as never),
-    /differs from its immutable render manifest/,
+    /differs from the immutable render manifest/,
   );
   await assert.rejects(
     () => resolveProjectRenderSourceBlob({ ...input, source: { ...input.source, mimeType: undefined } }, ports({
