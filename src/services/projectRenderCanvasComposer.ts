@@ -33,12 +33,7 @@ function sourceDimensions(source: ProjectRenderCanvasSource): { width: number; h
   return { width, height };
 }
 
-function drawContained(
-  context: CanvasRenderingContext2D,
-  source: ProjectRenderCanvasSource,
-  width: number,
-  height: number,
-): void {
+function drawContained(context: CanvasRenderingContext2D, source: ProjectRenderCanvasSource, width: number, height: number): void {
   const dimensions = sourceDimensions(source);
   const scale = Math.min(width / dimensions.width, height / dimensions.height);
   const drawWidth = dimensions.width * scale;
@@ -46,45 +41,41 @@ function drawContained(
   context.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
 }
 
-function drawText(
-  context: CanvasRenderingContext2D,
-  frame: ProjectRenderFrameState,
-  width: number,
-  height: number,
-  color: string,
-  font: string,
-  padding: number,
-): void {
+function drawText(context: CanvasRenderingContext2D, frame: ProjectRenderFrameState, width: number, height: number,
+  color: string, font: string, padding: number): void {
   const lines = frame.text.map((layer) => layer.content.trim()).filter(Boolean);
   if (!lines.length) return;
   context.save();
-  context.fillStyle = color;
-  context.font = font;
-  context.textAlign = 'center';
-  context.textBaseline = 'bottom';
-  const lineHeight = Math.max(18, Number.parseFloat(font) * 1.25 || 30);
-  const maxWidth = Math.max(1, width - padding * 2);
-  const wrapped: string[] = [];
-  for (const line of lines) {
-    const words = line.split(/\\s+/);
-    let current = '';
-    for (const word of words) {
-      const candidate = current ? current + ' ' + word : word;
-      if (current && context.measureText(candidate).width > maxWidth) {
-        wrapped.push(current);
-        current = word;
-      } else {
-        current = candidate;
+  try {
+    context.fillStyle = color;
+    context.font = font;
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    const lineHeight = Math.max(18, Number.parseFloat(font) * 1.25 || 30);
+    const maxWidth = Math.max(1, width - padding * 2);
+    const wrapped: string[] = [];
+    for (const line of lines) {
+      const words = line.split(/\s+/);
+      let current = '';
+      for (const word of words) {
+        const candidate = current ? current + ' ' + word : word;
+        if (current && context.measureText(candidate).width > maxWidth) {
+          wrapped.push(current);
+          current = word;
+        } else {
+          current = candidate;
+        }
       }
+      if (current) wrapped.push(current);
     }
-    if (current) wrapped.push(current);
+    let y = height - padding;
+    for (let index = wrapped.length - 1; index >= 0; index -= 1) {
+      context.fillText(wrapped[index], width / 2, y, maxWidth);
+      y -= lineHeight;
+    }
+  } finally {
+    context.restore();
   }
-  let y = height - padding;
-  for (let index = wrapped.length - 1; index >= 0; index -= 1) {
-    context.fillText(wrapped[index], width / 2, y, maxWidth);
-    y -= lineHeight;
-  }
-  context.restore();
 }
 
 /**
@@ -100,26 +91,19 @@ export function drawProjectRenderCanvasFrame(options: ProjectRenderCanvasFrameOp
   }
   const frame = getProjectRenderFrameState(plan, timeSeconds);
   context.save();
-  context.clearRect(0, 0, width, height);
-  context.fillStyle = options.backgroundColor ?? '#000000';
-  context.fillRect(0, 0, width, height);
-
-  for (const layer of frame.visuals) {
-    const key = getProjectRenderSourceKey(layer.source);
-    const source = sources.get(key);
-    if (!source) throw new Error('A decoded canvas source is missing for render layer ' + layer.clipId + '.');
-    drawContained(context, source, width, height);
+  try {
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = options.backgroundColor ?? '#000000';
+    context.fillRect(0, 0, width, height);
+    for (const layer of frame.visuals) {
+      const source = sources.get(getProjectRenderSourceKey(layer.source));
+      if (!source) throw new Error('A decoded canvas source is missing for render layer ' + layer.clipId + '.');
+      drawContained(context, source, width, height);
+    }
+    drawText(context, frame, width, height, options.textColor ?? '#ffffff',
+      options.font ?? '32px sans-serif', options.padding ?? 48);
+    return frame;
+  } finally {
+    context.restore();
   }
-
-  drawText(
-    context,
-    frame,
-    width,
-    height,
-    options.textColor ?? '#ffffff',
-    options.font ?? '32px sans-serif',
-    options.padding ?? 48,
-  );
-  context.restore();
-  return frame;
 }
