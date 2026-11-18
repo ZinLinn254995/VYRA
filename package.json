@@ -82,7 +82,8 @@
     "test:project-storage-runtime": "node --import tsx --test tests/project-scoped-storage-runtime.spec.ts tests/project-scoped-storage-migration.spec.ts",
     "test:project-render-canvas-composer": "node --import tsx --test tests/project-render-canvas-composer.spec.ts",
     "test:project-render-video-decoder": "node --import tsx --test tests/project-render-video-decoder.spec.ts",
-    "test:project-render-frame-synchronizer": "node --import tsx --test tests/project-render-frame-synchronizer.spec.ts"
+    "test:project-render-frame-synchronizer": "node --import tsx --test tests/project-render-frame-synchronizer.spec.ts",
+    "test:project-render-audio-mixer": "node --import tsx --test tests/project-render-audio-mixer.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
