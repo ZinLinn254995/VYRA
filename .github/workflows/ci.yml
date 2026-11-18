@@ -59,6 +59,10 @@ jobs:
         run: npm run test:project-render-source-resolver
       - name: Renderer-neutral Project composition planner tests
         run: npm run test:project-render-composition-planner
+      - name: Project render frame scheduler and Canvas composer tests
+        run: npm run test:project-render-canvas-composer
+      - name: Project render video decode and seek tests
+        run: npm run test:project-render-video-decoder
       - name: Durable Project render job lifecycle tests
         run: npm run test:project-render-job
       - name: Project render worker lease fencing tests
