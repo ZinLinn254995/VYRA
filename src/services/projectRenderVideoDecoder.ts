@@ -20,7 +20,7 @@ const defaultPorts: ProjectRenderVideoDecoderPorts = {
 
 function waitForMediaEvent(
   video: HTMLVideoElement,
-  successEvent: 'loadedmetadata' | 'seeked',
+  successEvent: 'loadedmetadata' | 'loadeddata' | 'seeked',
   signal?: AbortSignal,
 ): Promise<void> {
   if (signal?.aborted) return Promise.reject(new DOMException('Video decode was aborted.', 'AbortError'));
